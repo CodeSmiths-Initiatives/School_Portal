@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { MOCK_APPLICATIONS } from "@/features/dashboard/utils/dashboard";
+import { MOCK_APPLICATIONS, MOCK_TRANSFERS } from "@/features/dashboard/utils/dashboard";
 import {
 	Application,
 	TabKey,
 	TransferRequest,
+	TransferRow,
 } from "@/features/dashboard/types/dashboard.types";
 import ApplicationView from "@/features/dashboard/components/ApplicationView";
 import DashboardView from "@/features/dashboard/components/DashboardView";
@@ -20,6 +21,7 @@ export function useDashboard() {
 	const [activeTab, setActiveTab] = useState<TabKey>("dashboard");
 	const [applications, setApplications] =
 		useState<Application[]>(MOCK_APPLICATIONS);
+	const [transfers, setTransfers] = useState<TransferRow[]>(MOCK_TRANSFERS);
 	const [searchQuery, setSearchQuery] = useState("");
 	const [departmentFilter, setDepartmentFilter] = useState("All Departments");
 	const [statusFilter, setStatusFilter] = useState("Pending");
@@ -85,6 +87,7 @@ export function useDashboard() {
 		setActiveTab,
 		applications,
 		filteredApps,
+		transfers,
 		searchQuery,
 		setSearchQuery,
 		departmentFilter,
@@ -132,6 +135,7 @@ export default function page() {
 		setActiveTab,
 		applications,
 		filteredApps,
+		transfers,
 		searchQuery,
 		setSearchQuery,
 		departmentFilter,
@@ -206,7 +210,7 @@ export default function page() {
 					/>
 				)}
 
-				{activeTab === "transfer" && <TransferView transfers={transferModal} />}
+				{activeTab === "transfer" && <TransferView transfers={transfers} />}
 
 				{activeTab === "cutoff" && <CutoffView />}
 

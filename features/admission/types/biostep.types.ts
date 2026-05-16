@@ -1,6 +1,6 @@
 export type BioStep = 1 | 2 | 3 | 4 | 5;
 
-export type SubjectCategory = 'science' | 'arts' | 'social';
+export type SubjectCategory = "science" | "arts" | "social";
 
 export interface BioDataForm {
   // Step 1 – Bio Data
@@ -35,14 +35,14 @@ export interface BioDataForm {
   genotype: string;
   disability: string;
 
-    // Step 3 – O-Level (first sitting)
+  // Step 3 – O-Level (first sitting)
   examType: string;
   examYear: string;
   examNumber: string;
   centreNumber: string;
   subjectCategory: SubjectCategory;
   subjects: OLevelSubject[];
- 
+
   // Step 3 – O-Level (second sitting)
   examType2: string;
   examYear2: string;
@@ -69,7 +69,7 @@ export interface BioDataForm {
   interestedInCisco: string;
 
   // Step 5 – Declaration
-  agreedToDeclaration: boolean; 
+  agreedToDeclaration: boolean;
   agreedToTerms: boolean;
   agreedToAccuracy: boolean;
   declarationDate: string;
@@ -79,6 +79,7 @@ export interface BioDataForm {
 export interface OLevelSubject {
   subject: string;
   grade: string;
+  compulsory?: boolean;
 }
 
 export type BioDataErrors = Partial<Record<keyof BioDataForm | string, string>>;
