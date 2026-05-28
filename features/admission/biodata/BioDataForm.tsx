@@ -195,7 +195,7 @@ export default function BioDataForm() {
         <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
           <CheckCircle size={32} className="text-green-500" />
         </div>
-        <h2 className="font-serif text-2xl font-bold text-[#0d1b3e] mb-2">
+        <h2 className="text-2xl font-bold text-[#0d1b3e] mb-2">
           Application Submitted!
         </h2>
         <p className="text-[#6b7e9f] text-sm leading-relaxed max-w-md mx-auto">

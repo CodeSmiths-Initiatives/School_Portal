@@ -85,7 +85,7 @@ export default function SelectProgramme({
 	} = useProgrammeForm(onNext, onBack);
 
 	return (
-		<div className="bg-white rounded-2xl shadow-sm border border-[#e4eaf4] p-8 w-full max-w-2xl mx-auto">
+		<div className="surface-card mx-auto w-full max-w-2xl p-5 sm:p-6 lg:p-8">
 			{/* Progress bar */}
 			<div className="mb-6">
 				<div className="w-full h-2 rounded-full overflow-hidden bg-[#e4eaf4]">

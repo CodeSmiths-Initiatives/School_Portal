@@ -12,8 +12,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-roboto);
+  --font-mono: var(--font-roboto);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -31,9 +31,11 @@ body {
 
 @theme inline {
 
-    --font-heading: var(--font-sans);
+    --font-heading: var(--font-roboto);
 
-    --font-sans: var(--font-sans);
+    --font-sans: var(--font-roboto);
+
+    --font-mono: var(--font-roboto);
 
     --color-sidebar-ring: var(--sidebar-ring);
 
@@ -249,7 +251,7 @@ body {
     @apply border-border outline-ring/50;
     }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
     }
   html {
     @apply font-sans;
@@ -257,4 +259,70 @@ body {
 }
 .inputClass{
   @apply w-full border border-[#2E86C1] bg-[#2E86C1]/20 rounded-lg px-4 py-3 text-sm text-[#1a2a4a] placeholder-[#808B96] focus:outline-none focus:ring-2 focus:ring-[#4a6fa5] focus:border-transparent transition;
+}
+
+.inputError {
+  @apply border-red-300 bg-red-50/60 text-red-950 focus:ring-red-200 focus:border-red-400;
+}
+
+.field-feedback-enter {
+  animation: field-feedback-enter 160ms ease-out both;
+}
+
+@keyframes field-feedback-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .field-feedback-enter {
+    animation: none;
+  }
+}
+
+.app-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #b7c4d8 transparent;
+}
+
+.app-scrollbar::-webkit-scrollbar {
+  width: 10px;
+}
+
+.app-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.app-scrollbar::-webkit-scrollbar-thumb {
+  background: #b7c4d8;
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+}
+
+.app-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #8fa1bd;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+.surface-card {
+  @apply w-full rounded-2xl border border-[#e4eaf4] bg-white shadow-sm;
+}
+
+.auth-surface-card {
+  @apply w-full rounded-2xl border border-[#dce6f2] bg-white shadow-xl shadow-[#b8cce4]/25;
+}
+
+.focus-stage {
+  @apply bg-white;
+  background-image:
+    radial-gradient(circle at top right, rgba(13, 43, 85, 0.04), transparent 32%),
+    linear-gradient(180deg, rgba(247, 250, 255, 0.95), rgba(255, 255, 255, 1));
 }

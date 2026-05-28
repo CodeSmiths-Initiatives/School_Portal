@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 // import { REGISTRATION_STEPS } from "@/features/auth";
 export const REGISTRATION_STEPS: RegistrationStep[] = [
 	{ id: 1, label: "Create Account", description: "STEP #1" },
@@ -18,85 +20,122 @@ interface RegistrationSidebarProps {
 	currentStep: number;
 }
 
-export default function RegistrationSidebar({
+function RegistrationStepsList({
 	currentStep,
-}: RegistrationSidebarProps) {
+	compact = false,
+}: RegistrationSidebarProps & { compact?: boolean }) {
 	return (
-		<aside className="w-72 shrink-0 bg-[#0D2B55] min-h-[calc(100vh-88px)] flex flex-col px-8 py-10">
+		<div className={`flex ${compact ? "gap-3 overflow-x-auto pb-1" : "flex-col gap-0"}`}>
+			{REGISTRATION_STEPS.map((step, index) => {
+				const isActive = step.id === currentStep;
+				const isCompleted = step.id < currentStep;
+
+				return (
+					<div
+						key={step.id}
+						className={
+							compact
+								? "min-w-[10.5rem] rounded-xl border border-[#d8e2f0] bg-white px-3 py-3"
+								: "flex items-stretch gap-4"
+						}
+					>
+						<div className={compact ? "flex items-center gap-3" : "flex flex-col items-center"}>
+							<div
+								className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold z-10
+                    ${
+											isActive
+												? "bg-[#B7770D] text-black"
+												: isCompleted
+													? "bg-[#B7770D]/40 text-[#B7770D]"
+													: compact
+														? "border border-[#c8d8ec] bg-[#f6f9fd] text-[#4a5a7a]"
+														: "bg-transparent border-2 border-[#F2F3F4] text-[#F2F3F4]"
+										}`}
+							>
+								{step.id}
+							</div>
+							{!compact && index < REGISTRATION_STEPS.length - 1 && (
+								<div className="my-1 w-px flex-1 bg-[#2a3a5a]" />
+							)}
+						</div>
+
+						<div className={compact ? "min-w-0" : "pb-6"}>
+							<p
+								className={`text-[10px] font-semibold uppercase tracking-widest ${compact ? "text-[#8a9ab5]" : "text-[#808B96]"}`}
+							>
+								{step.description}
+							</p>
+							<p
+								className={`mt-0.5 text-sm font-semibold ${
+									isActive
+										? compact
+											? "text-[#0d1b3e]"
+											: "text-[#F2F3F4]"
+										: compact
+											? "text-[#4a5a7a]"
+											: "text-gray-300"
+								}`}
+							>
+								{step.label}
+							</p>
+						</div>
+					</div>
+				);
+			})}
+		</div>
+	);
+}
+
+export function MobileRegistrationSteps({ currentStep }: RegistrationSidebarProps) {
+	return (
+		<div className="lg:hidden">
+			<div className="mb-3">
+				<span className="rounded-full border border-[#B7770D] bg-[#B7770D]/10 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-[#B7770D]">
+					Admission Open 2025
+				</span>
+			</div>
+			<RegistrationStepsList currentStep={currentStep} compact />
+		</div>
+	);
+}
+
+export default function RegistrationSidebar({ currentStep }: RegistrationSidebarProps) {
+	return (
+		<aside className="app-scrollbar hidden h-full overflow-y-auto bg-[#0D2B55] px-7 py-8 lg:flex lg:flex-col xl:px-8 xl:py-10">
 			{/* Badge */}
-			<div className="mb-8">
+			<div className="mb-7">
 				<span className="bg-[#B7770D]/20 border border-[#B7770D] text-[#B7770D] text-[10px] font-bold tracking-widest uppercase px-3 py-3 rounded-full">
 					Admission Open 2025
 				</span>
 			</div>
 
 			{/* Headline */}
-			<div className="mb-10">
-				<h2 className="text-white text-4xl font-extrabold leading-tight">
+			<div className="mb-8 max-w-xs">
+				<h2 className="text-white text-3xl font-extrabold leading-tight xl:text-4xl">
 					Begin Your <span className="text-[#B7770D]">Academic</span> Journey.
 				</h2>
-				<p className="text-[#808B96] text-xs mt-4 leading-snug">
+				<p className="mt-4 text-xs leading-snug text-[#808B96]">
 					Create your applicant account and complete your registration in
 					minutes.
 				</p>
 			</div>
 
 			{/* Steps */}
-			<div className="flex flex-col gap-0">
-				{REGISTRATION_STEPS.map((step, index) => {
-					const isActive = step.id === currentStep;
-					const isCompleted = step.id < currentStep;
-
-					return (
-						<div key={step.id} className="flex items-stretch gap-4">
-							{/* Left column: circle + connector */}
-							<div className="flex flex-col items-center">
-								<div
-									className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 z-10
-                    ${
-											isActive
-												? "bg-[#B7770D] text-black"
-												: isCompleted
-													? "bg-[#B7770D]/40 text-[#B7770D]"
-													: "bg-transparent border-2 border-[#F2F3F4] text-[#F2F3F4]"
-										}`}
-								>
-									{step.id}
-								</div>
-								{index < REGISTRATION_STEPS.length - 1 && (
-									<div className="w-px flex-1 bg-[#2a3a5a] my-1" />
-								)}
-							</div>
-
-							{/* Right column: label */}
-							<div className="pb-6">
-								<p
-									className={`text-[10px] font-semibold tracking-widest uppercase ${isActive ? "text-[#808B96]" : "text-[#808B96]"}`}
-								>
-									{step.description}
-								</p>
-								<p
-									className={`text-sm font-semibold mt-0.5 ${isActive ? "text-[#F2F3F4]" : "text-gray-300"}`}
-								>
-									{step.label}
-								</p>
-							</div>
-						</div>
-					);
-				})}
+			<div className="max-w-xs">
+				<RegistrationStepsList currentStep={currentStep} />
 			</div>
-			<div className="mt-12 flex flex-col gap-2 text-xs text-[#808B96]">
+			<div className="mt-auto pt-10 flex flex-col gap-2 text-xs text-[#808B96]">
 				<p>
 					Already have an account?{" "}
-					<a href="#" className="text-[#B7770D] font-semibold hover:underline">
+					<Link href="/signin" className="text-[#B7770D] font-semibold hover:underline">
 						Sign in here
-					</a>
+					</Link>
 				</p>
 				<p>
 					Need help?{" "}
-					<a href="#" className="text-[#B7770D] font-semibold hover:underline">
+					<Link href="#" className="text-[#B7770D] font-semibold hover:underline">
 						Contact Admissions Office
-					</a>
+					</Link>
 				</p>
 			</div>
 		</aside>

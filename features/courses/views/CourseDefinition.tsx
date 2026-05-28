@@ -113,7 +113,6 @@ export default function CourseDefinition({
 						</p>
 						<p
 							className="text-5xl font-light text-[#1a2b52]"
-							style={{ fontFamily: "Georgia, serif" }}
 						>
 							{c.value}
 						</p>

@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import RegistrationHeader from "@/features/admission/components/RegistrationHeader";
-import RegistrationSidebar from "@/features/admission/components/RegistrationSidebar";
+import RegistrationSidebar, {
+	MobileRegistrationSteps,
+} from "@/features/admission/components/RegistrationSidebar";
 import CreateAccount, {
 	CreateAccountFormData,
 } from "@/features/admission/components/CreateAccount";
@@ -12,71 +14,77 @@ import { FcApproval } from "react-icons/fc";
 
 export default function Home() {
 	const [currentStep, setCurrentStep] = useState(1);
-	const [formData, setFormData] = useState<Partial<CreateAccountFormData>>({});
 
 	const handleAccountCreated = (data: CreateAccountFormData) => {
-		setFormData(data);
 		setCurrentStep(2);
-		// Navigate to next step — extend with router.push(`/modules/admission/programme`) in a full app
+		// Navigate to next step â€” extend with router.push(`/modules/admission/programme`) in a full app
 		console.log("Step 1 complete:", data);
 	};
 
 	return (
-		<div className="min-h-screen bg-[#f0f4fb] flex flex-col">
+		<div className="flex h-dvh flex-col overflow-hidden bg-[#f0f4fb]">
 			<RegistrationHeader />
 
-			<div className="flex flex-1">
+			<div className="min-h-0 flex-1 lg:grid lg:grid-cols-[20rem_minmax(0,1fr)] xl:grid-cols-[22rem_minmax(0,1fr)]">
 				<RegistrationSidebar currentStep={currentStep} />
 
-				{/* Main content area */}
-				<main className="flex-1 flex items-start justify-center px-10 py-12">
-					{currentStep === 1 && <CreateAccount onNext={handleAccountCreated} />}
+				<main
+					className={`app-scrollbar flex-1 min-w-0 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-8 xl:px-10 xl:py-12 ${
+						currentStep === 1 ? "focus-stage" : ""
+					}`}
+				>
+					<div className="mx-auto flex w-full max-w-4xl flex-col gap-5 lg:min-h-full lg:justify-center">
+						<MobileRegistrationSteps currentStep={currentStep} />
 
-					{currentStep === 2 && (
-						<SelectProgramme
-							onNext={() => setCurrentStep(3)}
-							onBack={() => setCurrentStep(1)}
-						/>
-					)}
-					{currentStep === 3 && (
-						<Payment
-							onNext={() => setCurrentStep(4)}
-							onBack={() => setCurrentStep(2)}
-						/>
-					)}
+						<div className="mx-auto flex w-full items-start justify-center">
+							{currentStep === 1 && (
+								<CreateAccount onNext={handleAccountCreated} />
+							)}
 
-					{currentStep === 4 && (
-						<div className="bg-white rounded-2xl shadow-sm border border-[#e4eaf4] p-8 w-full max-w-2xl text-center">
-							<div className="mb-4">
-								<div className="h-2 w-full bg-[#e4eaf4] rounded-full overflow-hidden">
-									<div className="h-full w-4/4 bg-[#c9922a] rounded-full" />
+							{currentStep === 2 && (
+								<SelectProgramme
+									onNext={() => setCurrentStep(3)}
+									onBack={() => setCurrentStep(1)}
+								/>
+							)}
+
+							{currentStep === 3 && (
+								<Payment
+									onNext={() => setCurrentStep(4)}
+									onBack={() => setCurrentStep(2)}
+								/>
+							)}
+
+							{currentStep === 4 && (
+								<div className="surface-card w-full max-w-2xl p-5 text-center sm:p-6 lg:p-8">
+									<div className="mb-4">
+										<div className="h-2 w-full overflow-hidden rounded-full bg-[#e4eaf4]">
+											<div className="h-full w-full rounded-full bg-[#c9922a]" />
+										</div>
+									</div>
+									<p className="mb-2 text-xs font-bold uppercase tracking-widest text-[#c9922a]">
+										Step 4 of 4
+									</p>
+									<h3 className="mb-4 text-xl font-extrabold italic text-[#0d1b3e] sm:text-2xl">
+										Payment Successful
+									</h3>
+									<p className="mb-6 text-sm font-medium text-[#4a6fa5]">
+										<span className="mb-2 flex items-center justify-center gap-2 text-5xl font-bold text-green-600">
+											<FcApproval />
+										</span>
+										Your application has been submitted successfully! We will review
+										your application and contact you via email with the next steps.
+									</p>
+									<button
+										onClick={() => setCurrentStep(2)}
+										className="mt-2 text-xs font-semibold text-[#4a6fa5] transition hover:text-[#c9922a]"
+									>
+										â† Back to Select Programme
+									</button>
 								</div>
-							</div>
-							<p className="text-[#c9922a] text-xs font-bold tracking-widest uppercase mb-2">
-								Step 4 of 4
-							</p>
-							<h3 className="text-[#0d1b3e] text-2xl font-extrabold italic mb-4">
-								Payment Successful
-							</h3>
-							<p className="text-[#4a6fa5] text-sm font-medium mb-6">
-								<span className="flex items-center justify-center gap-2 text-5xl text-green-600 font-bold mb-2">
-									<FcApproval />
-								</span>
-								Your application has been submitted successfully! We will review
-								your application and contact you via email with the next steps.
-							</p>
-
-							<button
-								onClick={() => setCurrentStep(2)}
-								className="mt-6 text-xs text-[#4a6fa5] hover:text-[#c9922a] font-semibold transition"
-							>
-								← Back to Select Programme
-							</button>
-							{/* <button className="mt-6 text-xs text-[#4a6fa5] hover:text-[#c9922a] font-semibold transition">
-								Go to Dashboard
-							</button> */}
+							)}
 						</div>
-					)}
+					</div>
 				</main>
 			</div>
 		</div>

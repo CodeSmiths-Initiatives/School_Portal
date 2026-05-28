@@ -20,7 +20,7 @@ export default function ProgrammeCard({
 		<button
 			type="button"
 			onClick={() => onSelect(programme.id)}
-			className={`w-full flex items-center gap-4 px-5 py-4 rounded-xl border-2 text-left transition-all duration-200
+			className={`flex w-full items-start gap-3 rounded-xl border-2 px-4 py-4 text-left transition-all duration-200 sm:items-center sm:gap-4 sm:px-5
         ${
 					isSelected
 						? "border-[#3d5a9e] bg-white shadow-md shadow-[#3d5a9e]/10"
@@ -48,7 +48,7 @@ export default function ProgrammeCard({
 			{/* Text */}
 			<div>
 				<p
-					className={`text-sm font-semibold leading-tight ${
+					className={`text-sm font-semibold leading-tight sm:text-[15px] ${
 						isSelected ? "text-[#0d1b3e]" : "text-[#2d3f6b]"
 					}`}
 				>
