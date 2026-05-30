@@ -116,7 +116,7 @@ export default function SignInForm({
 			{audience === "student" ? (
 				<p className="text-center text-xs text-[#6f7f98]">
 					Need a new account?{" "}
-					<Link href="/" className="font-bold text-[#B7770D] hover:underline">
+					<Link href="/apply" className="font-bold text-[#B7770D] hover:underline">
 						Continue admission
 					</Link>
 				</p>

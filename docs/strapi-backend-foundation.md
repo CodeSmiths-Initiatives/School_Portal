@@ -65,6 +65,16 @@ Start local PostgreSQL from `backend/`:
 docker compose up -d
 ```
 
+If using an already installed local PostgreSQL service, point `backend/.env` at
+that database instead. In this workspace we are currently running against:
+
+```text
+DATABASE_HOST=127.0.0.1
+DATABASE_NAME=skillzncert
+DATABASE_USERNAME=strapi_user
+DATABASE_SSL=false
+```
+
 Strapi Cloud / managed Postgres should use injected Cloud database variables or:
 
 ```text
@@ -76,6 +86,12 @@ DATABASE_SSL_REJECT_UNAUTHORIZED=false
 
 The backend includes its own `postcss.config.mjs` so the Strapi admin build does
 not load the frontend Tailwind PostCSS config from the monorepo root.
+
+Frontend API integration details live in:
+
+```text
+docs/strapi-api-integration-layer.md
+```
 
 Required secrets:
 
@@ -89,6 +105,31 @@ ENCRYPTION_KEY
 ```
 
 Do not commit real secrets. Use `backend/.env.example` as the template.
+
+## Default Seed Data
+
+The backend runs an idempotent bootstrap seed on startup unless disabled with:
+
+```text
+STRAPI_SEED_DEFAULT_DATA=false
+```
+
+The seed creates the Phase 2B foundation data:
+
+```text
+2 colleges
+2 faculties
+4 departments
+5 starter courses
+62 permission keys
+15 menu items
+8 portal roles
+```
+
+This includes different college-specific staff roles for each college, plus
+system roles for platform superadmin and college admin. The seed upserts by
+stable keys such as `code` and `key`, so restarting Strapi will not duplicate
+the data.
 
 ## Foundation Content Types
 

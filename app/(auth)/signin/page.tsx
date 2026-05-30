@@ -29,7 +29,7 @@ export default function SignInPage() {
 			footer={
 				<>
 					New here?{" "}
-					<Link href="/" className="font-bold text-[#B7770D] hover:underline">
+					<Link href="/apply" className="font-bold text-[#B7770D] hover:underline">
 						Continue admission
 					</Link>
 				</>
