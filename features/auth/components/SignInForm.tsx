@@ -1,6 +1,7 @@
 "use client";
 
 import {
+	COLLEGE_ROLE_LABELS,
 	resolveDashboardDestination,
 	STAFF_ROLE_LABELS,
 	type StaffRole,
@@ -60,6 +61,10 @@ export default function SignInForm({
 		setSuccess(
 			destination.domain === "superadmin"
 				? "Superadmin credentials validated. Redirecting to the executive dashboard..."
+				: destination.domain === "admin"
+					? `College admin credentials validated for ${
+							COLLEGE_ROLE_LABELS.admin
+						}. Redirecting to the college admin workspace...`
 				: destination.domain === "staff"
 					? `Staff credentials validated for ${
 							STAFF_ROLE_LABELS[destination.role as StaffRole]

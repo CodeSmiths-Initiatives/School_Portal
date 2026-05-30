@@ -1,0 +1,42 @@
+{
+  "kind": "collectionType",
+  "collectionName": "audit_logs",
+  "info": {
+    "singularName": "audit-log",
+    "pluralName": "audit-logs",
+    "displayName": "Audit Log",
+    "description": "Append-only operational audit trail for sensitive actions."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "action": {
+      "type": "string",
+      "required": true
+    },
+    "entityType": {
+      "type": "string"
+    },
+    "entityId": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "text"
+    },
+    "metadata": {
+      "type": "json"
+    },
+    "actor": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "college": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::college.college"
+    }
+  }
+}
+

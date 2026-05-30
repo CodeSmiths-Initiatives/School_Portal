@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+**/node_modules
 /.pnp
 .pnp.*
 .yarn/*
@@ -30,9 +31,22 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 dev-server.log
+dev-server-error.log
+backend-dev.log
+backend-dev-error.log
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+!**/.env.example
+
+# strapi local data
+backend/.tmp/
+backend/.strapi/
+backend/.strapi-updater.json
+backend/dist/
+backend/build/
+backend/types/generated/
 
 # vercel
 .vercel

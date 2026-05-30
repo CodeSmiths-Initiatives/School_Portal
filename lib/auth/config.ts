@@ -37,7 +37,7 @@ export const DASHBOARD_ROUTE_BLUEPRINTS: Record<
 	admin: {
 		domain: "admin",
 		scope: "college",
-		currentPath: "/staff/dashboard",
+		currentPath: "/college/demo-college/admin/dashboard",
 		routeTemplate: "/college/[collegeSlug]/admin/dashboard",
 		requiresCollegeSlug: true,
 		label: "College Admin Dashboard",
@@ -195,13 +195,26 @@ export function resolveDashboardDestination(
 	if (
 		normalized.includes("principal") ||
 		normalized.includes("superadmin") ||
-		normalized === "admin" ||
 		normalized.includes("platformadmin")
 	) {
 		return {
 			...DASHBOARD_ROUTE_BLUEPRINTS.superadmin,
 			role: "superadmin",
 			path: DASHBOARD_ROUTE_BLUEPRINTS.superadmin.currentPath,
+		};
+	}
+
+	if (
+		normalized === "admin" ||
+		normalized.includes("collegeadmin") ||
+		normalized.includes("campusadmin")
+	) {
+		return {
+			...DASHBOARD_ROUTE_BLUEPRINTS.admin,
+			role: "admin",
+			path: DASHBOARD_ROUTE_BLUEPRINTS.admin.currentPath,
+			description:
+				"College admin accounts are college-scoped. In Phase 2 the UI route is prepared, while full tenant-aware auth wiring lands in the next phase.",
 		};
 	}
 

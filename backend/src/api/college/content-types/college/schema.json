@@ -1,0 +1,66 @@
+{
+  "kind": "collectionType",
+  "collectionName": "colleges",
+  "info": {
+    "singularName": "college",
+    "pluralName": "colleges",
+    "displayName": "College",
+    "description": "Tenant boundary for every college/institution on the platform."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "slug": {
+      "type": "uid",
+      "targetField": "name",
+      "required": true
+    },
+    "code": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": ["active", "inactive", "archived"],
+      "default": "active",
+      "required": true
+    },
+    "contactEmail": {
+      "type": "email"
+    },
+    "metadata": {
+      "type": "json"
+    },
+    "faculties": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::faculty.faculty",
+      "mappedBy": "college"
+    },
+    "departments": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::department.department",
+      "mappedBy": "college"
+    },
+    "courses": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::course.course",
+      "mappedBy": "college"
+    },
+    "roles": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::portal-role.portal-role",
+      "mappedBy": "college"
+    }
+  }
+}
+

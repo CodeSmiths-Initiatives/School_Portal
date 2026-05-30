@@ -1,0 +1,67 @@
+{
+  "kind": "collectionType",
+  "collectionName": "role_assignments",
+  "info": {
+    "singularName": "role-assignment",
+    "pluralName": "role-assignments",
+    "displayName": "Role Assignment",
+    "description": "Where a user's role applies: college, faculty, department, course, or self."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "scopeType": {
+      "type": "enumeration",
+      "enum": ["platform", "college", "faculty", "department", "course", "self"],
+      "required": true
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": ["active", "inactive", "expired"],
+      "default": "active"
+    },
+    "startsAt": {
+      "type": "datetime"
+    },
+    "endsAt": {
+      "type": "datetime"
+    },
+    "isPrimary": {
+      "type": "boolean",
+      "default": false
+    },
+    "user": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "role": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::portal-role.portal-role",
+      "inversedBy": "assignments"
+    },
+    "college": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::college.college"
+    },
+    "faculty": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::faculty.faculty"
+    },
+    "department": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::department.department"
+    },
+    "course": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::course.course"
+    }
+  }
+}
+

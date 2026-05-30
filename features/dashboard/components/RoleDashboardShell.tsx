@@ -12,48 +12,62 @@ import {
 	FolderKanban,
 	GraduationCap,
 	LayoutDashboard,
+	Network,
+	Settings,
 	ShieldCheck,
 	Users,
 } from "lucide-react";
 import Link from "next/link";
 import type { UserDomain } from "@/lib/auth";
+import {
+	getDefaultPermissionsForDomain,
+	getVisibleDashboardMenus,
+	type UserPermissionKey,
+} from "@/lib/rbac";
 
-type Stat = {
+export type DashboardStat = {
 	label: string;
 	value: string;
 	change: string;
 };
 
-type Highlight = {
+export type DashboardHighlight = {
 	title: string;
 	description: string;
 	meta: string;
 };
 
-type Activity = {
+export type DashboardActivity = {
 	label: string;
 	value: string;
 	note: string;
 };
 
-type QuickLink = {
+export type DashboardQuickLink = {
 	label: string;
 	href: string;
 	description: string;
 };
 
-type ReportPoint = {
+export type DashboardReportPoint = {
 	label: string;
 	value: number;
 	amount: string;
 };
 
-type ReportPanel = {
+export type DashboardReportPanel = {
 	badge: string;
 	title: string;
 	description: string;
 	summary: string;
-	points: ReportPoint[];
+	variant?: "bar" | "line";
+	points: DashboardReportPoint[];
+};
+
+export type DashboardTenantContext = {
+	label: string;
+	name: string;
+	description: string;
 };
 
 type RoleDashboardShellProps = {
@@ -62,18 +76,15 @@ type RoleDashboardShellProps = {
 	subtitle: string;
 	domain: UserDomain;
 	roleLabel: string;
-	stats: Stat[];
-	highlights: Highlight[];
-	activity: Activity[];
-	quickLinks: QuickLink[];
-	reportPanel?: ReportPanel;
+	tenantSlug?: string;
+	permissions?: UserPermissionKey[];
+	stats: DashboardStat[];
+	highlights: DashboardHighlight[];
+	activity: DashboardActivity[];
+	quickLinks: DashboardQuickLink[];
+	reportPanel?: DashboardReportPanel;
+	tenantContext?: DashboardTenantContext;
 	children?: React.ReactNode;
-};
-
-type NavItem = {
-	label: string;
-	href: string;
-	icon: typeof LayoutDashboard;
 };
 
 const DOMAIN_ICON = {
@@ -83,35 +94,20 @@ const DOMAIN_ICON = {
 	superadmin: ShieldCheck,
 } satisfies Record<UserDomain, typeof GraduationCap>;
 
-const NAV_ITEMS: Record<UserDomain, NavItem[]> = {
-	student: [
-		{ label: "Overview", href: "/student/dashboard", icon: LayoutDashboard },
-		{ label: "Application", href: "/", icon: FolderKanban },
-		{ label: "Payments", href: "/", icon: CircleDollarSign },
-		{ label: "Notices", href: "/student/dashboard", icon: Bell },
-		{ label: "Profile", href: "/", icon: Users },
-	],
-	staff: [
-		{ label: "Overview", href: "/staff/dashboard", icon: LayoutDashboard },
-		{ label: "Work Queue", href: "/staff/dashboard", icon: FolderKanban },
-		{ label: "Approvals", href: "/staff/dashboard", icon: BadgeCheck },
-		{ label: "Reports", href: "/staff/dashboard", icon: FileBarChart2 },
-		{ label: "Tools", href: "/staff/dashboard", icon: BookOpen },
-	],
-	admin: [
-		{ label: "Overview", href: "/staff/dashboard", icon: LayoutDashboard },
-		{ label: "Students", href: "/staff/dashboard", icon: Users },
-		{ label: "Staff", href: "/staff/dashboard", icon: Building2 },
-		{ label: "Payments", href: "/staff/dashboard", icon: CircleDollarSign },
-		{ label: "Notices", href: "/staff/dashboard", icon: Bell },
-	],
-	superadmin: [
-		{ label: "Overview", href: "/admin/dashboard", icon: LayoutDashboard },
-		{ label: "Reports", href: "/admin/dashboard", icon: BarChart3 },
-		{ label: "Staff", href: "/admin/dashboard", icon: Users },
-		{ label: "Roles", href: "/admin/dashboard", icon: ShieldCheck },
-		{ label: "Audit", href: "/admin/dashboard", icon: FileBarChart2 },
-	],
+const MENU_ICON_MAP = {
+	BadgeCheck,
+	BarChart3,
+	Bell,
+	BookOpen,
+	Building2,
+	CircleDollarSign,
+	FileBarChart2,
+	FolderKanban,
+	LayoutDashboard,
+	Network,
+	Settings,
+	ShieldCheck,
+	Users,
 };
 
 const STAT_ICONS = [LayoutDashboard, BookOpen, CircleDollarSign, Users];
@@ -123,15 +119,22 @@ export default function RoleDashboardShell({
 	subtitle,
 	domain,
 	roleLabel,
+	tenantSlug,
+	permissions,
 	stats,
 	highlights,
 	activity,
 	quickLinks,
 	reportPanel,
+	tenantContext,
 	children,
 }: RoleDashboardShellProps) {
 	const DomainIcon = DOMAIN_ICON[domain];
-	const navItems = NAV_ITEMS[domain];
+	const navItems = getVisibleDashboardMenus({
+		domain,
+		collegeSlug: tenantSlug,
+		permissions: permissions ?? getDefaultPermissionsForDomain(domain),
+	});
 
 	return (
 		<div className="min-h-dvh bg-[#eef3fb] lg:flex lg:h-dvh lg:flex-col lg:overflow-hidden">
@@ -187,11 +190,26 @@ export default function RoleDashboardShell({
 								This shared workspace keeps the same visual system while exposing
 								the right tools for each role.
 							</p>
+							{tenantContext ? (
+								<div className="mt-4 rounded-xl border border-white/10 bg-[#173764] px-3.5 py-3">
+									<p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#BFD0E6]">
+										{tenantContext.label}
+									</p>
+									<p className="mt-2 text-sm font-semibold text-white">
+										{tenantContext.name}
+									</p>
+									<p className="mt-1 text-xs leading-relaxed text-[#9db0cb]">
+										{tenantContext.description}
+									</p>
+								</div>
+							) : null}
 						</div>
 
 						<nav className="mt-6 space-y-2">
 							{navItems.map((item, index) => {
-								const Icon = item.icon;
+								const Icon =
+									MENU_ICON_MAP[item.icon as keyof typeof MENU_ICON_MAP] ??
+									LayoutDashboard;
 
 								return (
 									<Link
@@ -265,26 +283,110 @@ export default function RoleDashboardShell({
 
 							<div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_16rem]">
 								<div className="rounded-2xl border border-[#e2eaf4] bg-[linear-gradient(180deg,#fbfdff_0%,#f5f9fe_100%)] p-4">
-									<div className="flex h-52 items-end gap-3">
-										{reportPanel.points.map((point) => (
-											<div key={point.label} className="flex min-w-0 flex-1 flex-col items-center gap-3">
-												<div className="flex h-40 w-full items-end">
-													<div
-														className="w-full rounded-t-2xl bg-[linear-gradient(180deg,#2E86C1_0%,#0D2B55_100%)] shadow-[0_12px_24px_rgba(46,134,193,0.18)]"
-														style={{ height: `${point.value}%` }}
+									{reportPanel.variant === "line" ? (
+										<div className="h-52">
+											<div className="relative h-40 overflow-hidden rounded-2xl border border-[#e2eaf4] bg-white">
+												<div className="absolute inset-x-0 top-1/4 border-t border-dashed border-[#dbe5f1]" />
+												<div className="absolute inset-x-0 top-1/2 border-t border-dashed border-[#dbe5f1]" />
+												<div className="absolute inset-x-0 top-3/4 border-t border-dashed border-[#dbe5f1]" />
+												<svg
+													viewBox="0 0 300 140"
+													className="absolute inset-0 h-full w-full"
+													role="img"
+													aria-label={`${reportPanel.title} line chart`}
+													preserveAspectRatio="none"
+												>
+													<defs>
+														<linearGradient id="tenant-line-fill" x1="0" x2="0" y1="0" y2="1">
+															<stop offset="0%" stopColor="#2E86C1" stopOpacity="0.22" />
+															<stop offset="100%" stopColor="#2E86C1" stopOpacity="0.02" />
+														</linearGradient>
+													</defs>
+													<polygon
+														points={`0,140 ${reportPanel.points
+															.map((point, index) => {
+																const x =
+																	reportPanel.points.length === 1
+																		? 150
+																		: (index / (reportPanel.points.length - 1)) * 300;
+																const y = 140 - (Math.min(point.value, 100) / 100) * 112;
+																return `${x},${y}`;
+															})
+															.join(" ")} 300,140`}
+														fill="url(#tenant-line-fill)"
 													/>
-												</div>
-												<div className="text-center">
-													<p className="text-sm font-semibold text-[#17305f]">
-														{point.amount}
-													</p>
-													<p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7d90aa]">
-														{point.label}
-													</p>
-												</div>
+													<polyline
+														points={reportPanel.points
+															.map((point, index) => {
+																const x =
+																	reportPanel.points.length === 1
+																		? 150
+																		: (index / (reportPanel.points.length - 1)) * 300;
+																const y = 140 - (Math.min(point.value, 100) / 100) * 112;
+																return `${x},${y}`;
+															})
+															.join(" ")}
+														fill="none"
+														stroke="#0D2B55"
+														strokeWidth="4"
+														strokeLinecap="round"
+														strokeLinejoin="round"
+													/>
+													{reportPanel.points.map((point, index) => {
+														const x =
+															reportPanel.points.length === 1
+																? 150
+																: (index / (reportPanel.points.length - 1)) * 300;
+														const y = 140 - (Math.min(point.value, 100) / 100) * 112;
+														return (
+															<circle
+																key={point.label}
+																cx={x}
+																cy={y}
+																r="5"
+																fill="#B7770D"
+																stroke="white"
+																strokeWidth="3"
+															/>
+														);
+													})}
+												</svg>
 											</div>
-										))}
-									</div>
+											<div className="mt-3 grid grid-cols-4 gap-2">
+												{reportPanel.points.map((point) => (
+													<div key={point.label} className="text-center">
+														<p className="text-sm font-semibold text-[#17305f]">
+															{point.amount}
+														</p>
+														<p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7d90aa]">
+															{point.label}
+														</p>
+													</div>
+												))}
+											</div>
+										</div>
+									) : (
+										<div className="flex h-52 items-end gap-3">
+											{reportPanel.points.map((point) => (
+												<div key={point.label} className="flex min-w-0 flex-1 flex-col items-center gap-3">
+													<div className="flex h-40 w-full items-end">
+														<div
+															className="w-full rounded-t-2xl bg-[linear-gradient(180deg,#2E86C1_0%,#0D2B55_100%)] shadow-[0_12px_24px_rgba(46,134,193,0.18)]"
+															style={{ height: `${point.value}%` }}
+														/>
+													</div>
+													<div className="text-center">
+														<p className="text-sm font-semibold text-[#17305f]">
+															{point.amount}
+														</p>
+														<p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7d90aa]">
+															{point.label}
+														</p>
+													</div>
+												</div>
+											))}
+										</div>
+									)}
 								</div>
 
 								<div className="space-y-3">

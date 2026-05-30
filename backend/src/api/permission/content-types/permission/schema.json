@@ -1,0 +1,48 @@
+{
+  "kind": "collectionType",
+  "collectionName": "permissions",
+  "info": {
+    "singularName": "permission",
+    "pluralName": "permissions",
+    "displayName": "Permission",
+    "description": "Permission key in module.action format."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "key": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "module": {
+      "type": "string",
+      "required": true
+    },
+    "action": {
+      "type": "string",
+      "required": true
+    },
+    "label": {
+      "type": "string",
+      "required": true
+    },
+    "description": {
+      "type": "text"
+    },
+    "roles": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::portal-role.portal-role",
+      "mappedBy": "permissions"
+    },
+    "menuItems": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::menu-item.menu-item",
+      "mappedBy": "requiredPermissions"
+    }
+  }
+}
+

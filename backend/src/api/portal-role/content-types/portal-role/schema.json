@@ -1,0 +1,64 @@
+{
+  "kind": "collectionType",
+  "collectionName": "portal_roles",
+  "info": {
+    "singularName": "portal-role",
+    "pluralName": "portal-roles",
+    "displayName": "Portal Role",
+    "description": "Dynamic role whose permissions are scoped by tenant assignments."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "code": {
+      "type": "uid",
+      "targetField": "name",
+      "required": true
+    },
+    "description": {
+      "type": "text"
+    },
+    "roleType": {
+      "type": "enumeration",
+      "enum": ["system", "custom"],
+      "default": "custom",
+      "required": true
+    },
+    "tenantScope": {
+      "type": "enumeration",
+      "enum": ["platform", "college"],
+      "default": "college",
+      "required": true
+    },
+    "scopeType": {
+      "type": "enumeration",
+      "enum": ["platform", "college", "faculty", "department", "course", "self"],
+      "default": "college",
+      "required": true
+    },
+    "college": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::college.college",
+      "inversedBy": "roles"
+    },
+    "permissions": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::permission.permission",
+      "inversedBy": "roles"
+    },
+    "assignments": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::role-assignment.role-assignment",
+      "mappedBy": "role"
+    }
+  }
+}
+
