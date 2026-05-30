@@ -1,6 +1,6 @@
 "use client";
 
-import { Application } from "../types/dashboard.types";
+import type { Application } from "../types/dashboard.types";
 import {
 	COLOR_MAP,
 	DEPARTMENT_BREAKDOWN,
@@ -8,16 +8,17 @@ import {
 } from "../utils/dashboard";
 
 function StatCard({ label, value, sublabel, color }: (typeof STAT_CARDS)[0]) {
-	const c = COLOR_MAP[color];
+	const palette = COLOR_MAP[color];
+
 	return (
 		<div
-			className={`bg-white rounded-xl border-t-4 ${c.border} shadow-sm p-5 flex flex-col gap-2 min-w-0`}
+			className={`min-w-0 rounded-xl border-t-4 ${palette.border} bg-white p-5 shadow-sm`}
 		>
-			<p className="text-[10px] font-bold tracking-widest text-[#8a9ab5] uppercase">
+			<p className="text-[10px] font-bold uppercase tracking-widest text-[#8a9ab5]">
 				{label}
 			</p>
-			<p className={`text-4xl font-light ${c.value}`}>{value}</p>
-			<p className="text-xs text-[#8a9ab5]">{sublabel}</p>
+			<p className={`mt-2 text-4xl font-light ${palette.value}`}>{value}</p>
+			<p className="mt-2 text-xs text-[#8a9ab5]">{sublabel}</p>
 		</div>
 	);
 }
@@ -27,56 +28,55 @@ export default function DashboardView({
 }: {
 	applications: Application[];
 }) {
-	const maxDept = Math.max(...DEPARTMENT_BREAKDOWN.map((d) => d.count), 1);
+	const maxDepartmentCount = Math.max(
+		...DEPARTMENT_BREAKDOWN.map((department) => department.count),
+		1,
+	);
 
 	return (
 		<div className="flex flex-col gap-6">
-			{/* Stat cards row */}
-			<div className="grid grid-cols-5 gap-4">
-				{STAT_CARDS.map((card, i) => (
-					<StatCard key={i} {...card} />
+			<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+				{STAT_CARDS.map((card, index) => (
+					<StatCard key={`${card.label}-${index}`} {...card} />
 				))}
 			</div>
 
-			{/* Bottom panels */}
-			<div className="grid grid-cols-2 gap-4">
-				{/* Recent Applications */}
-				<div className="bg-white rounded-xl border border-[#dce6f2] shadow-sm overflow-hidden">
-					<div className="bg-[#dde8f5] px-5 py-3 border-b border-[#c8d8ec]">
+			<div className="grid gap-4 xl:grid-cols-2">
+				<div className="overflow-hidden rounded-xl border border-[#dce6f2] bg-white shadow-sm">
+					<div className="border-b border-[#c8d8ec] bg-[#dde8f5] px-5 py-3">
 						<p className="text-xs font-bold text-[#4a5a7a]">
-							Recent Application
+							Recent applications
 						</p>
 					</div>
 					<div className="divide-y divide-[#f0f4fb]">
 						{applications.length === 0 ? (
-							<p className="text-xs text-[#8a9ab5] px-5 py-6 text-center">
+							<p className="px-5 py-6 text-center text-xs text-[#8a9ab5]">
 								No applications yet
 							</p>
 						) : (
-							applications.map((app) => (
+							applications.map((application) => (
 								<div
-									key={app.ref}
-									className="flex items-center justify-between px-5 py-3"
+									key={application.ref}
+									className="flex items-center justify-between gap-3 px-5 py-3"
 								>
 									<div>
 										<p className="text-sm font-semibold text-[#1a2b52]">
-											{app.name}
+											{application.name}
 										</p>
-										<p className="text-[10px] text-[#8a9ab5] mt-0.5">
-											{app.ref} · {app.firstChoice}
+										<p className="mt-0.5 text-[10px] text-[#8a9ab5]">
+											{application.ref} · {application.firstChoice}
 										</p>
 									</div>
 									<span
-										className={`text-[10px] font-bold px-3 py-1 rounded-full
-                    ${
-											app.status === "Admitted"
+										className={`rounded-full px-3 py-1 text-[10px] font-bold ${
+											application.status === "Admitted"
 												? "bg-green-100 text-green-700"
-												: app.status === "Rejected"
+												: application.status === "Rejected"
 													? "bg-red-100 text-red-700"
 													: "bg-yellow-100 text-yellow-700"
 										}`}
 									>
-										{app.status}
+										{application.status}
 									</span>
 								</div>
 							))
@@ -84,27 +84,31 @@ export default function DashboardView({
 					</div>
 				</div>
 
-				{/* Department Breakdown */}
-				<div className="bg-white rounded-xl border border-[#dce6f2] shadow-sm overflow-hidden">
-					<div className="bg-[#dde8f5] px-5 py-3 border-b border-[#c8d8ec]">
+				<div className="overflow-hidden rounded-xl border border-[#dce6f2] bg-white shadow-sm">
+					<div className="border-b border-[#c8d8ec] bg-[#dde8f5] px-5 py-3">
 						<p className="text-xs font-bold text-[#4a5a7a]">
-							Department Breakdown
+							Department breakdown
 						</p>
 					</div>
-					<div className="px-5 py-4 flex flex-col gap-3">
-						{DEPARTMENT_BREAKDOWN.map((dept) => (
-							<div key={dept.department} className="flex items-center gap-3">
-								<p className="text-xs text-[#4a5a7a] w-32 shrink-0">
-									{dept.department}
+					<div className="flex flex-col gap-3 px-5 py-4">
+						{DEPARTMENT_BREAKDOWN.map((department) => (
+							<div
+								key={department.department}
+								className="flex items-center gap-3"
+							>
+								<p className="w-32 shrink-0 text-xs text-[#4a5a7a]">
+									{department.department}
 								</p>
-								<div className="flex-1 bg-[#dde8f5] rounded-full h-1.5 overflow-hidden">
+								<div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#dde8f5]">
 									<div
-										className="h-full bg-[#3d5a9e] rounded-full"
-										style={{ width: `${(dept.count / maxDept) * 100}%` }}
+										className="h-full rounded-full bg-[#3d5a9e]"
+										style={{
+											width: `${(department.count / maxDepartmentCount) * 100}%`,
+										}}
 									/>
 								</div>
-								<span className="text-xs font-bold text-[#1a2b52] w-4 text-right">
-									{dept.count}
+								<span className="w-4 text-right text-xs font-bold text-[#1a2b52]">
+									{department.count}
 								</span>
 							</div>
 						))}

@@ -11,38 +11,38 @@ export default function FeeBreakdownCard({ fee }: FeeBreakdownCardProps) {
 	const total = fee.applicationFee + fee.bankCharges;
 
 	return (
-		<div className="border border-[#c8d8ec] rounded-xl bg-[#f0f5fb] overflow-hidden mb-6">
+		<div className="h-full overflow-hidden rounded-2xl border border-[#d8e3f0] bg-white shadow-[0_14px_32px_-28px_rgba(23,48,95,0.45)]">
 			{/* Header */}
-			<div className="px-5 py-3 border-b border-[#c8d8ec]">
-				<p className="text-[10px] font-bold tracking-widest text-[#6b7e9f] uppercase">
+			<div className="border-b border-[#dce6f2] bg-[#f8fbff] px-5 py-3.5">
+				<p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#7386a6]">
 					Fee Breakdown
 				</p>
 			</div>
 
 			{/* Rows */}
-			<div className="divide-y divide-[#dde8f2]">
-				<div className="flex items-center justify-between px-5 py-3">
-					<span className="text-sm text-[#808B96]">Programme</span>
-					<span className="text-sm font-medium text-[#1a2b52]">
+			<div className="divide-y divide-[#e6eef7]">
+				<div className="flex items-center justify-between gap-4 px-5 py-4">
+					<span className="text-sm text-[#6a7b95]">Programme</span>
+					<span className="text-right text-sm font-semibold text-[#17305f]">
 						{fee.programme}
 					</span>
 				</div>
-				<div className="flex items-center justify-between px-5 py-3">
-					<span className="text-sm text-[#808B96]">Application fee</span>
-					<span className="text-sm font-medium text-[#1a2b52]">
+				<div className="flex items-center justify-between gap-4 px-5 py-4">
+					<span className="text-sm text-[#6a7b95]">Application fee</span>
+					<span className="text-right text-sm font-semibold text-[#17305f]">
 						{formatCurrency(fee.applicationFee)}
 					</span>
 				</div>
-				<div className="flex items-center justify-between px-5 py-3">
-					<span className="text-sm text-[#808B96]">Bank charges</span>
-					<span className="text-sm font-medium text-[#1a2b52]">
+				<div className="flex items-center justify-between gap-4 px-5 py-4">
+					<span className="text-sm text-[#6a7b95]">Bank charges</span>
+					<span className="text-right text-sm font-semibold text-[#17305f]">
 						{formatCurrency(fee.bankCharges)}
 					</span>
 				</div>
 				{/* Total */}
-				<div className="flex items-center justify-between px-5 py-4 bg-white">
-					<span className="text-sm font-bold text-[#1a2b52]">Total Due</span>
-					<span className="text-base font-bold text-[#c9952a]">
+				<div className="flex items-center justify-between gap-4 bg-[#fbfdff] px-5 py-4">
+					<span className="text-sm font-bold text-[#17305f]">Total Due</span>
+					<span className="text-right text-xl font-bold text-[#c9952a]">
 						{formatCurrency(total)}
 					</span>
 				</div>

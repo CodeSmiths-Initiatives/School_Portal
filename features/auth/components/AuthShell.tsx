@@ -1,3 +1,5 @@
+import type { AuthExperienceRailProps } from "./AuthExperienceRail";
+import AuthExperienceRail from "./AuthExperienceRail";
 import RegistrationHeader from "@/features/admission/components/RegistrationHeader";
 
 type AuthShellProps = {
@@ -5,6 +7,7 @@ type AuthShellProps = {
 	subtitle: string;
 	children: React.ReactNode;
 	footer?: React.ReactNode;
+	rail: AuthExperienceRailProps;
 };
 
 export default function AuthShell({
@@ -12,13 +15,24 @@ export default function AuthShell({
 	subtitle,
 	children,
 	footer,
+	rail,
 }: AuthShellProps) {
 	return (
-		<div className="flex h-dvh flex-col overflow-hidden bg-[#edf3fb]">
+		<div className="flex min-h-dvh flex-col overflow-y-auto bg-[#edf3fb] lg:h-dvh lg:overflow-hidden">
 			<RegistrationHeader />
 
-			<main className="focus-stage app-scrollbar flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
-				<section className="auth-surface-card w-full max-w-md border-[#d8e2f0] px-5 py-6 shadow-2xl shadow-[#d4deed]/40 sm:max-w-lg sm:px-7 sm:py-8">
+			<main className="focus-stage flex flex-1 items-start justify-center px-4 py-6 sm:px-6 sm:py-8 lg:app-scrollbar lg:min-h-0 lg:overflow-y-auto lg:px-0 lg:py-0">
+				<div className="grid w-full gap-5 lg:min-h-full lg:grid-cols-[22rem_minmax(0,1fr)] lg:items-stretch lg:gap-0 xl:grid-cols-[24rem_minmax(0,1fr)]">
+					<div className="hidden overflow-hidden lg:block">
+						<AuthExperienceRail {...rail} />
+					</div>
+
+					<div className="flex w-full max-w-lg flex-col gap-4 sm:gap-5 lg:max-w-none lg:justify-center lg:px-8 lg:py-8 xl:px-10 xl:py-10">
+						<div className="lg:hidden">
+							<AuthExperienceRail {...rail} />
+						</div>
+
+				<section className="auth-surface-card w-full border-[#d8e2f0] px-5 py-6 shadow-2xl shadow-[#d4deed]/40 sm:px-7 sm:py-8 lg:mx-auto lg:max-w-2xl">
 						<div className="mb-7">
 							<p className="text-xs font-bold uppercase tracking-[0.22em] text-[#B7770D]">
 								Account Access
@@ -39,6 +53,8 @@ export default function AuthShell({
 							</div>
 						)}
 				</section>
+					</div>
+				</div>
 			</main>
 		</div>
 	);

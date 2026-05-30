@@ -1,15 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { ArrowLeft, BadgeCheck, LoaderCircle } from "lucide-react";
 import SelectField from "@/components/forms/SelectField";
 import ProgrammeCard from "@/features/admission/components/ProgrammeCard";
-import {
+import type {
 	ProgrammeFormData,
 	ProgrammeType,
 } from "@/features/admission/types/programme.types";
 import {
-	PROGRAMMES,
 	FACULTY_OPTIONS,
+	PROGRAMMES,
 	SESSION_OPTIONS,
 } from "@/features/admission/utils/programmeData";
 
@@ -33,8 +34,9 @@ function useProgrammeForm(onNext: () => void, onBack: () => void) {
 
 	function selectProgramme(type: ProgrammeType) {
 		setFormData((prev) => ({ ...prev, programmeType: type }));
-		if (errors.programmeType)
+		if (errors.programmeType) {
 			setErrors((prev) => ({ ...prev, programmeType: undefined }));
+		}
 	}
 
 	function handleSelectChange(
@@ -42,21 +44,21 @@ function useProgrammeForm(onNext: () => void, onBack: () => void) {
 		value: string,
 	) {
 		setFormData((prev) => ({ ...prev, [field]: value }));
-		if (errors[field]) setErrors((prev) => ({ ...prev, [field]: undefined }));
+		if (errors[field]) {
+			setErrors((prev) => ({ ...prev, [field]: undefined }));
+		}
 	}
 
-	async function handleSubmit(e: React.FormEvent) {
-		e.preventDefault();
+	async function handleSubmit(event: React.FormEvent) {
+		event.preventDefault();
 		setIsSubmitting(true);
-		// TODO: add validation & advance to step 3 (payment)
-		await new Promise((r) => setTimeout(r, 800));
+		await new Promise((resolve) => setTimeout(resolve, 800));
 		setIsSubmitting(false);
-		onNext(); // FIX: now actually calls the callback and advances to step 3
+		onNext();
 	}
 
 	function handleBack() {
-		// TODO: navigate back to step 1
-		onBack(); // FIX: now actually calls the callback and goes back to step 1
+		onBack();
 	}
 
 	return {
@@ -86,112 +88,85 @@ export default function SelectProgramme({
 
 	return (
 		<div className="surface-card mx-auto w-full max-w-2xl p-5 sm:p-6 lg:p-8">
-			{/* Progress bar */}
 			<div className="mb-6">
-				<div className="w-full h-2 rounded-full overflow-hidden bg-[#e4eaf4]">
-					<div className="w-2/4 h-full rounded-full transition-all duration-500 bg-[#B7770D]"></div>
+				<div className="h-2 w-full overflow-hidden rounded-full bg-[#e4eaf4]">
+					<div className="h-full w-2/4 rounded-full bg-[#B7770D] transition-all duration-500" />
 				</div>
 			</div>
 
-			{/* Step label*/}
-			<p className="text-[#B7770D] text-xs font-bold tracking-wide uppercase mb-2">
+			<p className="mb-2 text-xs font-bold uppercase tracking-wide text-[#B7770D]">
 				Step 2 of 4
 			</p>
-			<h3 className="text-gray-800 text-2xl font-semibold italic mb-1">
+			<h3 className="mb-1 text-2xl font-semibold italic text-gray-800">
 				Select Your Programme
 			</h3>
-			<p className="text-gray-500 text-sm font-medium mb-2">
+			<p className="mb-2 text-sm font-medium text-gray-500">
 				Choose the academic programme you wish to apply for this admission cycle
 			</p>
 
 			<form onSubmit={handleSubmit} className="flex flex-col gap-5">
-				{/* Programme type cards */}
 				<div className="flex flex-col gap-3">
-					{/* FIX 3: PROGRAMMES now imported from @/utils/programmeData */}
-					{PROGRAMMES.map((prog) => (
+					{PROGRAMMES.map((programme) => (
 						<ProgrammeCard
-							key={prog.id}
-							programme={prog}
-							isSelected={formData.programmeType === prog.id}
+							key={programme.id}
+							programme={programme}
+							isSelected={formData.programmeType === programme.id}
 							onSelect={selectProgramme}
 						/>
 					))}
-					{errors.programmeType && (
-						<p className="text-[11px] text-red-500 font-medium">
+					{errors.programmeType ? (
+						<p className="text-[11px] font-medium text-red-500">
 							{errors.programmeType}
 						</p>
-					)}
+					) : null}
 				</div>
 
-				{/* Faculty / Department */}
 				<SelectField
 					label="Faculty / Department"
 					value={formData.facultyId}
 					options={FACULTY_OPTIONS}
 					placeholder="--- Select Faculty ---"
 					error={errors.facultyId}
-					onChange={(v) => handleSelectChange("facultyId", v)}
+					onChange={(value) => handleSelectChange("facultyId", value)}
 				/>
 
-				{/* Entry Session */}
 				<SelectField
 					label="Entry Session"
 					value={formData.entrySession}
 					options={SESSION_OPTIONS}
 					placeholder="--- Select Year ---"
 					error={errors.entrySession}
-					onChange={(v) => handleSelectChange("entrySession", v)}
+					onChange={(value) => handleSelectChange("entrySession", value)}
 				/>
 
-				{/* Proceed */}
-				<button
-					type="submit"
-					disabled={isSubmitting}
-					className="w-full py-3.5 rounded-xl bg-[#2E86C1] hover:bg-[#2d4a8e] active:bg-[#1d3a7e]
-              text-white font-semibold text-sm tracking-wide mt-1
-              transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed
-              shadow-md shadow-[#3d5a9e]/30 hover:shadow-lg hover:shadow-[#3d5a9e]/40
-              hover:-translate-y-0.5 flex items-center justify-center gap-2"
-				>
-					{isSubmitting ? (
-						<>
-							<svg
-								className="animate-spin h-4 w-4"
-								viewBox="0 0 24 24"
-								fill="none"
-							>
-								<circle
-									className="opacity-25"
-									cx="12"
-									cy="12"
-									r="10"
-									stroke="currentColor"
-									strokeWidth="4"
-								/>
-								<path
-									className="opacity-75"
-									fill="currentColor"
-									d="M4 12a8 8 0 018-8v8H4z"
-								/>
-							</svg>
-							Saving…
-						</>
-					) : (
-						"Proceed to Payment"
-					)}
-				</button>
+				<div className="mt-2 grid gap-3 pt-1 sm:grid-cols-[auto_minmax(0,1fr)]">
+					<button
+						type="button"
+						onClick={handleBack}
+						className="inline-flex h-13 w-full items-center justify-center gap-2 rounded-xl border border-[#d5e1ef] bg-white px-5 text-sm font-semibold text-[#35527d] transition hover:border-[#b8c9de] hover:bg-[#f8fbff] sm:w-auto"
+					>
+						<ArrowLeft className="size-4" />
+						Go Back
+					</button>
 
-				{/* Go Back */}
-				<button
-					type="button"
-					onClick={handleBack}
-					className="w-full py-3.5 rounded-xl bg-[#2E86C1] hover:bg-[#3d5a9e]
-              text-white font-semibold text-sm tracking-wide
-              transition-all duration-200
-              shadow-sm hover:shadow-md hover:shadow-[#3d5a9e]/30"
-				>
-					Go Back
-				</button>
+					<button
+						type="submit"
+						disabled={isSubmitting}
+						className="inline-flex h-13 w-full items-center justify-center gap-2 rounded-xl bg-[#2E86C1] px-6 text-sm font-semibold tracking-wide text-white shadow-md shadow-[#2e86c1]/20 transition hover:bg-[#2a78ae] hover:shadow-lg hover:shadow-[#2e86c1]/25 disabled:cursor-not-allowed disabled:opacity-70"
+					>
+						{isSubmitting ? (
+							<>
+								<LoaderCircle className="size-4 animate-spin" />
+								Saving...
+							</>
+						) : (
+							<>
+								<BadgeCheck className="size-4" />
+								Proceed to Payment
+							</>
+						)}
+					</button>
+				</div>
 			</form>
 		</div>
 	);

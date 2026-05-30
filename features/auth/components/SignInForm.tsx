@@ -1,7 +1,13 @@
 "use client";
 
+import {
+	resolveDashboardDestination,
+	STAFF_ROLE_LABELS,
+	type StaffRole,
+} from "@/lib/auth";
 import { loginSchema, toFieldErrors, type LoginInput } from "@/lib/validation";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import AuthPasswordField from "./AuthPasswordField";
 import AuthSubmitButton from "./AuthSubmitButton";
@@ -12,7 +18,14 @@ const initialForm: LoginInput = {
 	password: "",
 };
 
-export default function SignInForm() {
+type SignInFormProps = {
+	audience?: "student" | "staff";
+};
+
+export default function SignInForm({
+	audience = "student",
+}: SignInFormProps) {
+	const router = useRouter();
 	const [form, setForm] = useState<LoginInput>(initialForm);
 	const [errors, setErrors] = useState<Partial<Record<keyof LoginInput, string>>>(
 		{},
@@ -42,8 +55,20 @@ export default function SignInForm() {
 		setErrors({});
 		setIsSubmitting(true);
 		await new Promise((resolve) => setTimeout(resolve, 500));
+		const destination = resolveDashboardDestination(audience, result.data.identifier);
 		setIsSubmitting(false);
-		setSuccess("Credentials validated. Strapi sign-in can be connected next.");
+		setSuccess(
+			destination.domain === "superadmin"
+				? "Superadmin credentials validated. Redirecting to the executive dashboard..."
+				: destination.domain === "staff"
+					? `Staff credentials validated for ${
+							STAFF_ROLE_LABELS[destination.role as StaffRole]
+						}. Redirecting to the staff dashboard...`
+					: "Student credentials validated. Redirecting to the student dashboard...",
+		);
+		setTimeout(() => {
+			router.push(destination.path);
+		}, 500);
 	}
 
 	return (
@@ -68,7 +93,7 @@ export default function SignInForm() {
 
 			<div className="flex items-center justify-end">
 				<Link
-					href="/forgot-password"
+					href={audience === "staff" ? "/staff/forgot-password" : "/forgot-password"}
 					className="text-xs font-semibold text-[#B7770D] transition hover:underline"
 				>
 					Forgot password?
@@ -83,12 +108,21 @@ export default function SignInForm() {
 
 			<AuthSubmitButton isSubmitting={isSubmitting}>Sign In</AuthSubmitButton>
 
-			<p className="text-center text-xs text-[#6f7f98]">
-				Need a new account?{" "}
-				<Link href="/" className="font-bold text-[#B7770D] hover:underline">
-					Continue admission
-				</Link>
-			</p>
+			{audience === "student" ? (
+				<p className="text-center text-xs text-[#6f7f98]">
+					Need a new account?{" "}
+					<Link href="/" className="font-bold text-[#B7770D] hover:underline">
+						Continue admission
+					</Link>
+				</p>
+			) : (
+				<p className="text-center text-xs text-[#6f7f98]">
+					Student applicant?{" "}
+					<Link href="/signin" className="font-bold text-[#B7770D] hover:underline">
+						Go to student login
+					</Link>
+				</p>
+			)}
 		</form>
 	);
 }

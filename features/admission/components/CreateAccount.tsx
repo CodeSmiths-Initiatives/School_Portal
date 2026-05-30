@@ -14,6 +14,14 @@ export interface CreateAccountFormData {
 	agreeToTerms: boolean;
 }
 
+const initialForm: CreateAccountFormData = {
+	username: "Admin",
+	email: "admin@example.com",
+	password: "Password@1",
+	confirmPassword: "Password@1",
+	agreeToTerms: true,
+};
+
 interface CreateAccountFormProps {
 	onNext: (data: CreateAccountFormData) => void;
 }
@@ -24,13 +32,7 @@ export default function CreateAccount({ onNext }: CreateAccountFormProps) {
 	const [errors, setErrors] = useState<
 		Partial<Record<keyof CreateAccountFormData, string>>
 	>({});
-	const [form, setForm] = useState<CreateAccountFormData>({
-		username: "",
-		email: "",
-		password: "",
-		confirmPassword: "",
-		agreeToTerms: false,
-	});
+	const [form, setForm] = useState<CreateAccountFormData>(initialForm);
 
 	const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const { name, value, type, checked } = e.target;

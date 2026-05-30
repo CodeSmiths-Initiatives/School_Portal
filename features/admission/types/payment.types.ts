@@ -29,3 +29,16 @@ export interface PaymentFormData {
   bankTransfer: BankTransferDetails;
   ussd: UssdDetails;
 }
+
+export interface PaymentApplicantProfile {
+  email: string;
+  username?: string;
+}
+
+export interface PaymentVerificationResult {
+  reference: string;
+  amount: number;
+  currency: string;
+  channel?: string;
+  paidAt?: string;
+}

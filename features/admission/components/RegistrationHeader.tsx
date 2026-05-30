@@ -3,7 +3,7 @@ import React from "react";
 export default function RegistrationHeader() {
 	return (
 		<header className="shrink-0 bg-[#0D2B55] border-b-10 border-[#B7770D]">
-			<div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:gap-8 lg:py-5">
+			<div className="flex w-full flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:gap-8 lg:px-8 lg:py-5 xl:px-10 2xl:px-12">
 				<div className="flex items-center gap-3 sm:gap-5 lg:gap-9">
 					<div className="flex size-14 shrink-0 items-center justify-center rounded-full border-2 border-[#B7770D] bg-linear-to-br from-[#1a3a6b] to-[#0d1b3e] sm:size-18 lg:size-[7.5rem]">
 						<div className="rounded-full bg-linear-to-br from-[#0D2B55] to-[#0a1428] opacity-80" />

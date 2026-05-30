@@ -12,6 +12,20 @@ export default function ResetPasswordPage() {
 		<AuthShell
 			title="Reset password"
 			subtitle="Use your reset code and choose a new password that meets the portal security rules."
+			rail={{
+				badge: "Password Help",
+				titleStart: "Restore",
+				titleAccent: "Student",
+				titleEnd: "Access",
+				description:
+					"Complete your reset securely, update your password, and return to your student portal access without losing progress.",
+				activePortal: "student",
+				items: [
+					{ label: "Step #1", value: "Paste your reset code" },
+					{ label: "Step #2", value: "Choose a strong password" },
+					{ label: "Step #3", value: "Sign back into the portal" },
+				],
+			}}
 			footer={
 				<>
 					Remembered your account?{" "}

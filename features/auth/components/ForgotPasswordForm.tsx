@@ -23,7 +23,13 @@ const initialResetForm: ResetPasswordInput = {
 	confirmPassword: "",
 };
 
-export default function ForgotPasswordForm() {
+type ForgotPasswordFormProps = {
+	audience?: "student" | "staff";
+};
+
+export default function ForgotPasswordForm({
+	audience = "student",
+}: ForgotPasswordFormProps) {
 	const [form, setForm] = useState<ForgotPasswordInput>(initialForm);
 	const [errors, setErrors] = useState<
 		Partial<Record<keyof ForgotPasswordInput, string>>
@@ -71,7 +77,11 @@ export default function ForgotPasswordForm() {
 			await new Promise((resolve) => setTimeout(resolve, 500));
 			setIsSubmitting(false);
 			setOtpSent(true);
-			setSuccess("OTP sent. Set your new password below.");
+			setSuccess(
+				audience === "staff"
+					? "Verification code sent. Continue with the staff password reset below."
+					: "OTP sent. Set your new password below.",
+			);
 			return;
 		}
 
@@ -87,22 +97,30 @@ export default function ForgotPasswordForm() {
 		setIsSubmitting(true);
 		await new Promise((resolve) => setTimeout(resolve, 500));
 		setIsSubmitting(false);
-		setSuccess("Password validated. Strapi reset endpoint can be connected next.");
+		setSuccess(
+			audience === "staff"
+				? "Password validated. Staff reset endpoint can be connected next."
+				: "Password validated. Strapi reset endpoint can be connected next.",
+		);
 	}
 
 	return (
 		<form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
 			{!otpSent ? (
-				<AuthTextField
-					label="Email Address"
-					name="email"
+					<AuthTextField
+						label="Email Address"
+						name="email"
 					type="email"
 					value={form.email}
 					placeholder="you@example.com"
 					error={errors.email}
-					hint="Use the email linked to your applicant account."
-					onChange={handleChange}
-				/>
+						hint={
+							audience === "staff"
+								? "Use the email issued for your staff portal access."
+								: "Use the email linked to your applicant account."
+						}
+						onChange={handleChange}
+					/>
 			) : (
 				<>
 					<div className="rounded-lg border border-[#dce6f2] bg-[#f8fbff] px-3 py-2 text-xs font-medium text-[#5e718d]">
@@ -149,7 +167,10 @@ export default function ForgotPasswordForm() {
 
 			<p className="text-center text-xs text-[#6f7f98]">
 				Remembered your password?{" "}
-				<Link href="/signin" className="font-bold text-[#B7770D] hover:underline">
+				<Link
+					href={audience === "staff" ? "/staff/signin" : "/signin"}
+					className="font-bold text-[#B7770D] hover:underline"
+				>
 					Back to sign in
 				</Link>
 			</p>

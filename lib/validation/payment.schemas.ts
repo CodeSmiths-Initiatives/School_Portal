@@ -2,6 +2,17 @@ import { z } from "zod";
 
 export const paymentMethodSchema = z.enum(["card", "bank_transfer", "ussd"]);
 
+export const paymentIntentSchema = z.object({
+	method: paymentMethodSchema,
+	email: z.email("Enter a valid applicant email address"),
+	username: z.string().trim().min(1).optional(),
+});
+
+export const paystackVerificationRequestSchema = z.object({
+	reference: z.string().trim().min(6, "Payment reference is required"),
+	expectedAmount: z.number().int().positive(),
+});
+
 export const paymentSchema = z
 	.object({
 		method: paymentMethodSchema,
@@ -74,3 +85,4 @@ export const paymentSchema = z
 	});
 
 export type PaymentInput = z.infer<typeof paymentSchema>;
+export type PaymentIntentInput = z.infer<typeof paymentIntentSchema>;

@@ -12,6 +12,20 @@ export default function ForgotPasswordPage() {
 		<AuthShell
 			title="Forgot password"
 			subtitle="Enter your email address and we will prepare the reset flow for your account."
+			rail={{
+				badge: "Password Help",
+				titleStart: "Reset",
+				titleAccent: "Student",
+				titleEnd: "Access",
+				description:
+					"Securely verify your student account, create a new password, and return to your admission or dashboard flow.",
+				activePortal: "student",
+				items: [
+					{ label: "Step #1", value: "Confirm your account email" },
+					{ label: "Step #2", value: "Enter verification code" },
+					{ label: "Step #3", value: "Set a new password" },
+				],
+			}}
 			footer={
 				<>
 					Remembered it already?{" "}
