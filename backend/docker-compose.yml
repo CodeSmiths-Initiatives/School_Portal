@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: iums-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: iums_backend
+      POSTGRES_USER: iums_user
+      POSTGRES_PASSWORD: iums_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - iums_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U iums_user -d iums_backend"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  iums_postgres_data:
+

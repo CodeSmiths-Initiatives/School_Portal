@@ -47,14 +47,25 @@ Auto deploy: Off during setup, on after first stable deployment
 
 ## Environment Variables
 
-Local development uses SQLite:
+Local development should use PostgreSQL:
 
 ```text
-DATABASE_CLIENT=sqlite
-DATABASE_FILENAME=.tmp/data.db
+DATABASE_CLIENT=postgres
+DATABASE_HOST=localhost
+DATABASE_PORT=5432
+DATABASE_NAME=iums_backend
+DATABASE_USERNAME=iums_user
+DATABASE_PASSWORD=iums_password
+DATABASE_SSL=false
 ```
 
-Strapi Cloud / managed Postgres should use:
+Start local PostgreSQL from `backend/`:
+
+```text
+docker compose up -d
+```
+
+Strapi Cloud / managed Postgres should use injected Cloud database variables or:
 
 ```text
 DATABASE_CLIENT=postgres
@@ -62,6 +73,9 @@ DATABASE_URL=<provided by cloud if applicable>
 DATABASE_SSL=true
 DATABASE_SSL_REJECT_UNAUTHORIZED=false
 ```
+
+The backend includes its own `postcss.config.mjs` so the Strapi admin build does
+not load the frontend Tailwind PostCSS config from the monorepo root.
 
 Required secrets:
 
@@ -101,4 +115,3 @@ Assignment = where the role applies
 Tenant scope = platform or college
 Role scope = platform, college, faculty, department, course, or self
 ```
-
