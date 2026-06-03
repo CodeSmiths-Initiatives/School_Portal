@@ -1,6 +1,7 @@
 import { createStaffDashboardContent } from "@/features/dashboard/config/dashboardContent";
 import RoleDashboardShell from "@/features/dashboard/components/RoleDashboardShell";
 import StaffOperationsWorkspace from "@/features/dashboard/components/StaffOperationsWorkspace";
+import { getCurrentRoleLabel } from "@/lib/auth/server-session";
 
 export default async function CollegeStaffDashboardPage({
 	params,
@@ -9,6 +10,7 @@ export default async function CollegeStaffDashboardPage({
 }) {
 	const { collegeSlug } = await params;
 	const dashboard = createStaffDashboardContent({ collegeSlug });
+	const roleLabel = await getCurrentRoleLabel(dashboard.roleLabel);
 
 	return (
 		<RoleDashboardShell
@@ -16,7 +18,7 @@ export default async function CollegeStaffDashboardPage({
 			title={dashboard.title}
 			subtitle={dashboard.subtitle}
 			domain="staff"
-			roleLabel={dashboard.roleLabel}
+			roleLabel={roleLabel}
 			tenantSlug={collegeSlug}
 			stats={dashboard.stats}
 			highlights={dashboard.highlights}

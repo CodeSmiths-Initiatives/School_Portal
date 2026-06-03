@@ -5,8 +5,11 @@ import {
 	toFieldErrors,
 	type ResetPasswordInput,
 } from "@/lib/validation";
+import { resetPasswordWithCode } from "@/lib/services/auth.service";
+import { toast } from "@/lib/toast";
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import AuthPasswordField from "./AuthPasswordField";
 import AuthSubmitButton from "./AuthSubmitButton";
 import AuthTextField from "./AuthTextField";
@@ -18,10 +21,25 @@ const initialForm: ResetPasswordInput = {
 };
 
 export default function ResetPasswordForm() {
+	const router = useRouter();
 	const [form, setForm] = useState<ResetPasswordInput>(initialForm);
 	const [errors, setErrors] = useState<Partial<Record<keyof ResetPasswordInput, string>>>({});
 	const [isSubmitting, setIsSubmitting] = useState(false);
-	const [success, setSuccess] = useState("");
+	const [signInPath, setSignInPath] = useState("/signin");
+
+	useEffect(() => {
+		const searchParams = new URLSearchParams(window.location.search);
+		const code = searchParams.get("code");
+		const audience = searchParams.get("audience");
+
+		if (code) {
+			setForm((current) => ({ ...current, code }));
+		}
+
+		if (audience === "staff") {
+			setSignInPath("/staff/signin");
+		}
+	}, []);
 
 	function handleChange(event: React.ChangeEvent<HTMLInputElement>) {
 		const { name, value } = event.target;
@@ -37,16 +55,32 @@ export default function ResetPasswordForm() {
 		const result = resetPasswordSchema.safeParse(form);
 
 		if (!result.success) {
-			setSuccess("");
+			toast.error({
+				title: "Check reset details",
+				description: "Enter the reset code and matching password values.",
+			});
 			setErrors(toFieldErrors<keyof ResetPasswordInput>(result.error));
 			return;
 		}
 
 		setErrors({});
 		setIsSubmitting(true);
-		await new Promise((resolve) => setTimeout(resolve, 500));
+		try {
+			await resetPasswordWithCode(result.data);
+		} catch {
+			setIsSubmitting(false);
+			toast.error({
+				title: "Invalid reset code",
+				description: "Request a new password reset email and try again.",
+			});
+			return;
+		}
 		setIsSubmitting(false);
-		setSuccess("Password validated. Strapi reset endpoint can be connected next.");
+		toast.success({
+			title: "Password reset successfully",
+			description: "Redirecting to sign in.",
+		});
+		window.setTimeout(() => router.replace(signInPath), 900);
 	}
 
 	return (
@@ -78,18 +112,12 @@ export default function ResetPasswordForm() {
 				onChange={handleChange}
 			/>
 
-			{success && (
-				<p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs font-semibold text-green-700">
-					{success}
-				</p>
-			)}
-
 			<AuthSubmitButton isSubmitting={isSubmitting}>Reset Password</AuthSubmitButton>
 
 			<p className="text-center text-xs text-[#6f7f98]">
 				Need a new reset code?{" "}
 				<Link
-					href="/forgot-password"
+					href={signInPath === "/staff/signin" ? "/staff/forgot-password" : "/forgot-password"}
 					className="font-bold text-[#B7770D] hover:underline"
 				>
 					Request another

@@ -6,6 +6,7 @@ import type {
 	DashboardStat,
 	DashboardTenantContext,
 } from "@/features/dashboard/components/RoleDashboardShell";
+import { DEFAULT_MVP_COLLEGE_SLUG } from "@/lib/auth";
 
 type DashboardContentBundle = {
 	badge: string;
@@ -19,6 +20,9 @@ type DashboardContentBundle = {
 	reportPanel?: DashboardReportPanel;
 	tenantContext?: DashboardTenantContext;
 };
+
+const DEFAULT_STUDENT_DASHBOARD_PATH = `/college/${DEFAULT_MVP_COLLEGE_SLUG}/student/dashboard`;
+const DEFAULT_STAFF_DASHBOARD_PATH = `/college/${DEFAULT_MVP_COLLEGE_SLUG}/staff/dashboard`;
 
 export function formatCollegeName(collegeSlug: string) {
 	return collegeSlug
@@ -337,19 +341,19 @@ export function createCollegeAdminDashboardContent(
 		quickLinks: [
 			{
 				label: "Review college staff",
-				href: "/staff/dashboard",
+				href: DEFAULT_STAFF_DASHBOARD_PATH,
 				description:
 					"Inspect the shared staff workspace and operational queues under the same college scope.",
 			},
 			{
 				label: "Review college student portal",
-				href: "/student/dashboard",
+				href: DEFAULT_STUDENT_DASHBOARD_PATH,
 				description:
 					"Compare the student-facing experience against the college admin perspective.",
 			},
 			{
 				label: "Platform overview",
-				href: "/admin/dashboard",
+				href: "/platform/dashboard",
 				description:
 					"Return to the platform-level superadmin view when reviewing multi-college oversight.",
 			},
@@ -452,13 +456,13 @@ export function createSuperadminDashboardContent(): DashboardContentBundle {
 			},
 			{
 				label: "Review staff portal",
-				href: "/staff/dashboard",
+				href: DEFAULT_STAFF_DASHBOARD_PATH,
 				description:
 					"Check the staff operating workspace and role-driven internal modules.",
 			},
 			{
 				label: "Review student portal",
-				href: "/student/dashboard",
+				href: DEFAULT_STUDENT_DASHBOARD_PATH,
 				description:
 					"Compare the student-facing journey against the operational admin view.",
 			},

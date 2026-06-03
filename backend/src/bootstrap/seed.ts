@@ -6,6 +6,15 @@ type StrapiLike = {
 			update: (args: Record<string, unknown>) => Promise<Record<string, unknown>>;
 		};
 	};
+	plugin: (name: string) => {
+		service: (serviceName: string) => {
+			add: (data: Record<string, unknown>) => Promise<Record<string, unknown>>;
+		};
+	};
+	store: (options: { type: string; name: string }) => {
+		get: (args: { key: string }) => Promise<Record<string, unknown> | null>;
+		set: (args: { key: string; value: Record<string, unknown> }) => Promise<void>;
+	};
 	log: {
 		info: (message: string) => void;
 	};
@@ -65,8 +74,20 @@ type RoleSeed = {
 	permissions: string[];
 };
 
+type UserSeed = {
+	name: string;
+	username: string;
+	email: string;
+	password: string;
+	portalRoleCode: string;
+	scopeType: "platform" | "college" | "faculty" | "department" | "course" | "self";
+	collegeCode?: string;
+};
+
 const permissions: PermissionSeed[] = [
 	["dashboard", "view", "View dashboard"],
+	["profile", "view", "View profile"],
+	["profile", "update", "Update profile"],
 	["colleges", "view", "View colleges"],
 	["colleges", "create", "Create college"],
 	["colleges", "update", "Update college"],
@@ -128,6 +149,8 @@ const permissions: PermissionSeed[] = [
 	["audit", "view", "View audit logs"],
 	["settings", "view", "View settings"],
 	["settings", "update", "Update settings"],
+	["hostels", "view", "View hostels"],
+	["hostels", "allocate", "Allocate hostel"],
 ].map(([module, action, label]) => ({
 	key: `${module}.${action}`,
 	module,
@@ -137,20 +160,22 @@ const permissions: PermissionSeed[] = [
 
 const menuItems: MenuSeed[] = [
 	{ key: "dashboard", label: "Overview", href: "/dashboard", icon: "LayoutDashboard", order: 10, domains: ["student", "staff", "admin", "superadmin"], requiredPermissions: ["dashboard.view"] },
-	{ key: "colleges", label: "Colleges", href: "/platform/colleges", icon: "Building2", order: 20, domains: ["superadmin"], requiredPermissions: ["colleges.view"] },
-	{ key: "faculties", label: "Faculties", href: "/faculties", icon: "Network", order: 30, domains: ["admin"], requiredPermissions: ["faculties.view"] },
-	{ key: "departments", label: "Departments", href: "/departments", icon: "FolderKanban", order: 40, domains: ["admin"], requiredPermissions: ["departments.view"] },
-	{ key: "students", label: "Students", href: "/students", icon: "Users", order: 50, domains: ["staff", "admin"], requiredPermissions: ["students.view"] },
-	{ key: "staff", label: "Staff", href: "/staff", icon: "Users", order: 60, domains: ["admin", "superadmin"], requiredPermissions: ["staff.view"] },
-	{ key: "admissions", label: "Admissions", href: "/admissions", icon: "FolderKanban", order: 70, domains: ["student", "staff", "admin"], requiredPermissions: ["admissions.view"] },
-	{ key: "courses", label: "Courses", href: "/modules/courses", icon: "BookOpen", order: 80, domains: ["student", "staff", "admin"], requiredPermissions: ["courses.view"] },
-	{ key: "results", label: "Results", href: "/results", icon: "BadgeCheck", order: 90, domains: ["student", "staff"], requiredPermissions: ["results.view"] },
-	{ key: "payments", label: "Payments", href: "/payments", icon: "CircleDollarSign", order: 100, domains: ["student", "admin"], requiredPermissions: ["payments.view"] },
-	{ key: "notices", label: "Notices", href: "/notices", icon: "Bell", order: 110, domains: ["student", "staff", "admin"], requiredPermissions: ["notices.view"] },
-	{ key: "reports", label: "Reports", href: "/reports", icon: "BarChart3", order: 120, domains: ["staff", "admin", "superadmin"], requiredPermissions: ["reports.view"] },
-	{ key: "roles", label: "Roles", href: "/roles", icon: "ShieldCheck", order: 130, domains: ["admin", "superadmin"], requiredPermissions: ["roles.view"] },
-	{ key: "audit", label: "Audit", href: "/audit", icon: "FileBarChart2", order: 140, domains: ["superadmin"], requiredPermissions: ["audit.view"] },
-	{ key: "settings", label: "Settings", href: "/settings", icon: "Settings", order: 150, domains: ["admin", "superadmin"], requiredPermissions: ["settings.view"] },
+	{ key: "profile", label: "Profile", href: "/college/[collegeSlug]/student/profile", icon: "Users", order: 20, domains: ["student"], requiredPermissions: ["profile.view"] },
+	{ key: "colleges", label: "Colleges", href: "/platform/colleges", icon: "Building2", order: 30, domains: ["superadmin"], requiredPermissions: ["colleges.view"] },
+	{ key: "faculties", label: "Faculties", href: "/faculties", icon: "Network", order: 40, domains: ["admin"], requiredPermissions: ["faculties.view"] },
+	{ key: "departments", label: "Departments", href: "/departments", icon: "FolderKanban", order: 50, domains: ["admin"], requiredPermissions: ["departments.view"] },
+	{ key: "students", label: "Students", href: "/students", icon: "Users", order: 60, domains: ["staff", "admin"], requiredPermissions: ["students.view"] },
+	{ key: "staff", label: "Staff", href: "/staff", icon: "Users", order: 70, domains: ["admin", "superadmin"], requiredPermissions: ["staff.view"] },
+	{ key: "admissions", label: "Admissions", href: "/admissions", icon: "FolderKanban", order: 80, domains: ["student", "staff", "admin"], requiredPermissions: ["admissions.view"] },
+	{ key: "courses", label: "Courses", href: "/modules/courses", icon: "BookOpen", order: 90, domains: ["student", "staff", "admin"], requiredPermissions: ["courses.view"] },
+	{ key: "results", label: "Results", href: "/results", icon: "BadgeCheck", order: 100, domains: ["student", "staff"], requiredPermissions: ["results.view"] },
+	{ key: "payments", label: "Payments", href: "/payments", icon: "CircleDollarSign", order: 110, domains: ["student", "admin"], requiredPermissions: ["payments.view"] },
+	{ key: "hostel", label: "Hostel", href: "/college/[collegeSlug]/student/hostel", icon: "Building2", order: 120, domains: ["student"], requiredPermissions: ["hostels.view"] },
+	{ key: "notices", label: "Notices", href: "/notices", icon: "Bell", order: 130, domains: ["student", "staff", "admin"], requiredPermissions: ["notices.view"] },
+	{ key: "reports", label: "Reports", href: "/reports", icon: "BarChart3", order: 140, domains: ["staff", "admin", "superadmin"], requiredPermissions: ["reports.view"] },
+	{ key: "roles", label: "Roles", href: "/roles", icon: "ShieldCheck", order: 150, domains: ["admin", "superadmin"], requiredPermissions: ["roles.view"] },
+	{ key: "audit", label: "Audit", href: "/audit", icon: "FileBarChart2", order: 160, domains: ["superadmin"], requiredPermissions: ["audit.view"] },
+	{ key: "settings", label: "Settings", href: "/settings", icon: "Settings", order: 170, domains: ["admin", "superadmin"], requiredPermissions: ["settings.view"] },
 ];
 
 const colleges: CollegeSeed[] = [
@@ -283,6 +308,16 @@ const roleSeeds: RoleSeed[] = [
 		],
 	},
 	{
+		name: "Student",
+		code: "kscas-student",
+		description: "Student/applicant role for college-scoped dashboard, admission progress, payments, courses, hostel, and notices.",
+		roleType: "system",
+		tenantScope: "college",
+		scopeType: "self",
+		collegeCode: "KSCAS",
+		permissions: ["dashboard.view", "profile.view", "profile.update", "admissions.view", "courses.view", "courses.register", "results.view", "payments.view", "hostels.view", "notices.view"],
+	},
+	{
 		name: "Teacher",
 		code: "kscas-teacher",
 		description: "Teaching role scoped to selected departments or courses.",
@@ -291,6 +326,16 @@ const roleSeeds: RoleSeed[] = [
 		scopeType: "department",
 		collegeCode: "KSCAS",
 		permissions: ["dashboard.view", "students.view", "courses.view", "results.view", "results.upload", "notices.view"],
+	},
+	{
+		name: "Head of Department",
+		code: "kscas-hod",
+		description: "Department leadership role for academic oversight, course review, and result approval.",
+		roleType: "custom",
+		tenantScope: "college",
+		scopeType: "department",
+		collegeCode: "KSCAS",
+		permissions: ["dashboard.view", "students.view", "courses.view", "courses.assign_staff", "results.view", "results.approve", "notices.view", "reports.view"],
 	},
 	{
 		name: "Clerk",
@@ -365,6 +410,53 @@ const roleSeeds: RoleSeed[] = [
 		scopeType: "department",
 		collegeCode: "KSCBH",
 		permissions: ["dashboard.view", "students.view", "courses.view", "courses.assign_staff", "results.view", "results.approve", "notices.view"],
+	},
+];
+
+const userSeeds: UserSeed[] = [
+	{
+		name: "Principal Superadmin",
+		username: "superadmin",
+		email: "superadmin@iums.test",
+		password: "Super@123",
+		portalRoleCode: "platform-superadmin",
+		scopeType: "platform",
+	},
+	{
+		name: "Kwara College Admin",
+		username: "kwara.admin",
+		email: "admin.kwara@iums.test",
+		password: "Admin@123",
+		portalRoleCode: "kscas-college-admin",
+		scopeType: "college",
+		collegeCode: "KSCAS",
+	},
+	{
+		name: "Kwara Student",
+		username: "kwara.student",
+		email: "student.kwara@iums.test",
+		password: "Student@1",
+		portalRoleCode: "kscas-student",
+		scopeType: "self",
+		collegeCode: "KSCAS",
+	},
+	{
+		name: "Kwara HOD",
+		username: "kwara.hod",
+		email: "hod.kwara@iums.test",
+		password: "Hod@1234",
+		portalRoleCode: "kscas-hod",
+		scopeType: "department",
+		collegeCode: "KSCAS",
+	},
+	{
+		name: "Kwara Clerk",
+		username: "kwara.clerk",
+		email: "clerk.kwara@iums.test",
+		password: "Clerk@123",
+		portalRoleCode: "kscas-clerk",
+		scopeType: "college",
+		collegeCode: "KSCAS",
 	},
 ];
 
@@ -476,13 +568,15 @@ async function seedRoles(
 	permissionMap: Map<string, Record<string, unknown>>,
 	collegeMap: Map<string, Record<string, unknown>>,
 ) {
+	const roleMap = new Map<string, Record<string, unknown>>();
+
 	for (const role of roleSeeds) {
 		const permissionIds = role.permissions
 			.map((key) => permissionMap.get(key)?.id)
 			.filter(Boolean);
 		const collegeId = role.collegeCode ? collegeMap.get(role.collegeCode)?.id : undefined;
 
-		await upsertByField(strapi, "api::portal-role.portal-role", "code", role.code, {
+		const roleRecord = await upsertByField(strapi, "api::portal-role.portal-role", "code", role.code, {
 			name: role.name,
 			code: role.code,
 			description: role.description,
@@ -492,7 +586,175 @@ async function seedRoles(
 			college: collegeId,
 			permissions: permissionIds,
 		});
+		roleMap.set(role.code, roleRecord);
 	}
+
+	return roleMap;
+}
+
+async function getAuthenticatedPluginRoleId(strapi: StrapiLike) {
+	const role = await strapi.db.query("plugin::users-permissions.role").findOne({
+		where: { type: "authenticated" },
+	});
+
+	return role?.id;
+}
+
+async function upsertPortalUser(
+	strapi: StrapiLike,
+	user: UserSeed,
+	pluginRoleId: unknown,
+) {
+	const existing = await strapi.db.query("plugin::users-permissions.user").findOne({
+		where: { email: user.email },
+	});
+
+	const baseData = {
+		username: user.username,
+		email: user.email,
+		provider: "local",
+		confirmed: true,
+		blocked: false,
+		role: pluginRoleId,
+	};
+
+	if (existing?.id) {
+		return strapi.db.query("plugin::users-permissions.user").update({
+			where: { id: existing.id },
+			data: baseData,
+		});
+	}
+
+	return strapi.plugin("users-permissions").service("user").add({
+		...baseData,
+		password: user.password,
+	});
+}
+
+async function upsertRoleAssignment(
+	strapi: StrapiLike,
+	data: Record<string, unknown>,
+) {
+	const where: Record<string, unknown> = {
+		user: data.user,
+		role: data.role,
+		scopeType: data.scopeType,
+	};
+	const assignmentData = Object.fromEntries(
+		Object.entries(data).filter(([, value]) => value !== undefined),
+	);
+
+	if (data.college !== undefined) {
+		where.college = data.college;
+	}
+	if (data.faculty !== undefined) {
+		where.faculty = data.faculty;
+	}
+	if (data.department !== undefined) {
+		where.department = data.department;
+	}
+	if (data.course !== undefined) {
+		where.course = data.course;
+	}
+
+	const existing = await strapi.db.query("api::role-assignment.role-assignment").findOne({
+		where,
+	});
+
+	if (existing?.id) {
+		return strapi.db.query("api::role-assignment.role-assignment").update({
+			where: { id: existing.id },
+			data: assignmentData,
+		});
+	}
+
+	return strapi.db.query("api::role-assignment.role-assignment").create({
+		data: assignmentData,
+	});
+}
+
+async function seedUsers(
+	strapi: StrapiLike,
+	collegeMap: Map<string, Record<string, unknown>>,
+	roleMap: Map<string, Record<string, unknown>>,
+) {
+	const pluginRoleId = await getAuthenticatedPluginRoleId(strapi);
+
+	if (!pluginRoleId) {
+		strapi.log.info("[seed] Users skipped because the authenticated plugin role was not found.");
+		return;
+	}
+
+	for (const user of userSeeds) {
+		const userRecord = await upsertPortalUser(strapi, user, pluginRoleId);
+		const collegeId = user.collegeCode ? collegeMap.get(user.collegeCode)?.id : undefined;
+		const portalRoleId = roleMap.get(user.portalRoleCode)?.id;
+
+		if (!portalRoleId) {
+			strapi.log.info(`[seed] Role assignment skipped for ${user.email}; portal role not found.`);
+			continue;
+		}
+
+		await upsertRoleAssignment(strapi, {
+			user: userRecord.id,
+			role: portalRoleId,
+			college: collegeId,
+			scopeType: user.scopeType,
+			status: "active",
+			isPrimary: true,
+		});
+	}
+}
+
+async function syncUsersPermissionsSettings(strapi: StrapiLike) {
+	const pluginStore = strapi.store({ type: "plugin", name: "users-permissions" });
+	const frontendUrl = (process.env.FRONTEND_URL ?? "http://localhost:3000").replace(/\/$/, "");
+	const senderEmail = process.env.SMTP_FROM ?? process.env.SMTP_USERNAME ?? "no-reply@iums.local";
+	const replyToEmail = process.env.SMTP_REPLY_TO ?? senderEmail;
+
+	const advancedSettings = (await pluginStore.get({ key: "advanced" })) ?? {};
+	await pluginStore.set({
+		key: "advanced",
+		value: {
+			...advancedSettings,
+			email_reset_password: `${frontendUrl}/reset-password`,
+			email_confirmation_redirection: `${frontendUrl}/signin`,
+		},
+	});
+
+	const emailSettings = (await pluginStore.get({ key: "email" })) ?? {};
+	const resetPasswordSettings =
+		(emailSettings.reset_password as Record<string, unknown> | undefined) ?? {};
+	const resetPasswordOptions =
+		(resetPasswordSettings.options as Record<string, unknown> | undefined) ?? {};
+
+	await pluginStore.set({
+		key: "email",
+		value: {
+			...emailSettings,
+			reset_password: {
+				...resetPasswordSettings,
+				display: resetPasswordSettings.display ?? "Email.template.reset_password",
+				icon: resetPasswordSettings.icon ?? "sync",
+				options: {
+					...resetPasswordOptions,
+					from: {
+						name: "School Portal",
+						email: senderEmail,
+					},
+					response_email: replyToEmail,
+					object: "Reset your School Portal password",
+					message: `<p>Hello <%= USER.username %>,</p>
+
+<p>We received a request to reset your School Portal password.</p>
+<p>Use this reset code in the portal:</p>
+<p><strong>Code = <%= TOKEN %></strong></p>
+
+<p>If you did not request this, you can ignore this email.</p>`,
+				},
+			},
+		},
+	});
 }
 
 export async function seedDefaultData(strapi: StrapiLike) {
@@ -503,10 +765,12 @@ export async function seedDefaultData(strapi: StrapiLike) {
 
 	strapi.log.info("[seed] Syncing default tenant, RBAC, menu, and academic data...");
 
+	await syncUsersPermissionsSettings(strapi);
 	const permissionMap = await seedPermissions(strapi);
 	await seedMenuItems(strapi, permissionMap);
 	const collegeMap = await seedColleges(strapi);
-	await seedRoles(strapi, permissionMap, collegeMap);
+	const roleMap = await seedRoles(strapi, permissionMap, collegeMap);
+	await seedUsers(strapi, collegeMap, roleMap);
 
 	strapi.log.info("[seed] Default data seed complete.");
 }

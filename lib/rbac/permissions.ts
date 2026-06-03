@@ -14,6 +14,9 @@ function permission(
 export const PERMISSIONS = [
 	permission("dashboard.view", "Dashboard", "view", "View dashboard"),
 
+	permission("profile.view", "Profile", "view", "View profile"),
+	permission("profile.update", "Profile", "update", "Update profile"),
+
 	permission("colleges.view", "Colleges", "view", "View colleges"),
 	permission("colleges.create", "Colleges", "create", "Create college"),
 	permission("colleges.update", "Colleges", "update", "Update college"),
@@ -116,6 +119,8 @@ export const PERMISSION_KEYS = PERMISSIONS.map(({ key }) => key);
 export const DEFAULT_DOMAIN_PERMISSIONS: Record<DashboardDomain, PermissionKey[]> = {
 	student: [
 		"dashboard.view",
+		"profile.view",
+		"profile.update",
 		"admissions.view",
 		"admissions.create",
 		"courses.view",
@@ -191,4 +196,3 @@ export const DEFAULT_DOMAIN_PERMISSIONS: Record<DashboardDomain, PermissionKey[]
 export function getDefaultPermissionsForDomain(domain: DashboardDomain) {
 	return DEFAULT_DOMAIN_PERMISSIONS[domain];
 }
-

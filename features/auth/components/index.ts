@@ -3,6 +3,7 @@ export { default as AuthExperienceRail } from "./AuthExperienceRail";
 export { default as AuthTextField } from "./AuthTextField";
 export { default as AuthPasswordField } from "./AuthPasswordField";
 export { default as AuthSubmitButton } from "./AuthSubmitButton";
+export { default as LogoutButton } from "./LogoutButton";
 export { default as PortalEntrySwitch } from "./PortalEntrySwitch";
 export { default as SignInForm } from "./SignInForm";
 export { default as ForgotPasswordForm } from "./ForgotPasswordForm";

@@ -1,6 +1,5 @@
 import {
 	ArrowRight,
-	LogOut,
 	BadgeCheck,
 	BarChart3,
 	Bell,
@@ -18,6 +17,7 @@ import {
 	Users,
 } from "lucide-react";
 import Link from "next/link";
+import { LogoutButton } from "@/features/auth/components";
 import type { UserDomain } from "@/lib/auth";
 import {
 	getDefaultPermissionsForDomain,
@@ -77,6 +77,7 @@ type RoleDashboardShellProps = {
 	domain: UserDomain;
 	roleLabel: string;
 	tenantSlug?: string;
+	activeMenuKey?: string;
 	permissions?: UserPermissionKey[];
 	stats: DashboardStat[];
 	highlights: DashboardHighlight[];
@@ -85,6 +86,7 @@ type RoleDashboardShellProps = {
 	reportPanel?: DashboardReportPanel;
 	tenantContext?: DashboardTenantContext;
 	children?: React.ReactNode;
+	showOverviewContent?: boolean;
 };
 
 const DOMAIN_ICON = {
@@ -120,6 +122,7 @@ export default function RoleDashboardShell({
 	domain,
 	roleLabel,
 	tenantSlug,
+	activeMenuKey = "dashboard",
 	permissions,
 	stats,
 	highlights,
@@ -128,6 +131,7 @@ export default function RoleDashboardShell({
 	reportPanel,
 	tenantContext,
 	children,
+	showOverviewContent = true,
 }: RoleDashboardShellProps) {
 	const DomainIcon = DOMAIN_ICON[domain];
 	const navItems = getVisibleDashboardMenus({
@@ -135,6 +139,7 @@ export default function RoleDashboardShell({
 		collegeSlug: tenantSlug,
 		permissions: permissions ?? getDefaultPermissionsForDomain(domain),
 	});
+	const headerTitle = tenantContext?.name ?? title;
 
 	return (
 		<div className="min-h-dvh bg-[#eef3fb] lg:flex lg:h-dvh lg:flex-col lg:overflow-hidden">
@@ -149,7 +154,7 @@ export default function RoleDashboardShell({
 								{badge}
 							</p>
 							<h1 className="mt-1 text-xl font-bold text-white sm:text-3xl">
-								{title}
+								{headerTitle}
 							</h1>
 							<p className="mt-1.5 max-w-2xl text-sm leading-7 text-[#93A6C1] sm:mt-2 sm:text-base">
 								{subtitle}
@@ -167,45 +172,15 @@ export default function RoleDashboardShell({
 
 						<div className="h-10 w-px bg-white/12" />
 
-						<Link
-							href="/"
-							className="inline-flex items-center gap-2 rounded-full border border-white/14 bg-white px-4 py-2.5 text-sm font-semibold text-[#0D2B55] shadow-sm transition hover:bg-[#f7faff]"
-						>
-							<LogOut className="size-4 text-[#B7770D]" />
-							<span>Logout</span>
-						</Link>
+						<LogoutButton />
 					</div>
 				</div>
 			</header>
 
 			<div className="lg:flex lg:min-h-0 lg:flex-1">
-				<aside className="bg-[#0D2B55] px-4 py-6 text-white shadow-lg shadow-[#0d2b55]/12 sm:px-6 lg:h-full lg:w-[20rem] lg:flex-none lg:overflow-hidden lg:px-6 lg:py-8 xl:w-[22rem] xl:px-8">
-					<div className="lg:sticky lg:top-8">
-						<div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-							<p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#E4A11B]">
-								Portal Role
-							</p>
-							<p className="mt-2 text-lg font-bold">{roleLabel}</p>
-							<p className="mt-2 text-sm leading-relaxed text-[#92A4BE]">
-								This shared workspace keeps the same visual system while exposing
-								the right tools for each role.
-							</p>
-							{tenantContext ? (
-								<div className="mt-4 rounded-xl border border-white/10 bg-[#173764] px-3.5 py-3">
-									<p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#BFD0E6]">
-										{tenantContext.label}
-									</p>
-									<p className="mt-2 text-sm font-semibold text-white">
-										{tenantContext.name}
-									</p>
-									<p className="mt-1 text-xs leading-relaxed text-[#9db0cb]">
-										{tenantContext.description}
-									</p>
-								</div>
-							) : null}
-						</div>
-
-						<nav className="mt-6 space-y-2">
+				<aside className="bg-[#0D2B55] px-4 py-4 text-white shadow-lg shadow-[#0d2b55]/12 sm:px-6 lg:h-full lg:w-[20rem] lg:flex-none lg:overflow-hidden lg:px-6 lg:py-5 xl:w-[22rem] xl:px-8">
+					<div className="lg:sticky lg:top-5">
+						<nav className="space-y-2">
 							{navItems.map((item, index) => {
 								const Icon =
 									MENU_ICON_MAP[item.icon as keyof typeof MENU_ICON_MAP] ??
@@ -216,7 +191,7 @@ export default function RoleDashboardShell({
 										key={item.label}
 										href={item.href}
 										className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition ${
-											index === 0
+											item.key === activeMenuKey
 												? "bg-white text-[#0D2B55]"
 												: "text-[#dbe6f3] hover:bg-white/5"
 										}`}
@@ -232,38 +207,40 @@ export default function RoleDashboardShell({
 
 				<main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:h-full lg:overflow-y-auto lg:px-8 xl:px-10">
 					<div className="mx-auto w-full max-w-[1240px] space-y-6 lg:pb-8">
-					<section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-						{stats.map((stat, index) => {
-							const Icon = STAT_ICONS[index % STAT_ICONS.length];
+					{showOverviewContent ? (
+						<>
+							<section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+								{stats.map((stat, index) => {
+									const Icon = STAT_ICONS[index % STAT_ICONS.length];
 
-							return (
-								<div
-									key={stat.label}
-									className="rounded-2xl border border-[#dbe5f1] bg-white p-5 shadow-sm"
-								>
-									<div className="flex items-center justify-between gap-3">
-										<div>
-											<p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#8395AF]">
-												{stat.label}
-											</p>
-											<p className="mt-3 text-3xl font-bold text-[#0D2B55]">
-												{stat.value}
+									return (
+										<div
+											key={stat.label}
+											className="rounded-2xl border border-[#dbe5f1] bg-white p-5 shadow-sm"
+										>
+											<div className="flex items-center justify-between gap-3">
+												<div>
+													<p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#8395AF]">
+														{stat.label}
+													</p>
+													<p className="mt-3 text-3xl font-bold text-[#0D2B55]">
+														{stat.value}
+													</p>
+												</div>
+												<div className="flex size-11 items-center justify-center rounded-full bg-[#eef4fb] text-[#2E86C1]">
+													<Icon className="size-5" />
+												</div>
+											</div>
+											<p className="mt-3 text-sm font-medium text-[#5B7090]">
+												{stat.change}
 											</p>
 										</div>
-										<div className="flex size-11 items-center justify-center rounded-full bg-[#eef4fb] text-[#2E86C1]">
-											<Icon className="size-5" />
-										</div>
-									</div>
-									<p className="mt-3 text-sm font-medium text-[#5B7090]">
-										{stat.change}
-									</p>
-								</div>
-							);
-						})}
-					</section>
+									);
+								})}
+							</section>
 
-					{reportPanel ? (
-						<section className="rounded-2xl border border-[#dbe5f1] bg-white p-5 shadow-sm">
+							{reportPanel ? (
+								<section className="rounded-2xl border border-[#dbe5f1] bg-white p-5 shadow-sm">
 							<div className="flex flex-wrap items-start justify-between gap-4">
 								<div>
 									<p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#B7770D]">
@@ -405,10 +382,10 @@ export default function RoleDashboardShell({
 									))}
 								</div>
 							</div>
-						</section>
-					) : null}
+								</section>
+							) : null}
 
-					<section className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_23rem] 2xl:grid-cols-[minmax(0,1.7fr)_24rem]">
+							<section className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_23rem] 2xl:grid-cols-[minmax(0,1.7fr)_24rem]">
 						<div className="rounded-2xl border border-[#dbe5f1] bg-white p-5 shadow-sm">
 							<div className="flex flex-wrap items-start justify-between gap-4">
 								<div>
@@ -508,7 +485,9 @@ export default function RoleDashboardShell({
 								</div>
 							</div>
 						</div>
-					</section>
+							</section>
+						</>
+					) : null}
 
 						{children ? <section>{children}</section> : null}
 					</div>

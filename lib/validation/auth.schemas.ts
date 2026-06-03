@@ -52,7 +52,7 @@ export const resetPasswordSchema = z
 			.string()
 			.trim()
 			.min(1, "Reset code is required")
-			.max(120, "Reset code is too long"),
+			.max(160, "Reset code is too long"),
 		password: passwordSchema,
 		confirmPassword: z.string().min(1, "Confirm your password"),
 	})

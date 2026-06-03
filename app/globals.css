@@ -847,6 +847,15 @@ body {
   }
 }
 
+@keyframes toast-progress {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
 @media (max-width: 760px) {
   .landing-container {
     width: min(100% - 1.25rem, 78rem);

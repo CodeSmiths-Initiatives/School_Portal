@@ -1,8 +1,10 @@
 import { createSuperadminDashboardContent } from "@/features/dashboard/config/dashboardContent";
 import RoleDashboardShell from "@/features/dashboard/components/RoleDashboardShell";
+import { getCurrentRoleLabel } from "@/lib/auth/server-session";
 
-export default function PlatformDashboardPage() {
+export default async function PlatformDashboardPage() {
 	const dashboard = createSuperadminDashboardContent();
+	const roleLabel = await getCurrentRoleLabel(dashboard.roleLabel);
 
 	return (
 		<RoleDashboardShell
@@ -10,7 +12,7 @@ export default function PlatformDashboardPage() {
 			title={dashboard.title}
 			subtitle={dashboard.subtitle}
 			domain="superadmin"
-			roleLabel={dashboard.roleLabel}
+			roleLabel={roleLabel}
 			stats={dashboard.stats}
 			highlights={dashboard.highlights}
 			activity={dashboard.activity}

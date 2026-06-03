@@ -2,10 +2,12 @@
 
 import {
 	COLLEGE_ROLE_LABELS,
-	resolveDashboardDestination,
 	STAFF_ROLE_LABELS,
 	type StaffRole,
 } from "@/lib/auth";
+import { loginThroughSessionRoute } from "@/lib/services/session.service";
+import { useAuthStore } from "@/lib/store";
+import { toast } from "@/lib/toast";
 import { loginSchema, toFieldErrors, type LoginInput } from "@/lib/validation";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -32,7 +34,7 @@ export default function SignInForm({
 		{},
 	);
 	const [isSubmitting, setIsSubmitting] = useState(false);
-	const [success, setSuccess] = useState("");
+	const setSessionSnapshot = useAuthStore((state) => state.setSessionSnapshot);
 
 	function handleChange(event: React.ChangeEvent<HTMLInputElement>) {
 		const { name, value } = event.target;
@@ -48,29 +50,43 @@ export default function SignInForm({
 		const result = loginSchema.safeParse(form);
 
 		if (!result.success) {
-			setSuccess("");
+			toast.error({
+				title: "Check sign-in details",
+				description: "Complete the required fields before signing in.",
+			});
 			setErrors(toFieldErrors<keyof LoginInput>(result.error));
 			return;
 		}
 
 		setErrors({});
 		setIsSubmitting(true);
-		await new Promise((resolve) => setTimeout(resolve, 500));
-		const destination = resolveDashboardDestination(audience, result.data.identifier);
+		const loginResult = await loginThroughSessionRoute(result.data, audience);
 		setIsSubmitting(false);
-		setSuccess(
-			destination.domain === "superadmin"
-				? "Superadmin credentials validated. Redirecting to the executive dashboard..."
-				: destination.domain === "admin"
-					? `College admin credentials validated for ${
-							COLLEGE_ROLE_LABELS.admin
-						}. Redirecting to the college admin workspace...`
-				: destination.domain === "staff"
-					? `Staff credentials validated for ${
-							STAFF_ROLE_LABELS[destination.role as StaffRole]
-						}. Redirecting to the staff dashboard...`
-					: "Student credentials validated. Redirecting to the student dashboard...",
-		);
+
+		if (!loginResult.ok) {
+			toast.error({
+				title: "Sign in failed",
+				description: loginResult.message,
+			});
+			return;
+		}
+
+		const { session } = loginResult;
+		const destination = session.destination;
+		setSessionSnapshot(session);
+		toast.success({
+			title: "Login successful",
+			description:
+				destination.domain === "superadmin"
+					? "Redirecting to the superadmin dashboard."
+					: destination.domain === "admin"
+						? `Redirecting to the ${COLLEGE_ROLE_LABELS.admin} workspace.`
+						: destination.domain === "staff"
+							? `Redirecting to ${
+									STAFF_ROLE_LABELS[destination.role as StaffRole]
+								} dashboard.`
+							: "Redirecting to the student dashboard.",
+		});
 		setTimeout(() => {
 			router.push(destination.path);
 		}, 500);
@@ -104,12 +120,6 @@ export default function SignInForm({
 					Forgot password?
 				</Link>
 			</div>
-
-			{success && (
-				<p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs font-semibold text-green-700">
-					{success}
-				</p>
-			)}
 
 			<AuthSubmitButton isSubmitting={isSubmitting}>Sign In</AuthSubmitButton>
 

@@ -13,6 +13,14 @@ export const MENU_CATALOG = [
 		requiredPermissions: ["dashboard.view"],
 	},
 	{
+		key: "profile",
+		label: "Profile",
+		href: "/college/[collegeSlug]/student/profile",
+		icon: "Users",
+		domains: ["student"],
+		requiredPermissions: ["profile.view"],
+	},
+	{
 		key: "colleges",
 		label: "Colleges",
 		href: "/platform/colleges",
@@ -85,6 +93,14 @@ export const MENU_CATALOG = [
 		requiredPermissions: ["payments.view"],
 	},
 	{
+		key: "hostel",
+		label: "Hostel",
+		href: "/college/[collegeSlug]/student/hostel",
+		icon: "Building2",
+		domains: ["student"],
+		requiredPermissions: ["hostels.view"],
+	},
+	{
 		key: "notices",
 		label: "Notices",
 		href: "/notices",
@@ -150,11 +166,30 @@ export function getVisibleDashboardMenus({
 			return false;
 		}
 
+		if (domain === "student" && menuItem.href.includes("[collegeSlug]") && !collegeSlug) {
+			return false;
+		}
+
 		return hasPermissions(permissions, menuItem.requiredPermissions, {
 			mode: menuItem.permissionMode,
 		});
-	}).map((item) => ({
-		...item,
-		href: item.key === "dashboard" ? dashboardHomePath : item.href,
-	}));
+	}).map((item) => {
+		if (item.key === "dashboard") {
+			return {
+				...item,
+				href: dashboardHomePath,
+			};
+		}
+
+		if (domain === "student" && item.href.includes("[collegeSlug]")) {
+			return {
+				...item,
+				href: collegeSlug
+					? item.href.replace("[collegeSlug]", collegeSlug)
+					: item.href,
+			};
+		}
+
+		return item;
+	});
 }

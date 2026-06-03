@@ -10,6 +10,8 @@ import type {
 	UserDomain,
 } from "./types";
 
+export const DEFAULT_MVP_COLLEGE_SLUG = "kwara-applied-sciences";
+
 export const DASHBOARD_ROUTE_BLUEPRINTS: Record<
 	DashboardDomain,
 	DashboardRouteBlueprint
@@ -17,7 +19,7 @@ export const DASHBOARD_ROUTE_BLUEPRINTS: Record<
 	student: {
 		domain: "student",
 		scope: "college",
-		currentPath: "/student/dashboard",
+		currentPath: `/college/${DEFAULT_MVP_COLLEGE_SLUG}/student/dashboard`,
 		routeTemplate: "/college/[collegeSlug]/student/dashboard",
 		requiresCollegeSlug: true,
 		label: "College Student Dashboard",
@@ -27,7 +29,7 @@ export const DASHBOARD_ROUTE_BLUEPRINTS: Record<
 	staff: {
 		domain: "staff",
 		scope: "college",
-		currentPath: "/staff/dashboard",
+		currentPath: `/college/${DEFAULT_MVP_COLLEGE_SLUG}/staff/dashboard`,
 		routeTemplate: "/college/[collegeSlug]/staff/dashboard",
 		requiresCollegeSlug: true,
 		label: "College Staff Dashboard",
@@ -37,7 +39,7 @@ export const DASHBOARD_ROUTE_BLUEPRINTS: Record<
 	admin: {
 		domain: "admin",
 		scope: "college",
-		currentPath: "/college/demo-college/admin/dashboard",
+		currentPath: `/college/${DEFAULT_MVP_COLLEGE_SLUG}/admin/dashboard`,
 		routeTemplate: "/college/[collegeSlug]/admin/dashboard",
 		requiresCollegeSlug: true,
 		label: "College Admin Dashboard",
@@ -47,7 +49,7 @@ export const DASHBOARD_ROUTE_BLUEPRINTS: Record<
 	superadmin: {
 		domain: "superadmin",
 		scope: "platform",
-		currentPath: "/admin/dashboard",
+		currentPath: "/platform/dashboard",
 		routeTemplate: "/platform/dashboard",
 		requiresCollegeSlug: false,
 		label: "Platform Superadmin Dashboard",
@@ -185,10 +187,16 @@ export function resolveDashboardDestination(
 	const normalized = normalizeIdentifier(identifier);
 
 	if (audience === "student") {
+		const path = buildDashboardPath("student", {
+			collegeSlug: DEFAULT_MVP_COLLEGE_SLUG,
+			useTenantTemplate: true,
+		});
+
 		return {
 			...DASHBOARD_ROUTE_BLUEPRINTS.student,
 			role: "student",
-			path: DASHBOARD_ROUTE_BLUEPRINTS.student.currentPath,
+			path,
+			resolvedCollegeSlug: DEFAULT_MVP_COLLEGE_SLUG,
 		};
 	}
 
@@ -209,21 +217,32 @@ export function resolveDashboardDestination(
 		normalized.includes("collegeadmin") ||
 		normalized.includes("campusadmin")
 	) {
+		const path = buildDashboardPath("admin", {
+			collegeSlug: DEFAULT_MVP_COLLEGE_SLUG,
+			useTenantTemplate: true,
+		});
+
 		return {
 			...DASHBOARD_ROUTE_BLUEPRINTS.admin,
 			role: "admin",
-			path: DASHBOARD_ROUTE_BLUEPRINTS.admin.currentPath,
+			path,
+			resolvedCollegeSlug: DEFAULT_MVP_COLLEGE_SLUG,
 			description:
 				"College admin accounts are college-scoped. In Phase 2 the UI route is prepared, while full tenant-aware auth wiring lands in the next phase.",
 		};
 	}
 
 	const role = resolveStaffRole(identifier);
+	const path = buildDashboardPath("staff", {
+		collegeSlug: DEFAULT_MVP_COLLEGE_SLUG,
+		useTenantTemplate: true,
+	});
 
 	return {
 		...DASHBOARD_ROUTE_BLUEPRINTS.staff,
 		role,
-		path: DASHBOARD_ROUTE_BLUEPRINTS.staff.currentPath,
+		path,
+		resolvedCollegeSlug: DEFAULT_MVP_COLLEGE_SLUG,
 		description: `${STAFF_ROLE_LABELS[role]} accounts currently route into the shared staff dashboard shell. In the multi-tenant model this remains college-scoped.`,
 	};
 }
