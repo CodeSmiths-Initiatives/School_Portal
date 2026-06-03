@@ -4,7 +4,7 @@ import { createStudentDashboardContent } from "@/features/dashboard/config/dashb
 import type { LucideIcon } from "lucide-react";
 
 type StudentModuleShellProps = {
-	activeMenuKey: "profile" | "hostel";
+	activeMenuKey: "profile";
 	badge: string;
 	title: string;
 	description: string;

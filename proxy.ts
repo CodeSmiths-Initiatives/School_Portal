@@ -58,7 +58,7 @@ export async function proxy(request: NextRequest) {
 		return redirectTo(STAFF_SIGNIN_PATH, request);
 	}
 
-	if (pathname.startsWith("/platform/dashboard")) {
+	if (pathname.startsWith("/superadmin/dashboard")) {
 		if (session?.user.domain === "superadmin") {
 			return NextResponse.next();
 		}
@@ -80,6 +80,16 @@ export async function proxy(request: NextRequest) {
 	}
 
 	const isSameCollege = session.user.collegeSlug === collegeRoute.collegeSlug;
+	const isSharedCollegeModule = collegeRoute.domain === "modules";
+
+	if (isSharedCollegeModule) {
+		if (session.user.domain === "superadmin" || isSameCollege) {
+			return NextResponse.next();
+		}
+
+		return redirectTo(session.destination.path, request);
+	}
+
 	const isSameDomain = session.user.domain === collegeRoute.domain;
 
 	if (isSameCollege && isSameDomain) {
@@ -94,7 +104,8 @@ export const config = {
 		"/student/dashboard",
 		"/staff/dashboard",
 		"/admin/dashboard",
-		"/platform/dashboard/:path*",
+		"/superadmin/dashboard/:path*",
+		"/college/:collegeSlug/modules/:path*",
 		"/college/:collegeSlug/student/:path*",
 		"/college/:collegeSlug/staff/:path*",
 		"/college/:collegeSlug/admin/:path*",

@@ -353,9 +353,9 @@ export function createCollegeAdminDashboardContent(
 			},
 			{
 				label: "Platform overview",
-				href: "/platform/dashboard",
+				href: "/superadmin/dashboard",
 				description:
-					"Return to the platform-level superadmin view when reviewing multi-college oversight.",
+					"Return to the superadmin view when reviewing multi-college oversight.",
 			},
 		],
 		reportPanel: {

@@ -49,10 +49,10 @@ export const DASHBOARD_ROUTE_BLUEPRINTS: Record<
 	superadmin: {
 		domain: "superadmin",
 		scope: "platform",
-		currentPath: "/platform/dashboard",
-		routeTemplate: "/platform/dashboard",
+		currentPath: "/superadmin/dashboard",
+		routeTemplate: "/superadmin/dashboard",
 		requiresCollegeSlug: false,
-		label: "Platform Superadmin Dashboard",
+		label: "Superadmin Dashboard",
 		description:
 			"The platform superadmin manages all colleges, provisions admins, and reviews platform-wide analytics.",
 	},
