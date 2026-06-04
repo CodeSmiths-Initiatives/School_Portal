@@ -1,0 +1,83 @@
+{
+  "kind": "collectionType",
+  "collectionName": "payment_invoices",
+  "info": {
+    "singularName": "payment-invoice",
+    "pluralName": "payment-invoices",
+    "displayName": "Payment Invoice",
+    "description": "Tenant-scoped invoice raised for admission, hostel, tuition, and other module payments."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "invoiceNumber": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "module": {
+      "type": "enumeration",
+      "enum": ["admission", "hostel", "tuition", "result", "transcript", "other"],
+      "required": true
+    },
+    "description": {
+      "type": "string"
+    },
+    "amount": {
+      "type": "decimal",
+      "required": true
+    },
+    "currency": {
+      "type": "string",
+      "default": "NGN",
+      "required": true
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": ["draft", "pending", "paid", "failed", "cancelled", "refunded", "expired"],
+      "default": "pending",
+      "required": true
+    },
+    "payerName": {
+      "type": "string"
+    },
+    "payerEmail": {
+      "type": "email"
+    },
+    "payerIdentifier": {
+      "type": "string"
+    },
+    "dueAt": {
+      "type": "datetime"
+    },
+    "paidAt": {
+      "type": "datetime"
+    },
+    "metadata": {
+      "type": "json"
+    },
+    "college": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::college.college"
+    },
+    "payer": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "transactions": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::payment-transaction.payment-transaction",
+      "mappedBy": "invoice"
+    },
+    "ledgerEntries": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::payment-ledger-entry.payment-ledger-entry",
+      "mappedBy": "invoice"
+    }
+  }
+}

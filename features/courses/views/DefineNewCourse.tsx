@@ -139,7 +139,7 @@ export default function DefineNewCourse({ onSave, onCancel }: Props) {
 
 	return (
 		<div className="flex flex-col gap-5">
-			<div className="flex items-start justify-between">
+			<div className="flex flex-wrap items-start justify-between gap-3">
 				<div>
 					<p className="text-2xl text-black font-semibold mb-1">
 						Define New Course
@@ -167,7 +167,7 @@ export default function DefineNewCourse({ onSave, onCancel }: Props) {
 				className="bg-white rounded-2xl border border-[#e4eaf4] p-7 flex flex-col gap-5 shadow-sm"
 			>
 				{/* Row 1: Course Code + Course Title */}
-				<div className="grid grid-cols-2 gap-5">
+				<div className="grid gap-5 md:grid-cols-2">
 					<Field label="Course Code" error={errors.code}>
 						<input
 							className={inp(errors.code)}
@@ -197,7 +197,7 @@ export default function DefineNewCourse({ onSave, onCancel }: Props) {
 				</Field>
 
 				{/* Row 3: Course Type + Credit Units */}
-				<div className="grid grid-cols-2 gap-5">
+				<div className="grid gap-5 md:grid-cols-2">
 					<Field label="Course Type" error={errors.type}>
 						<div className="relative">
 							<select
@@ -245,7 +245,7 @@ export default function DefineNewCourse({ onSave, onCancel }: Props) {
 				</div>
 
 				{/* Row 4: Offering Dept. + Semester */}
-				<div className="grid grid-cols-2 gap-5">
+				<div className="grid gap-5 md:grid-cols-2">
 					<Field label="Offering Dept.">
 						<input
 							className={inp()}
@@ -276,7 +276,7 @@ export default function DefineNewCourse({ onSave, onCancel }: Props) {
 				{/* ─── Level Allocation section ─── */}
 				<div className="flex flex-col gap-4 pt-1">
 					<SectionHeading emoji="📊" label="Level Allocation" />
-					<div className="grid grid-cols-3 gap-5">
+					<div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
 						{/* Applicable Levels — scrollable listbox */}
 						<Field label="Applicable Levels" error={errors.levels}>
 							<div className="border border-[#dce6f2] rounded-xl bg-white overflow-hidden">
@@ -326,7 +326,7 @@ export default function DefineNewCourse({ onSave, onCancel }: Props) {
 					<SectionHeading emoji="🗓️" label="Timetable Slot" />
 
 					{/* Row: Day + Time Slot + Mode */}
-					<div className="grid grid-cols-3 gap-5">
+					<div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
 						<Field label="Day">
 							<div className="relative">
 								<select

@@ -107,6 +107,11 @@ export const COLLEGE_MODULES = {
 				description: "Assign course owners or teaching staff inside the college.",
 				requiredPermissions: ["courses.assign_staff"],
 			},
+			{
+				label: "Approve course",
+				description: "Review submitted course definitions before publishing.",
+				requiredPermissions: ["courses.approve"],
+			},
 		],
 	},
 	results: {
@@ -309,6 +314,11 @@ export const COLLEGE_MODULES = {
 				label: "Print receipt",
 				description: "Generate print-ready student payment receipts.",
 				requiredPermissions: ["payments.print"],
+			},
+			{
+				label: "Trace transaction",
+				description: "Find invoice, ledger, and gateway status by reference.",
+				requiredPermissions: ["payments.view"],
 			},
 		],
 	},

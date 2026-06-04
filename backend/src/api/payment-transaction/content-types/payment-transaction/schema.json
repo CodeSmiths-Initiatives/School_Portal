@@ -1,0 +1,86 @@
+{
+  "kind": "collectionType",
+  "collectionName": "payment_transactions",
+  "info": {
+    "singularName": "payment-transaction",
+    "pluralName": "payment-transactions",
+    "displayName": "Payment Transaction",
+    "description": "Gateway attempt and verification record linked to an invoice."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "reference": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "gateway": {
+      "type": "enumeration",
+      "enum": ["paystack", "manual", "bank", "other"],
+      "default": "paystack",
+      "required": true
+    },
+    "gatewayReference": {
+      "type": "string"
+    },
+    "accessCode": {
+      "type": "string",
+      "private": true
+    },
+    "channel": {
+      "type": "string"
+    },
+    "amount": {
+      "type": "decimal",
+      "required": true
+    },
+    "currency": {
+      "type": "string",
+      "default": "NGN",
+      "required": true
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": ["initialized", "pending", "success", "failed", "cancelled", "abandoned", "reversed"],
+      "default": "initialized",
+      "required": true
+    },
+    "gatewayStatus": {
+      "type": "string"
+    },
+    "gatewayMessage": {
+      "type": "text"
+    },
+    "paidAt": {
+      "type": "datetime"
+    },
+    "verifiedAt": {
+      "type": "datetime"
+    },
+    "rawGatewayResponse": {
+      "type": "json",
+      "private": true
+    },
+    "metadata": {
+      "type": "json"
+    },
+    "college": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::college.college"
+    },
+    "invoice": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::payment-invoice.payment-invoice",
+      "inversedBy": "transactions"
+    },
+    "payer": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    }
+  }
+}

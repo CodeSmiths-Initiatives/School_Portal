@@ -30,11 +30,15 @@ export interface AdmissionPaymentIntent {
 	email: string;
 	username?: string;
 	method: PaystackPaymentMethod;
+	collegeSlug?: string;
+	studentId?: string;
+	module?: "admission" | "hostel" | "tuition" | "result" | "transcript" | "other";
 }
 
 export interface InitializedPayment {
 	accessCode: string;
 	reference: string;
+	invoiceNumber?: string;
 }
 
 export interface VerifiedPaymentSummary {
@@ -43,6 +47,7 @@ export interface VerifiedPaymentSummary {
 	currency: string;
 	channel?: string;
 	paidAt?: string;
+	verifiedAt?: string;
 }
 
 export function formatNaira(amount: number) {
@@ -105,6 +110,7 @@ export async function verifyAdmissionPayment(reference: string) {
 		body: JSON.stringify({
 			reference,
 			expectedAmount: APPLICATION_PAYMENT_TOTAL_KOBO,
+			module: "admission",
 		}),
 	});
 

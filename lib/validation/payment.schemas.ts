@@ -6,11 +6,19 @@ export const paymentIntentSchema = z.object({
 	method: paymentMethodSchema,
 	email: z.email("Enter a valid applicant email address"),
 	username: z.string().trim().min(1).optional(),
+	collegeSlug: z.string().trim().min(1).optional(),
+	studentId: z.string().trim().min(1).optional(),
+	module: z
+		.enum(["admission", "hostel", "tuition", "result", "transcript", "other"])
+		.default("admission"),
 });
 
 export const paystackVerificationRequestSchema = z.object({
 	reference: z.string().trim().min(6, "Payment reference is required"),
 	expectedAmount: z.number().int().positive(),
+	module: z
+		.enum(["admission", "hostel", "tuition", "result", "transcript", "other"])
+		.default("admission"),
 });
 
 export const paymentSchema = z

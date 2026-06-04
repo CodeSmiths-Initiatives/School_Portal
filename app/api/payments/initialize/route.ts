@@ -2,6 +2,7 @@ import {
 	APPLICATION_PAYMENT_TOTAL_KOBO,
 	PAYSTACK_CHANNELS,
 } from "@/lib/services/paystack.service";
+import { recordPaymentInitialized } from "@/lib/services/payment-persistence.service";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -9,6 +10,11 @@ const initializeRequestSchema = z.object({
 	email: z.email("Enter a valid applicant email address"),
 	username: z.string().trim().min(1).optional(),
 	method: z.enum(["card", "bank_transfer", "ussd"]),
+	collegeSlug: z.string().trim().min(1).optional(),
+	studentId: z.string().trim().min(1).optional(),
+	module: z
+		.enum(["admission", "hostel", "tuition", "result", "transcript", "other"])
+		.default("admission"),
 });
 
 function createReference() {
@@ -116,10 +122,30 @@ export async function POST(request: Request) {
 			);
 		}
 
+		const persistence = await recordPaymentInitialized({
+			reference: paystackResult.data.reference ?? reference,
+			accessCode: paystackResult.data.access_code,
+			amount: APPLICATION_PAYMENT_TOTAL_KOBO,
+			currency: "NGN",
+			email: parsed.data.email,
+			username: parsed.data.username,
+			module: parsed.data.module,
+			description:
+				parsed.data.module === "admission"
+					? "Application Fee"
+					: `${parsed.data.module} payment`,
+			collegeSlug: parsed.data.collegeSlug,
+			studentId: parsed.data.studentId,
+			gateway: "paystack",
+			channel: parsed.data.method,
+		});
+
 		return NextResponse.json({
 			payment: {
 				accessCode: paystackResult.data.access_code,
 				reference: paystackResult.data.reference ?? reference,
+				invoiceNumber: persistence.invoiceNumber,
+				persistence,
 			},
 		});
 	} catch {

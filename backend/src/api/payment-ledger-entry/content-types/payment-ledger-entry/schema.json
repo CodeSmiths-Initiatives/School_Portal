@@ -1,0 +1,78 @@
+{
+  "kind": "collectionType",
+  "collectionName": "payment_ledger_entries",
+  "info": {
+    "singularName": "payment-ledger-entry",
+    "pluralName": "payment-ledger-entries",
+    "displayName": "Payment Ledger Entry",
+    "description": "Append-style ledger movement for invoice charges, payments, refunds, waivers, and adjustments."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "entryNumber": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "entryType": {
+      "type": "enumeration",
+      "enum": ["charge", "payment", "refund", "waiver", "adjustment", "reversal"],
+      "required": true
+    },
+    "direction": {
+      "type": "enumeration",
+      "enum": ["debit", "credit"],
+      "required": true
+    },
+    "amount": {
+      "type": "decimal",
+      "required": true
+    },
+    "currency": {
+      "type": "string",
+      "default": "NGN",
+      "required": true
+    },
+    "module": {
+      "type": "enumeration",
+      "enum": ["admission", "hostel", "tuition", "result", "transcript", "other"],
+      "required": true
+    },
+    "description": {
+      "type": "string"
+    },
+    "reference": {
+      "type": "string"
+    },
+    "postedAt": {
+      "type": "datetime",
+      "required": true
+    },
+    "metadata": {
+      "type": "json"
+    },
+    "college": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::college.college"
+    },
+    "invoice": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::payment-invoice.payment-invoice",
+      "inversedBy": "ledgerEntries"
+    },
+    "transaction": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::payment-transaction.payment-transaction"
+    },
+    "payer": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    }
+  }
+}

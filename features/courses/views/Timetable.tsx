@@ -256,7 +256,11 @@ function AddSlotModal({
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function Timetable() {
+export default function Timetable({
+	canManageTimetable = true,
+}: {
+	canManageTimetable?: boolean;
+}) {
 	// Normalise TIMETABLE entries into a lookup: day → time → entries[]
 	type TEntry = {
 		code: string;
@@ -324,7 +328,7 @@ export default function Timetable() {
 
 	return (
 		<div className="flex flex-col gap-5">
-			<div className="flex items-start justify-between">
+			<div className="flex flex-wrap items-start justify-between gap-3">
 				<div>
 					<h2 className="text-2xl text-black font-semibold mb-1">
 						Weekly Timetable
@@ -340,7 +344,7 @@ export default function Timetable() {
 				</div>
 			</div>
 			{/* Page heading */}
-			<div className="flex items-start justify-between">
+			<div className="flex flex-wrap items-start justify-between gap-3">
 				<div>
 					<h1 className="text-2xl font-bold text-[#1a2b52] mt-1">
 						Weekly Timetable
@@ -387,20 +391,22 @@ export default function Timetable() {
 							▾
 						</span>
 					</div>
-					<button
-						onClick={() => setShowModal(true)}
-						className="flex items-center gap-1.5 bg-[#3d5a9e] hover:bg-[#2d4a8e] text-white
-							text-xs font-bold px-5 py-2.5 rounded-xl transition-all shadow-sm shadow-[#3d5a9e]/20"
-					>
-						+ Add Slot
-					</button>
+					{canManageTimetable ? (
+						<button
+							onClick={() => setShowModal(true)}
+							className="flex items-center gap-1.5 bg-[#0D2B55] hover:bg-[#092244] text-white
+								text-xs font-bold px-5 py-2.5 rounded-xl transition-all shadow-sm shadow-[#0D2B55]/20"
+						>
+							+ Add Slot
+						</button>
+					) : null}
 				</div>
 			</div>
 
 			{/* ── Calendar grid ── */}
-			<div className="bg-white rounded-2xl border border-[#e4eaf4] shadow-sm overflow-hidden">
+			<div className="overflow-x-auto rounded-2xl border border-[#e4eaf4] bg-white shadow-sm">
 				{/* Column headers */}
-				<div className="grid grid-cols-[90px_1fr_1fr_1fr_1fr_1fr]">
+				<div className="grid min-w-[920px] grid-cols-[90px_1fr_1fr_1fr_1fr_1fr]">
 					{/* Time header */}
 					<div className="bg-[#0d1b3e] px-4 py-3.5 flex items-center justify-center border-r border-white/10">
 						<span className="text-xs font-bold text-white/70 uppercase tracking-widest">
@@ -422,7 +428,7 @@ export default function Timetable() {
 				{TIME_SLOTS.map((slot, rowIdx) => (
 					<div
 						key={slot}
-						className={`grid grid-cols-[90px_1fr_1fr_1fr_1fr_1fr] border-t border-[#eef3fb]
+						className={`grid min-w-[920px] grid-cols-[90px_1fr_1fr_1fr_1fr_1fr] border-t border-[#eef3fb]
 							${rowIdx % 2 === 0 ? "bg-white" : "bg-[#fafbff]"}`}
 						style={{ minHeight: "80px" }}
 					>

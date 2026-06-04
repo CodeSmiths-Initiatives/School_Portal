@@ -8,13 +8,16 @@ import {
 	LockKeyhole,
 } from "lucide-react";
 import type { CollegeModuleConfig } from "@/features/college-modules/config/collegeModuleConfig";
+import CourseModuleWorkspace from "@/features/college-modules/components/CourseModuleWorkspace";
 import HostelModuleWorkspace from "@/features/college-modules/components/HostelModuleWorkspace";
+import PaymentModuleWorkspace from "@/features/college-modules/components/PaymentModuleWorkspace";
 import { hasPermissions, type UserPermissionKey } from "@/lib/rbac";
 
 type CollegeModuleWorkspaceProps = {
 	module: CollegeModuleConfig;
 	permissions: UserPermissionKey[];
 	collegeName: string;
+	collegeSlug: string;
 };
 
 const MODULE_ICONS = {
@@ -28,6 +31,7 @@ export default function CollegeModuleWorkspace({
 	module,
 	permissions,
 	collegeName,
+	collegeSlug,
 }: CollegeModuleWorkspaceProps) {
 	const Icon = MODULE_ICONS[module.icon];
 	const canView = hasPermissions(permissions, module.requiredPermissions);
@@ -64,6 +68,25 @@ export default function CollegeModuleWorkspace({
 			<HostelModuleWorkspace
 				permissions={permissions}
 				collegeName={collegeName}
+			/>
+		);
+	}
+
+	if (module.key === "courses") {
+		return (
+			<CourseModuleWorkspace
+				permissions={permissions}
+				collegeName={collegeName}
+			/>
+		);
+	}
+
+	if (module.key === "payments") {
+		return (
+			<PaymentModuleWorkspace
+				permissions={permissions}
+				collegeName={collegeName}
+				collegeSlug={collegeSlug}
 			/>
 		);
 	}

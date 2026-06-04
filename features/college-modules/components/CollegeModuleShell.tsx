@@ -70,12 +70,13 @@ export default async function CollegeModuleShell({
 			reportPanel={dashboard.reportPanel}
 			tenantContext={dashboard.tenantContext}
 			showOverviewContent={false}
-			contentWidth={moduleKey === "hostel" ? "wide" : "default"}
+			contentWidth={["hostel", "courses", "payments"].includes(moduleKey) ? "wide" : "default"}
 		>
 			<CollegeModuleWorkspace
 				module={module}
 				permissions={permissions}
 				collegeName={session.user.collegeName ?? formatCollegeName(collegeSlug)}
+				collegeSlug={collegeSlug}
 			/>
 		</RoleDashboardShell>
 	);

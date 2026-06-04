@@ -18,6 +18,7 @@ interface Props {
 	activeLevel: Level | null;
 	onLevelFilter: (l: Level | null) => void;
 	onDefineNew: () => void;
+	canDefineCourse?: boolean;
 }
 
 // Shared pill button class
@@ -42,6 +43,7 @@ export default function CourseDefinition({
 	activeLevel,
 	onLevelFilter,
 	onDefineNew,
+	canDefineCourse = true,
 }: Props) {
 	const [viewCourse, setViewCourse] = useState<Course | null>(null);
 
@@ -83,7 +85,7 @@ export default function CourseDefinition({
 			</div>
 
 			{/* Heading + CTA */}
-			<div className="flex items-center justify-between">
+			<div className="flex flex-wrap items-start justify-between gap-3">
 				<div>
 					<h2 className="text-2xl font-bold  text-[#1a2b52]">
 						Course Definitions
@@ -92,17 +94,23 @@ export default function CourseDefinition({
 						All courses defined by your department this session
 					</p>
 				</div>
-				<button
-					onClick={onDefineNew}
-					className="bg-[#0E50BD] hover:bg-[#0a3d96] text-white text-sm font-bold
-            px-5 py-2.5 rounded-xl transition-all shadow-sm shadow-[#0E50BD]/30 flex-shrink-0"
-				>
-					Define New Course
-				</button>
+				{canDefineCourse ? (
+					<button
+						onClick={onDefineNew}
+						className="bg-[#0D2B55] hover:bg-[#092244] text-white text-sm font-bold
+	            px-5 py-2.5 rounded-xl transition-all shadow-sm shadow-[#0D2B55]/30 flex-shrink-0"
+					>
+						Define New Course
+					</button>
+				) : (
+					<span className="rounded-full border border-[#dce6f2] bg-white px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-[#6b7e9f]">
+						View-only catalogue
+					</span>
+				)}
 			</div>
 
 			{/* 4 stat cards */}
-			<div className="grid grid-cols-4 gap-4">
+			<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
 				{STAT_CARDS.map((c) => (
 					<div
 						key={c.label}
@@ -199,7 +207,7 @@ export default function CourseDefinition({
 					</p>
 				</div>
 			) : (
-				<div className="grid grid-cols-2 gap-4">
+				<div className="grid gap-4 xl:grid-cols-2">
 					{courses.map((c) => (
 						<CourseCard key={c.id} course={c} onView={setViewCourse} />
 					))}

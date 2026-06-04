@@ -6,6 +6,7 @@ import { Course, CourseStatus } from "../types/course.types";
 interface Props {
 	courses: Course[];
 	onUpdateStatus: (id: string, status: CourseStatus, note?: string) => void;
+	canReviewCourses?: boolean;
 }
 
 // ─── Icon color per course type ───────────────────────────────────────────────
@@ -44,11 +45,13 @@ function DetailsModal({
 	onClose,
 	onApprove,
 	onReject,
+	canReviewCourses,
 }: {
 	course: Course;
 	onClose: () => void;
 	onApprove: () => void;
 	onReject: () => void;
+	canReviewCourses: boolean;
 }) {
 	return (
 		<div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-4">
@@ -132,7 +135,7 @@ function DetailsModal({
 					>
 						Close
 					</button>
-					{course.status === "Pending" && (
+					{canReviewCourses && course.status === "Pending" && (
 						<>
 							<button
 								onClick={() => {
@@ -168,11 +171,13 @@ function CourseRow({
 	onApprove,
 	onReject,
 	onView,
+	canReviewCourses,
 }: {
 	course: Course;
 	onApprove: () => void;
 	onReject: () => void;
 	onView: () => void;
+	canReviewCourses: boolean;
 }) {
 	const icon = ICON_STYLE[course.type] ?? ICON_STYLE.Core;
 	const modeLabel = course.mode === "Online" ? "Online" : "onsite";
@@ -258,7 +263,7 @@ function CourseRow({
 				</div>
 
 				{/* Action buttons — only shown for Pending */}
-				{course.status === "Pending" && (
+				{canReviewCourses && course.status === "Pending" && (
 					<div className="flex items-center gap-2 mt-0.5">
 						<button
 							onClick={onApprove}
@@ -296,7 +301,11 @@ function CourseRow({
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function HodApproval({ courses, onUpdateStatus }: Props) {
+export default function HodApproval({
+	courses,
+	onUpdateStatus,
+	canReviewCourses = true,
+}: Props) {
 	const [activeTab, setActiveTab] = useState<FilterTab>("Pending");
 	const [viewCourse, setViewCourse] = useState<Course | null>(null);
 	const [noteMap, setNoteMap] = useState<Record<string, string>>({});
@@ -331,7 +340,7 @@ export default function HodApproval({ courses, onUpdateStatus }: Props) {
 	return (
 		<div className="flex flex-col gap-5">
 			{/* Page heading */}
-			<div className="flex items-start justify-between">
+			<div className="flex flex-wrap items-start justify-between gap-3">
 				<div>
 					<p className="text-xs text-[#8a9ab5]">
 						Dept. of Computer Science · 2025/2026
@@ -414,6 +423,7 @@ export default function HodApproval({ courses, onUpdateStatus }: Props) {
 							onApprove={() => handleApprove(course.id)}
 							onReject={() => handleReject(course.id)}
 							onView={() => setViewCourse(course)}
+							canReviewCourses={canReviewCourses}
 						/>
 					))}
 				</div>
@@ -432,6 +442,7 @@ export default function HodApproval({ courses, onUpdateStatus }: Props) {
 						handleReject(viewCourse.id);
 						setViewCourse(null);
 					}}
+					canReviewCourses={canReviewCourses}
 				/>
 			)}
 		</div>

@@ -1,4 +1,5 @@
 import { paystackVerificationRequestSchema } from "@/lib/validation";
+import { recordPaymentVerified } from "@/lib/services/payment-persistence.service";
 import { NextResponse } from "next/server";
 
 interface PaystackVerifyResponse {
@@ -85,6 +86,18 @@ export async function POST(request: Request) {
 			);
 		}
 
+		const verifiedAt = new Date().toISOString();
+		const persistence = await recordPaymentVerified({
+			reference: paystackResult.data.reference ?? parsed.data.reference,
+			amount: paystackResult.data.amount ?? parsed.data.expectedAmount,
+			currency: paystackResult.data.currency ?? "NGN",
+			module: parsed.data.module,
+			channel: paystackResult.data.channel,
+			paidAt: paystackResult.data.paid_at,
+			verifiedAt,
+			rawGatewayResponse: paystackResult.data,
+		});
+
 		return NextResponse.json({
 			payment: {
 				reference: paystackResult.data.reference ?? parsed.data.reference,
@@ -92,6 +105,8 @@ export async function POST(request: Request) {
 				currency: paystackResult.data.currency ?? "NGN",
 				channel: paystackResult.data.channel,
 				paidAt: paystackResult.data.paid_at,
+				verifiedAt,
+				persistence,
 			},
 		});
 	} catch {

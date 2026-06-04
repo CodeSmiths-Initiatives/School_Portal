@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 
 interface Props {
 	courses: Course[];
+	canManageAllocations?: boolean;
 }
 
 // ─── Level group header colors ────────────────────────────────────────────────
@@ -148,7 +149,10 @@ function NewAllocationModal({
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function AllocateToLevels({ courses }: Props) {
+export default function AllocateToLevels({
+	courses,
+	canManageAllocations = true,
+}: Props) {
 	// Build initial allocation rows: each course × each of its assigned levels
 	const [rows, setRows] = useState<{ courseId: string; level: Level }[]>(() =>
 		courses.flatMap((c) => c.levels.map((l) => ({ courseId: c.id, level: l }))),
@@ -193,7 +197,7 @@ export default function AllocateToLevels({ courses }: Props) {
 
 	return (
 		<div className="flex flex-col gap-5">
-			<div className="flex items-start justify-between">
+			<div className="flex flex-wrap items-start justify-between gap-3">
 				<div>
 					<p className="text-2xl text-black font-semibold mb-1">
 						Level Allocations
@@ -209,7 +213,7 @@ export default function AllocateToLevels({ courses }: Props) {
 				</div>
 			</div>
 			{/* Page heading */}
-			<div className="flex items-start justify-between">
+			<div className="flex flex-wrap items-start justify-between gap-3">
 				<div>
 					<h1 className="text-2xl font-bold text-[#1a2b52] mt-1">
 						Course Allocation by Level
@@ -221,24 +225,26 @@ export default function AllocateToLevels({ courses }: Props) {
 			</div>
 
 			{/* Table card */}
-			<div className="bg-white rounded-2xl border border-[#e4eaf4] shadow-sm overflow-hidden">
+			<div className="overflow-x-auto rounded-2xl border border-[#e4eaf4] bg-white shadow-sm">
 				{/* Card header */}
 				<div className="flex items-center justify-between px-6 py-4 border-b border-[#f0f5fb]">
 					<h2 className="font-bold text-[#1a2b52] text-base">
 						Level Allocations
 					</h2>
-					<button
-						onClick={() => setShowModal(true)}
-						className="flex items-center gap-1.5 bg-[#3d5a9e] hover:bg-[#2d4a8e] text-white
-							text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-sm shadow-[#3d5a9e]/20"
-					>
-						<span>+</span> New Allocation
-					</button>
+					{canManageAllocations ? (
+						<button
+							onClick={() => setShowModal(true)}
+							className="flex items-center gap-1.5 bg-[#0D2B55] hover:bg-[#092244] text-white
+								text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-sm shadow-[#0D2B55]/20"
+						>
+							<span>+</span> New Allocation
+						</button>
+					) : null}
 				</div>
 
 				{/* Column headers */}
 				<div
-					className="grid grid-cols-[70px_110px_1fr_60px_90px_120px_140px_110px_40px]
+					className="grid min-w-[980px] grid-cols-[70px_110px_1fr_60px_90px_120px_140px_110px_40px]
 					px-6 py-3 bg-[#f7f9fd] border-b border-[#eef3fb]"
 				>
 					{COL_HEADERS.map((h, i) => (
@@ -292,7 +298,7 @@ export default function AllocateToLevels({ courses }: Props) {
 									return (
 										<div
 											key={`${row.courseId}-${row.level}`}
-											className={`grid grid-cols-[70px_110px_1fr_60px_90px_120px_140px_110px_40px]
+											className={`grid min-w-[980px] grid-cols-[70px_110px_1fr_60px_90px_120px_140px_110px_40px]
 												px-6 py-4 items-center border-b border-[#f5f5f0] last:border-0
 												${i % 2 === 0 ? "bg-white" : "bg-[#fafafa]"} hover:bg-[#f7f9fd] transition-colors`}
 										>
