@@ -70,6 +70,7 @@ export default async function CollegeModuleShell({
 			reportPanel={dashboard.reportPanel}
 			tenantContext={dashboard.tenantContext}
 			showOverviewContent={false}
+			contentWidth={moduleKey === "hostel" ? "wide" : "default"}
 		>
 			<CollegeModuleWorkspace
 				module={module}

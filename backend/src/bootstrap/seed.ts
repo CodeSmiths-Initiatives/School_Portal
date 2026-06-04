@@ -171,6 +171,8 @@ const permissions: PermissionSeed[] = [
   ["settings", "view", "View settings"],
   ["settings", "update", "Update settings"],
   ["hostels", "view", "View hostels"],
+  ["hostels", "create", "Create hostel"],
+  ["hostels", "update", "Update hostel"],
   ["hostels", "allocate", "Allocate hostel"],
 ].map(([module, action, label]) => ({
   key: `${module}.${action}`,
@@ -246,10 +248,10 @@ const menuItems: MenuSeed[] = [
   {
     key: "admissions",
     label: "Admissions",
-    href: "/modules/admission/biodata",
+    href: "/college/[collegeSlug]/student/admission",
     icon: "FolderKanban",
     order: 80,
-    domains: ["student", "staff", "admin"],
+    domains: ["student"],
     requiredPermissions: ["admissions.view"],
   },
   {
@@ -494,6 +496,10 @@ const roleSeeds: RoleSeed[] = [
       "roles.create",
       "roles.assign_permissions",
       "settings.view",
+      "hostels.view",
+      "hostels.create",
+      "hostels.update",
+      "hostels.allocate",
     ],
   },
   {
@@ -622,6 +628,10 @@ const roleSeeds: RoleSeed[] = [
       "roles.create",
       "roles.assign_permissions",
       "settings.view",
+      "hostels.view",
+      "hostels.create",
+      "hostels.update",
+      "hostels.allocate",
     ],
   },
   {

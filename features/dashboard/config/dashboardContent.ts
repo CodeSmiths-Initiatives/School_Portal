@@ -58,6 +58,9 @@ export function createStudentDashboardContent(
 				"Student access is restricted to this college only, including applications, payments, and notices.",
 			)
 		: undefined;
+	const admissionPath = options?.collegeSlug
+		? `/college/${options.collegeSlug}/student/admission`
+		: "/";
 
 	return {
 		badge: "Student Dashboard",
@@ -134,7 +137,7 @@ export function createStudentDashboardContent(
 		quickLinks: [
 			{
 				label: "Continue admission profile",
-				href: "/",
+				href: admissionPath,
 				description:
 					"Return to the admission flow and continue your application details.",
 			},

@@ -1,6 +1,10 @@
 import type { PermissionKey } from "@/lib/rbac";
 
-export type CollegeModuleKey = "courses" | "results" | "hostel" | "payments";
+export type CollegeModuleKey =
+	| "courses"
+	| "results"
+	| "hostel"
+	| "payments";
 
 export type CollegeModuleIconName =
 	| "BookOpenCheck"
@@ -220,6 +224,16 @@ export const COLLEGE_MODULES = {
 			},
 		],
 		actions: [
+			{
+				label: "Add hostel",
+				description: "Create a college-scoped hostel residence and publish capacity.",
+				requiredPermissions: ["hostels.create"],
+			},
+			{
+				label: "Edit rooms and beds",
+				description: "Update hostel blocks, rooms, bed availability, and residence status.",
+				requiredPermissions: ["hostels.update"],
+			},
 			{
 				label: "Allocate hostel",
 				description: "Assign eligible students to rooms or residence blocks.",

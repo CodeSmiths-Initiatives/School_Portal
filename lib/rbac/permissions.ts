@@ -101,6 +101,8 @@ export const PERMISSIONS = [
 	permission("transcripts.approve", "Transcripts", "approve", "Approve transcript"),
 
 	permission("hostels.view", "Hostels", "view", "View hostels"),
+	permission("hostels.create", "Hostels", "create", "Create hostel"),
+	permission("hostels.update", "Hostels", "update", "Update hostel"),
 	permission("hostels.allocate", "Hostels", "allocate", "Allocate hostel"),
 
 	permission("library.view", "Library", "view", "View library"),
@@ -146,6 +148,7 @@ export const DEFAULT_DOMAIN_PERMISSIONS: Record<DashboardDomain, PermissionKey[]
 		"results.upload",
 		"payments.view",
 		"hostels.view",
+		"hostels.allocate",
 		"notices.view",
 		"notices.create",
 		"reports.view",
@@ -172,6 +175,8 @@ export const DEFAULT_DOMAIN_PERMISSIONS: Record<DashboardDomain, PermissionKey[]
 		"payments.verify",
 		"payments.export",
 		"hostels.view",
+		"hostels.create",
+		"hostels.update",
 		"hostels.allocate",
 		"notices.view",
 		"notices.create",

@@ -87,6 +87,7 @@ type RoleDashboardShellProps = {
 	tenantContext?: DashboardTenantContext;
 	children?: React.ReactNode;
 	showOverviewContent?: boolean;
+	contentWidth?: "default" | "wide";
 };
 
 const DOMAIN_ICON = {
@@ -132,6 +133,7 @@ export default function RoleDashboardShell({
 	tenantContext,
 	children,
 	showOverviewContent = true,
+	contentWidth = "default",
 }: RoleDashboardShellProps) {
 	const DomainIcon = DOMAIN_ICON[domain];
 	const navItems = getVisibleDashboardMenus({
@@ -206,7 +208,13 @@ export default function RoleDashboardShell({
 				</aside>
 
 				<main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:h-full lg:overflow-y-auto lg:px-8 xl:px-10">
-					<div className="mx-auto w-full max-w-[1240px] space-y-6 lg:pb-8">
+					<div
+						className={`w-full space-y-6 lg:pb-8 ${
+							contentWidth === "wide"
+								? "max-w-none"
+								: "mx-auto max-w-[1240px]"
+						}`}
+					>
 					{showOverviewContent ? (
 						<>
 							<section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

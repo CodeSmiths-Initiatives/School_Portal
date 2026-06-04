@@ -63,10 +63,9 @@ export const MENU_CATALOG = [
   {
     key: "admissions",
     label: "Admissions",
-    // href: "/admissions",
-    href: "/modules/admission/biodata",
+    href: "/college/[collegeSlug]/student/admission",
     icon: "FolderKanban",
-    domains: ["student", "staff", "admin"],
+    domains: ["student"],
     requiredPermissions: ["admissions.view"],
   },
   {

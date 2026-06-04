@@ -8,6 +8,7 @@ import {
 	LockKeyhole,
 } from "lucide-react";
 import type { CollegeModuleConfig } from "@/features/college-modules/config/collegeModuleConfig";
+import HostelModuleWorkspace from "@/features/college-modules/components/HostelModuleWorkspace";
 import { hasPermissions, type UserPermissionKey } from "@/lib/rbac";
 
 type CollegeModuleWorkspaceProps = {
@@ -55,6 +56,15 @@ export default function CollegeModuleWorkspace({
 					</div>
 				</div>
 			</div>
+		);
+	}
+
+	if (module.key === "hostel") {
+		return (
+			<HostelModuleWorkspace
+				permissions={permissions}
+				collegeName={collegeName}
+			/>
 		);
 	}
 

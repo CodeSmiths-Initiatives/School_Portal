@@ -4,14 +4,14 @@ import {
 	createStudentDashboardContent,
 	formatCollegeName,
 } from "@/features/dashboard/config/dashboardContent";
-import { StudentProfileWorkspace } from "@/features/student-profile";
+import { StudentAdmissionForm } from "@/features/student-admission";
 import { getCurrentAuthSession } from "@/lib/auth/server-session";
 import {
 	getDefaultPermissionsForDomain,
 	type UserPermissionKey,
 } from "@/lib/rbac";
 
-export default async function CollegeStudentProfilePage({
+export default async function CollegeStudentAdmissionPage({
 	params,
 }: {
 	params: Promise<{ collegeSlug: string }>;
@@ -42,7 +42,7 @@ export default async function CollegeStudentProfilePage({
 			domain="student"
 			roleLabel={session.user.roleLabel ?? dashboard.roleLabel}
 			tenantSlug={collegeSlug}
-			activeMenuKey="profile"
+			activeMenuKey="admissions"
 			permissions={permissions}
 			stats={dashboard.stats}
 			highlights={dashboard.highlights}
@@ -51,7 +51,7 @@ export default async function CollegeStudentProfilePage({
 			tenantContext={dashboard.tenantContext}
 			showOverviewContent={false}
 		>
-			<StudentProfileWorkspace
+			<StudentAdmissionForm
 				studentName={session.user.name}
 				email={session.user.email}
 				collegeName={collegeName}

@@ -1,21 +1,6 @@
-import { createStudentDashboardContent } from "@/features/dashboard/config/dashboardContent";
-import RoleDashboardShell from "@/features/dashboard/components/RoleDashboardShell";
+import { redirect } from "next/navigation";
+import { DASHBOARD_PATHS } from "@/lib/auth";
 
 export default function StudentDashboardPage() {
-	const dashboard = createStudentDashboardContent();
-
-	return (
-		<RoleDashboardShell
-			badge={dashboard.badge}
-			title={dashboard.title}
-			subtitle={dashboard.subtitle}
-			domain="student"
-			roleLabel={dashboard.roleLabel}
-			stats={dashboard.stats}
-			highlights={dashboard.highlights}
-			activity={dashboard.activity}
-			quickLinks={dashboard.quickLinks}
-			tenantContext={dashboard.tenantContext}
-		/>
-	);
+	redirect(DASHBOARD_PATHS.student);
 }
