@@ -21,6 +21,8 @@ type ProvisionCollegePayload = {
 };
 
 const DEV_INTERNAL_SECRET = "iums-local-registration-secret-change-before-production";
+const GLOBAL_COLLEGE_ADMIN_ROLE_CODE = "platform-college-admin";
+const GLOBAL_STUDENT_ROLE_CODE = "platform-student";
 
 const COLLEGE_ADMIN_PERMISSIONS = [
 	"dashboard.view",
@@ -168,7 +170,7 @@ async function upsertPortalRole(input: {
 	code: string;
 	description: string;
 	scopeType: "college" | "self";
-	collegeId: number;
+	collegeId?: number;
 	permissions: string[];
 }) {
 	const existing = await strapi.db.query("api::portal-role.portal-role").findOne({
@@ -182,18 +184,21 @@ async function upsertPortalRole(input: {
 		roleType: "system",
 		tenantScope: "college",
 		scopeType: input.scopeType,
-		college: input.collegeId,
 		permissions: permissionIds,
 	};
+	const roleData =
+		typeof input.collegeId === "number"
+			? { ...data, college: input.collegeId }
+			: data;
 
 	if (existing?.id) {
 		return strapi.db.query("api::portal-role.portal-role").update({
 			where: { id: existing.id },
-			data,
+			data: roleData,
 		});
 	}
 
-	return strapi.db.query("api::portal-role.portal-role").create({ data });
+	return strapi.db.query("api::portal-role.portal-role").create({ data: roleData });
 }
 
 async function upsertAdminUser(input: {
@@ -267,6 +272,24 @@ async function upsertAdminAssignment(input: {
 		status: "active",
 		isPrimary: true,
 	};
+
+	const activeAssignments = await strapi.db
+		.query("api::role-assignment.role-assignment")
+		.findMany({
+			where: {
+				user: input.userId,
+				status: "active",
+			},
+		});
+
+	for (const assignment of activeAssignments as Array<{ id?: number }>) {
+		if (assignment.id) {
+			await strapi.db.query("api::role-assignment.role-assignment").update({
+				where: { id: assignment.id },
+				data: { isPrimary: false },
+			});
+		}
+	}
 
 	if (existing?.id) {
 		return strapi.db.query("api::role-assignment.role-assignment").update({
@@ -425,22 +448,21 @@ export default {
 				},
 			});
 
-			const rolePrefix = payload.code.toLowerCase();
 			const adminRole = await upsertPortalRole({
 				name: "College Admin",
-				code: `${rolePrefix}-college-admin`,
-				description: `Administers staff, students, courses, admissions, reports, and local roles for ${payload.code}.`,
+				code: GLOBAL_COLLEGE_ADMIN_ROLE_CODE,
+				description:
+					"Global college admin role template. Tenant access comes from each user's college role assignment.",
 				scopeType: "college",
-				collegeId: college.id,
 				permissions: COLLEGE_ADMIN_PERMISSIONS,
 			});
 
 			const studentRole = await upsertPortalRole({
 				name: "Student",
-				code: `${rolePrefix}-student`,
-				description: `Student/applicant role for ${payload.name}.`,
+				code: GLOBAL_STUDENT_ROLE_CODE,
+				description:
+					"Global student/applicant role template. Tenant access comes from each user's college role assignment.",
 				scopeType: "self",
-				collegeId: college.id,
 				permissions: STUDENT_PERMISSIONS,
 			});
 
@@ -477,6 +499,7 @@ export default {
 							userId: adminUser.id,
 							roleCode: adminRole.code,
 							studentRoleCode: studentRole.code,
+							roleAssignmentScope: "college",
 							inviteEmailSent: emailSent,
 							provisionedAt: new Date().toISOString(),
 						},
@@ -496,6 +519,11 @@ export default {
 				studentRole: {
 					id: studentRole.id,
 					code: studentRole.code,
+				},
+				roleTemplates: {
+					adminRoleCode: adminRole.code,
+					studentRoleCode: studentRole.code,
+					scopeSource: "role_assignment",
 				},
 				emailSent,
 			};

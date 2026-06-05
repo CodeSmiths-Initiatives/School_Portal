@@ -214,13 +214,19 @@ User storage:
 - We do not create separate login tables for superadmin, college admin, staff, and student.
 - User type/dashboard access is resolved through `portal_roles` and `role_assignments`.
 - `role_assignments` links one `up_users` record to a `portal_role`, college, and optional faculty/department/course/self scope.
+- Student and College Admin are global platform role templates:
+  - `platform-student`
+  - `platform-college-admin`
+- Those two role permissions are managed by the Superadmin and reused across all colleges.
+- Their tenant context comes from `role_assignments.college`, not from a separate role per college.
+- College Admin-created roles such as HOD, Clerk, Supervisor, Teacher, or Bursary are college-scoped custom roles and can have different permissions per college.
 
 This allows one user table while still supporting:
 
 - Platform superadmin
-- College admin per college
+- One reusable College Admin role assigned per college
 - Dynamic staff roles per college
-- Student/applicant accounts per college
+- One reusable Student role assigned per applicant's college
 
 ## 7. Admission and Payment Persistence Checks
 
@@ -258,8 +264,9 @@ Superadmin college provisioning:
 1. Superadmin signs in at `/staff/signin`.
 2. Open `/superadmin/colleges`.
 3. Enter college name/code and primary admin username, email, phone, and temporary password.
-4. The app creates the Strapi college, college admin role, student role, admin user, and role assignment.
-5. The admin can sign in at `/staff/signin`, and the college appears on `/apply`.
+4. The app creates the Strapi college, primary admin user, and college-scoped role assignment using the global `platform-college-admin` template.
+5. The global `platform-student` template is reused when students register under any college.
+6. The admin can sign in at `/staff/signin`, and the college appears on `/apply`.
 
 Payment flow:
 

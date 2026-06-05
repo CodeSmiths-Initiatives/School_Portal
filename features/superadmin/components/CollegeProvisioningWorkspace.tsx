@@ -257,8 +257,9 @@ export function CollegeProvisioningWorkspace({
 						</div>
 					</div>
 					<p className="mt-3 text-sm leading-6 text-[#b8c7dc]">
-						One submit creates the college, college admin role, student role,
-						admin account, role assignment, and invitation email.
+						One submit creates the college, primary admin account, college
+						assignment, and invitation email using the global admin/student
+						role templates.
 					</p>
 				</div>
 
@@ -398,7 +399,8 @@ export function CollegeProvisioningWorkspace({
 							<ShieldCheck className="mt-0.5 size-5 shrink-0" />
 							<p>
 								The admin will receive a temporary password and can sign in via
-								the staff portal. Tenant data remains scoped by college slug.
+								the staff portal. Admin and student permissions are global
+								templates; tenant data remains scoped by college assignment.
 							</p>
 						</div>
 					</div>

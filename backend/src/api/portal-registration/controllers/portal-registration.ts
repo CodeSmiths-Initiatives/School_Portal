@@ -18,6 +18,21 @@ type RegisterStudentPayload = {
 
 const DEV_REGISTRATION_SECRET =
 	"iums-local-registration-secret-change-before-production";
+const GLOBAL_STUDENT_ROLE_CODE = "platform-student";
+
+const STUDENT_PERMISSIONS = [
+	"dashboard.view",
+	"profile.view",
+	"profile.update",
+	"admissions.view",
+	"courses.view",
+	"courses.register",
+	"results.view",
+	"payments.view",
+	"payments.print",
+	"hostels.view",
+	"notices.view",
+];
 
 function getRegistrationSecret() {
 	const configured = process.env.PORTAL_REGISTRATION_SECRET;
@@ -65,6 +80,42 @@ async function getAuthenticatedPluginRoleId() {
 	return role?.id;
 }
 
+async function getPermissionIds(keys: string[]) {
+	const permissions = await strapi.db.query("api::permission.permission").findMany({
+		where: { key: { $in: keys } },
+	});
+
+	return permissions
+		.map((permission: { id?: number }) => permission.id)
+		.filter((id: unknown): id is number => typeof id === "number");
+}
+
+async function upsertGlobalStudentRole() {
+	const existing = await strapi.db.query("api::portal-role.portal-role").findOne({
+		where: { code: GLOBAL_STUDENT_ROLE_CODE },
+	});
+	const permissionIds = await getPermissionIds(STUDENT_PERMISSIONS);
+	const data = {
+		name: "Student",
+		code: GLOBAL_STUDENT_ROLE_CODE,
+		description:
+			"Global student/applicant role template. Tenant access comes from each user's college role assignment.",
+		roleType: "system",
+		tenantScope: "college",
+		scopeType: "self",
+		permissions: permissionIds,
+	};
+
+	if (existing?.id) {
+		return strapi.db.query("api::portal-role.portal-role").update({
+			where: { id: existing.id },
+			data,
+		});
+	}
+
+	return strapi.db.query("api::portal-role.portal-role").create({ data });
+}
+
 async function findExistingAssignment(userId: number, roleId: number, collegeId: number) {
 	return strapi.db.query("api::role-assignment.role-assignment").findOne({
 		where: {
@@ -74,6 +125,26 @@ async function findExistingAssignment(userId: number, roleId: number, collegeId:
 			scopeType: "self",
 		},
 	});
+}
+
+async function demoteOtherPrimaryAssignments(userId: number) {
+	const activeAssignments = await strapi.db
+		.query("api::role-assignment.role-assignment")
+		.findMany({
+			where: {
+				user: userId,
+				status: "active",
+			},
+		});
+
+	for (const assignment of activeAssignments as Array<{ id?: number }>) {
+		if (assignment.id) {
+			await strapi.db.query("api::role-assignment.role-assignment").update({
+				where: { id: assignment.id },
+				data: { isPrimary: false },
+			});
+		}
+	}
 }
 
 export default {
@@ -99,16 +170,10 @@ export default {
 			return ctx.badRequest("Selected college could not be resolved.");
 		}
 
-		const studentRoleCode = `${String(college.code).toLowerCase()}-student`;
-		const studentRole = await strapi.db.query("api::portal-role.portal-role").findOne({
-			where: {
-				code: studentRoleCode,
-				college: college.id,
-			},
-		});
+		const studentRole = await upsertGlobalStudentRole();
 
 		if (!studentRole?.id) {
-			return ctx.badRequest("The selected college does not have a student role configured.");
+			return ctx.badRequest("The global student role is not configured.");
 		}
 
 		const pluginRoleId = await getAuthenticatedPluginRoleId();
@@ -155,6 +220,7 @@ export default {
 				});
 
 		const assignment = await findExistingAssignment(user.id, studentRole.id, college.id);
+		await demoteOtherPrimaryAssignments(user.id);
 
 		if (assignment?.id) {
 			await strapi.db.query("api::role-assignment.role-assignment").update({

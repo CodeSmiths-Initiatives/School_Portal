@@ -39,6 +39,47 @@ function mapPermissionKeys(role: Record<string, unknown>) {
 		.filter((key): key is string => typeof key === "string");
 }
 
+function getRoleCode(assignment: Record<string, unknown>) {
+	const role = assignment.role;
+
+	if (!role || typeof role !== "object") {
+		return "";
+	}
+
+	return String((role as Record<string, unknown>).code ?? "").toLowerCase();
+}
+
+function getAssignmentPriority(assignment: Record<string, unknown>) {
+	const roleCode = getRoleCode(assignment);
+
+	if (roleCode === "platform-superadmin") {
+		return 100;
+	}
+
+	if (roleCode === "platform-college-admin") {
+		return 90;
+	}
+
+	if (roleCode === "platform-student") {
+		return 80;
+	}
+
+	return assignment.isPrimary ? 50 : 0;
+}
+
+function selectPrimaryAssignment(assignments: Record<string, unknown>[]) {
+	return [...assignments].sort((left, right) => {
+		const priorityDelta =
+			getAssignmentPriority(right) - getAssignmentPriority(left);
+
+		if (priorityDelta !== 0) {
+			return priorityDelta;
+		}
+
+		return Number(right.id ?? 0) - Number(left.id ?? 0);
+	})[0];
+}
+
 export default {
 	async me(ctx: StrapiContext) {
 		const token = getBearerToken(ctx);
@@ -88,9 +129,7 @@ export default {
 				},
 			});
 
-		const primaryAssignment =
-			assignments.find((assignment: Record<string, unknown>) => assignment.isPrimary) ??
-			assignments[0];
+		const primaryAssignment = selectPrimaryAssignment(assignments);
 
 		if (!primaryAssignment?.role) {
 			return ctx.notFound("No active portal role assignment found for this user.");

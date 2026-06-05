@@ -55,6 +55,11 @@ export type ProvisionCollegeResult = {
 		id: number;
 		code: string;
 	};
+	roleTemplates?: {
+		adminRoleCode: string;
+		studentRoleCode: string;
+		scopeSource: "role_assignment";
+	};
 	emailSent: boolean;
 };
 

@@ -4,6 +4,9 @@ type StrapiLike = {
       findOne: (
         args: Record<string, unknown>,
       ) => Promise<Record<string, unknown> | null>;
+      findMany: (
+        args: Record<string, unknown>,
+      ) => Promise<Record<string, unknown>[]>;
       create: (
         args: Record<string, unknown>,
       ) => Promise<Record<string, unknown>>;
@@ -466,13 +469,12 @@ const roleSeeds: RoleSeed[] = [
   },
   {
     name: "College Admin",
-    code: "kscas-college-admin",
+    code: "platform-college-admin",
     description:
-      "Administers staff, students, courses, admissions, reports, and local roles for KSCAS.",
+      "Global college admin role template. Tenant access comes from each user's college role assignment.",
     roleType: "system",
     tenantScope: "college",
     scopeType: "college",
-    collegeCode: "KSCAS",
     permissions: [
       "dashboard.view",
       "faculties.view",
@@ -510,13 +512,12 @@ const roleSeeds: RoleSeed[] = [
   },
   {
     name: "Student",
-    code: "kscas-student",
+    code: "platform-student",
     description:
-      "Student/applicant role for college-scoped dashboard, admission progress, payments, courses, hostel, and notices.",
+      "Global student/applicant role template. Tenant access comes from each user's college role assignment.",
     roleType: "system",
     tenantScope: "college",
     scopeType: "self",
-    collegeCode: "KSCAS",
     permissions: [
       "dashboard.view",
       "profile.view",
@@ -606,49 +607,6 @@ const roleSeeds: RoleSeed[] = [
     ],
   },
   {
-    name: "College Admin",
-    code: "kscbh-college-admin",
-    description:
-      "Administers staff, students, courses, admissions, reports, and local roles for KSCBH.",
-    roleType: "system",
-    tenantScope: "college",
-    scopeType: "college",
-    collegeCode: "KSCBH",
-    permissions: [
-      "dashboard.view",
-      "faculties.view",
-      "faculties.create",
-      "departments.view",
-      "departments.create",
-      "staff.view",
-      "staff.create",
-      "staff.assign_role",
-      "students.view",
-      "students.create",
-      "admissions.view",
-      "admissions.approve",
-      "courses.view",
-      "courses.create",
-      "courses.update",
-      "courses.assign_staff",
-      "courses.approve",
-      "courses.reject",
-      "payments.view",
-      "payments.verify",
-      "payments.print",
-      "notices.view",
-      "reports.view",
-      "roles.view",
-      "roles.create",
-      "roles.assign_permissions",
-      "settings.view",
-      "hostels.view",
-      "hostels.create",
-      "hostels.update",
-      "hostels.allocate",
-    ],
-  },
-  {
     name: "Bursary Officer",
     code: "kscbh-bursary-officer",
     description: "Finance operations role for payment review and reporting.",
@@ -702,7 +660,7 @@ const userSeeds: UserSeed[] = [
     username: "kwara.admin",
     email: "admin.kwara@iums.test",
     password: "Admin@123",
-    portalRoleCode: "kscas-college-admin",
+    portalRoleCode: "platform-college-admin",
     scopeType: "college",
     collegeCode: "KSCAS",
   },
@@ -711,7 +669,7 @@ const userSeeds: UserSeed[] = [
     username: "kwara.student",
     email: "student.kwara@iums.test",
     password: "Student@1",
-    portalRoleCode: "kscas-student",
+    portalRoleCode: "platform-student",
     scopeType: "self",
     collegeCode: "KSCAS",
   },
@@ -885,22 +843,23 @@ async function seedRoles(
     const collegeId = role.collegeCode
       ? collegeMap.get(role.collegeCode)?.id
       : undefined;
+    const roleData = {
+      name: role.name,
+      code: role.code,
+      description: role.description,
+      roleType: role.roleType,
+      tenantScope: role.tenantScope,
+      scopeType: role.scopeType,
+      permissions: permissionIds,
+      ...(collegeId ? { college: collegeId } : {}),
+    };
 
     const roleRecord = await upsertByField(
       strapi,
       "api::portal-role.portal-role",
       "code",
       role.code,
-      {
-        name: role.name,
-        code: role.code,
-        description: role.description,
-        roleType: role.roleType,
-        tenantScope: role.tenantScope,
-        scopeType: role.scopeType,
-        college: collegeId,
-        permissions: permissionIds,
-      },
+      roleData,
     );
     roleMap.set(role.code, roleRecord);
   }
@@ -976,6 +935,26 @@ async function upsertRoleAssignment(
   }
   if (data.course !== undefined) {
     where.course = data.course;
+  }
+
+  if (data.isPrimary && data.user) {
+    const activeAssignments = await strapi.db
+      .query("api::role-assignment.role-assignment")
+      .findMany({
+        where: {
+          user: data.user,
+          status: "active",
+        },
+      });
+
+    for (const assignment of activeAssignments) {
+      if (assignment.id) {
+        await strapi.db.query("api::role-assignment.role-assignment").update({
+          where: { id: assignment.id },
+          data: { isPrimary: false },
+        });
+      }
+    }
   }
 
   const existing = await strapi.db
