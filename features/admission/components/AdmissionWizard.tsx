@@ -16,6 +16,7 @@ import {
 	createAdmissionApplicationDraft,
 	updateAdmissionApplication,
 } from "@/features/admission/services/admissionApplication.client";
+import { registerStudentPortalAccount } from "@/features/admission/services/studentRegistration.client";
 import type { PaymentVerificationResult } from "@/features/admission/types/payment.types";
 import type { AdmissionApplicationSummary } from "@/lib/services/admission-application.service";
 import type { ProgrammeSelectionInput } from "@/lib/validation";
@@ -44,6 +45,13 @@ export default function AdmissionWizard({
 			throw new Error("Select a college before continuing the application.");
 		}
 
+		await registerStudentPortalAccount({
+			collegeSlug,
+			username: data.username,
+			email: data.email,
+			password: data.password,
+		});
+
 		const application = await createAdmissionApplicationDraft({
 			collegeSlug,
 			account: {
@@ -57,8 +65,8 @@ export default function AdmissionWizard({
 		setPaymentResult(null);
 		setCurrentStep(2);
 		toast.success({
-			title: "Draft saved",
-			description: "Your application is saved under this college.",
+			title: "Student login created",
+			description: "Your application and portal access are saved for this college.",
 		});
 	};
 

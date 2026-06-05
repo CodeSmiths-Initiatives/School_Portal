@@ -64,6 +64,80 @@ function hasPersistenceToken() {
 	return Boolean(process.env.STRAPI_API_TOKEN?.trim());
 }
 
+const DEV_INTERNAL_SECRET =
+	"iums-local-registration-secret-change-before-production";
+
+function getStrapiBaseUrl() {
+	return (
+		process.env.STRAPI_API_URL ??
+		process.env.NEXT_PUBLIC_STRAPI_API_URL ??
+		"http://localhost:1337"
+	).replace(/\/$/, "");
+}
+
+function getInternalSecret() {
+	const configured =
+		process.env.PORTAL_INTERNAL_API_SECRET ?? process.env.PORTAL_REGISTRATION_SECRET;
+
+	if (configured) {
+		return configured;
+	}
+
+	if (process.env.NODE_ENV === "production") {
+		throw new Error("PORTAL_INTERNAL_API_SECRET is required in production.");
+	}
+
+	return DEV_INTERNAL_SECRET;
+}
+
+async function postInternalPersistence<T>(
+	path: "/api/payments/persist-initialized" | "/api/payments/persist-verified",
+	body: unknown,
+) {
+	const response = await fetch(`${getStrapiBaseUrl()}${path}`, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			"x-portal-internal-secret": getInternalSecret(),
+		},
+		body: JSON.stringify(body),
+		cache: "no-store",
+	});
+
+	const payload = (await response.json().catch(() => null)) as
+		| T
+		| { error?: { message?: string }; message?: string }
+		| null;
+
+	if (!response.ok || !payload) {
+		const errorPayload =
+			payload && typeof payload === "object"
+				? (payload as { error?: { message?: string }; message?: string })
+				: null;
+		const message =
+			errorPayload?.error?.message ?? errorPayload?.message ?? undefined;
+
+		throw new Error(message ?? "Internal payment persistence failed.");
+	}
+
+	if (typeof payload !== "object") {
+		throw new Error("Internal payment persistence returned an invalid payload.");
+	}
+
+	if ("error" in payload || "message" in payload) {
+		const errorPayload = payload as {
+			error?: { message?: string };
+			message?: string;
+		};
+		const message =
+			errorPayload.error?.message ?? errorPayload.message ?? undefined;
+
+		throw new Error(message ?? "Internal payment persistence failed.");
+	}
+
+	return payload as T;
+}
+
 function createInvoiceNumber(module: PaymentRecordModule, reference: string) {
 	const moduleCode = module.slice(0, 3).toUpperCase();
 	const suffix = reference.split("-").slice(-1)[0] ?? reference.slice(-6);
@@ -90,10 +164,32 @@ async function resolveCollegeRelationId(collegeSlug?: string) {
 		});
 		const college = colleges[0];
 
-		return college?.numericId ?? college?.documentId ?? college?.id;
+		return college?.documentId ?? college?.id ?? college?.numericId;
 	} catch {
 		return undefined;
 	}
+}
+
+function getWriteDocumentId(
+	record?: { documentId?: unknown; id?: unknown; numericId?: unknown } | null,
+) {
+	if (typeof record?.documentId === "string") {
+		return record.documentId;
+	}
+
+	if (typeof record?.id === "string") {
+		return record.id;
+	}
+
+	if (typeof record?.numericId === "number") {
+		return String(record.numericId);
+	}
+
+	if (typeof record?.id === "number") {
+		return String(record.id);
+	}
+
+	return undefined;
 }
 
 function relationFields({
@@ -139,10 +235,20 @@ export async function recordPaymentInitialized(
 	input: RecordInitializationInput,
 ): Promise<PersistenceResult> {
 	if (!hasPersistenceToken()) {
-		return {
-			persisted: false,
-			reason: "STRAPI_API_TOKEN is not configured.",
-		};
+		try {
+			return await postInternalPersistence<PersistenceResult>(
+				"/api/payments/persist-initialized",
+				input,
+			);
+		} catch (error) {
+			return {
+				persisted: false,
+				reason:
+					error instanceof Error
+						? error.message
+						: "Unable to persist payment initialization.",
+			};
+		}
 	}
 
 	const invoiceNumber = createInvoiceNumber(input.module, input.reference);
@@ -177,7 +283,7 @@ export async function recordPaymentInitialized(
 		}
 
 		const invoice = unwrapStrapiEntity(invoiceResponse.data);
-		const invoiceId = invoice.numericId ?? invoice.documentId ?? invoice.id;
+		const invoiceId = getWriteDocumentId(invoice);
 		const transactionResponse = await strapiPost<
 			StrapiSingleResponse<StrapiPaymentRecord>
 		>("/api/payment-transactions", {
@@ -205,8 +311,7 @@ export async function recordPaymentInitialized(
 		}
 
 		const transaction = unwrapStrapiEntity(transactionResponse.data);
-		const transactionId =
-			transaction.numericId ?? transaction.documentId ?? transaction.id;
+		const transactionId = getWriteDocumentId(transaction);
 
 		await strapiPost("/api/payment-ledger-entries", {
 			data: {
@@ -250,16 +355,25 @@ export async function recordPaymentVerified(
 	input: RecordVerificationInput,
 ): Promise<PersistenceResult> {
 	if (!hasPersistenceToken()) {
-		return {
-			persisted: false,
-			reason: "STRAPI_API_TOKEN is not configured.",
-		};
+		try {
+			return await postInternalPersistence<PersistenceResult>(
+				"/api/payments/persist-verified",
+				input,
+			);
+		} catch (error) {
+			return {
+				persisted: false,
+				reason:
+					error instanceof Error
+						? error.message
+						: "Unable to persist payment verification.",
+			};
+		}
 	}
 
 	try {
 		const transaction = await findPaymentTransaction(input.reference);
-		const transactionId =
-			transaction?.numericId ?? transaction?.documentId ?? transaction?.id;
+		const transactionId = getWriteDocumentId(transaction);
 		const invoiceId = getRelationId(transaction?.invoice);
 		const collegeId = getRelationId(transaction?.college);
 		const applicationId = getRelationId(transaction?.admissionApplication);

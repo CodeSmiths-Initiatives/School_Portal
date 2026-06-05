@@ -24,6 +24,7 @@ import type {
 	PaymentLedgerResponse,
 	PaymentModuleKey,
 } from "@/features/payments/types/payment-ledger.types";
+import { printPaymentInvoice } from "@/features/payments/utils/printPaymentInvoice";
 import { formatNaira } from "@/lib/services/paystack.service";
 import {
 	hasPermissions,
@@ -192,9 +193,11 @@ function InvoiceCard({
 function InvoiceDetail({
 	invoice,
 	canPrint,
+	collegeName,
 }: {
 	invoice?: PaymentInvoice;
 	canPrint: boolean;
+	collegeName: string;
 }) {
 	if (!invoice) {
 		return (
@@ -224,7 +227,7 @@ function InvoiceDetail({
 					{canPrint ? (
 						<button
 							type="button"
-							onClick={() => window.print()}
+							onClick={() => printPaymentInvoice(invoice, collegeName)}
 							className="inline-flex size-10 items-center justify-center rounded-xl border border-[#dbe5f1] bg-[#f8fbff] text-[#0D2B55] transition hover:bg-white"
 							aria-label="Print invoice"
 						>
@@ -542,7 +545,11 @@ export default function PaymentModuleWorkspace({
 							</div>
 
 							<div className="space-y-4">
-								<InvoiceDetail invoice={selectedInvoice} canPrint={canPrint} />
+								<InvoiceDetail
+									invoice={selectedInvoice}
+									canPrint={canPrint}
+									collegeName={collegeName}
+								/>
 
 								{selectedInvoice ? (
 									<div className="rounded-2xl border border-[#dbe5f1] bg-white p-5 shadow-sm">

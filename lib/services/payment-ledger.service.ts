@@ -72,6 +72,32 @@ function hasPersistenceToken() {
 	return Boolean(process.env.STRAPI_API_TOKEN?.trim());
 }
 
+const DEV_INTERNAL_SECRET =
+	"iums-local-registration-secret-change-before-production";
+
+function getStrapiBaseUrl() {
+	return (
+		process.env.STRAPI_API_URL ??
+		process.env.NEXT_PUBLIC_STRAPI_API_URL ??
+		"http://localhost:1337"
+	).replace(/\/$/, "");
+}
+
+function getInternalSecret() {
+	const configured =
+		process.env.PORTAL_INTERNAL_API_SECRET ?? process.env.PORTAL_REGISTRATION_SECRET;
+
+	if (configured) {
+		return configured;
+	}
+
+	if (process.env.NODE_ENV === "production") {
+		throw new Error("PORTAL_INTERNAL_API_SECRET is required in production.");
+	}
+
+	return DEV_INTERNAL_SECRET;
+}
+
 function asNumber(value: unknown) {
 	if (typeof value === "number") {
 		return value;
@@ -251,11 +277,75 @@ function mapInvoice(
 	};
 }
 
+function normalizeInternalInvoice(invoice: StrapiPaymentInvoice) {
+	const id = invoice.documentId ?? invoice.id;
+
+	return {
+		...invoice,
+		id: typeof id === "string" ? id : String(id ?? invoice.invoiceNumber ?? ""),
+	} as ReturnType<typeof unwrapStrapiCollection<StrapiPaymentInvoice>>[number];
+}
+
+async function getInternalPaymentLedgerRecords(
+	input: PaymentLedgerInput,
+): Promise<PaymentLedgerResponse> {
+	const params = new URLSearchParams({
+		scope: input.scope,
+	});
+
+	if (input.collegeSlug) {
+		params.set("collegeSlug", input.collegeSlug);
+	}
+
+	if (input.scope === "student" && input.payerEmail) {
+		params.set("payerEmail", input.payerEmail);
+	}
+
+	const response = await fetch(
+		`${getStrapiBaseUrl()}/api/payments/ledger-records?${params.toString()}`,
+		{
+			method: "GET",
+			headers: {
+				"x-portal-internal-secret": getInternalSecret(),
+			},
+			cache: "no-store",
+		},
+	);
+
+	const payload = (await response.json().catch(() => null)) as
+		| { invoices?: StrapiPaymentInvoice[]; error?: { message?: string } }
+		| null;
+
+	if (!response.ok || !payload?.invoices) {
+		throw new Error(
+			payload?.error?.message ?? "Unable to load internal payment ledger.",
+		);
+	}
+
+	const invoices = payload.invoices
+		.map(normalizeInternalInvoice)
+		.map((invoice) => mapInvoice(invoice, input.collegeSlug));
+
+	return {
+		scope: input.scope,
+		collegeName:
+			invoices[0]?.collegeName ??
+			input.collegeSlug ??
+			(input.scope === "student" ? "Student payments" : "College payments"),
+		invoices,
+		summary: summarize(invoices),
+	};
+}
+
 export async function getPaymentLedgerRecords(
 	input: PaymentLedgerInput,
 ): Promise<PaymentLedgerResponse> {
 	if (!hasPersistenceToken()) {
-		return getFallbackPaymentLedgerRecords(input);
+		try {
+			return await getInternalPaymentLedgerRecords(input);
+		} catch {
+			return getFallbackPaymentLedgerRecords(input);
+		}
 	}
 
 	try {

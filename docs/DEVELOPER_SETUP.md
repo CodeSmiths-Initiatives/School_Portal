@@ -24,6 +24,8 @@ NEXT_PUBLIC_STRAPI_API_URL=http://localhost:1337
 STRAPI_API_URL=http://localhost:1337
 NEXT_PUBLIC_AUTH_PROVIDER=auto
 AUTH_SESSION_SECRET=replace_with_32_plus_random_characters
+PORTAL_REGISTRATION_SECRET=replace_with_internal_registration_secret
+PORTAL_INTERNAL_API_SECRET=replace_with_internal_payment_secret
 ```
 
 Auth provider options:
@@ -46,7 +48,11 @@ DATABASE_PASSWORD=mail_123
 DATABASE_SSL=false
 STRAPI_SEED_DEFAULT_DATA=true
 FRONTEND_URL=http://localhost:3000
+PORTAL_REGISTRATION_SECRET=replace_with_internal_registration_secret
+PORTAL_INTERNAL_API_SECRET=replace_with_internal_payment_secret
 ```
+
+Local development has a fallback internal secret so the app can run quickly, but production must set both `PORTAL_REGISTRATION_SECRET` and `PORTAL_INTERNAL_API_SECRET`. These protect the internal Strapi routes used by Next.js for student portal account registration and payment ledger persistence.
 
 Backend email reset support uses Gmail SMTP through Strapi Nodemailer. Use a Gmail app password, not the normal account password:
 
@@ -223,6 +229,7 @@ same application record as the user continues.
 Main APIs:
 
 ```txt
+POST  /api/auth/register-student
 GET   /api/admissions/applications?collegeSlug=kwara-applied-sciences&email=student@example.com
 POST  /api/admissions/applications
 PATCH /api/admissions/applications/[applicationId]
@@ -247,7 +254,7 @@ Payment flow:
 
 1. Applicant starts at `/apply` and selects a college.
 2. Applicant continues at `/college/[collegeSlug]/apply`.
-3. Step 1 creates/returns a draft `admission_application`.
+3. Step 1 creates or updates a Strapi portal student account using the applicant email and password, then creates/returns a draft `admission_application`.
 4. Step 2 updates that same application with programme/session and marks payment pending.
 5. Step 3 initializes Paystack and persists:
    - `payment_invoice`
@@ -267,6 +274,14 @@ The payments module at:
 
 uses the authenticated session. Students see their own payment records; college
 admins and finance-capable roles see college-wide payment records.
+
+If a payment was completed but the ledger shows pending, re-run:
+
+```txt
+POST /api/payments/verify
+```
+
+with the Paystack reference. The local MVP can persist via the internal Strapi payment route when `STRAPI_API_TOKEN` is not configured. The print button in the payment module prints only the selected invoice detail, not the full browser page.
 
 ## 8. Build Checks
 
