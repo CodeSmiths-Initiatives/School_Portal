@@ -181,6 +181,13 @@ export function getVisibleDashboardMenus({
       };
     }
 
+    if (item.key === "roles" && domain === "superadmin") {
+      return {
+        ...item,
+        href: "/superadmin/roles",
+      };
+    }
+
     if (item.href.includes("[collegeSlug]")) {
       return {
         ...item,

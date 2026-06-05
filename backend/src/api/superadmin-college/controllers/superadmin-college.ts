@@ -223,19 +223,11 @@ async function upsertAdminUser(input: {
 		throw new Error("Username is already linked to another email address.");
 	}
 
-	const userService = strapi.plugin("users-permissions").service("user");
-
 	if (existingUser?.id) {
-		return userService.edit(existingUser.id, {
-			username: input.username,
-			email: input.email,
-			password: input.password,
-			provider: "local",
-			confirmed: true,
-			blocked: false,
-			role: input.pluginRoleId,
-		});
+		throw new Error("Admin email or username is already linked to another portal account.");
 	}
+
+	const userService = strapi.plugin("users-permissions").service("user");
 
 	return userService.add({
 		username: input.username,
@@ -414,12 +406,18 @@ export default {
 
 		const existingCollege = await strapi.db.query("api::college.college").findOne({
 			where: {
-				$or: [{ slug: payload.slug }, { code: payload.code }],
+				$or: [
+					{ slug: payload.slug },
+					{ code: payload.code },
+					{ contactEmail: payload.contactEmail || payload.adminEmail },
+				],
 			},
 		});
 
 		if (existingCollege?.id) {
-			return ctx.conflict("A college with this name or code already exists.");
+			return ctx.conflict(
+				"A college with this name, code, or contact email already exists.",
+			);
 		}
 
 		const pluginRoleId = await getAuthenticatedPluginRoleId();
@@ -531,7 +529,7 @@ export default {
 			const message =
 				error instanceof Error ? error.message : "Unable to provision college.";
 
-			if (message.includes("Username is already linked")) {
+			if (message.includes("already linked")) {
 				return ctx.conflict(message);
 			}
 

@@ -133,6 +133,7 @@ Important routes:
 | Staff dashboard | `/college/[collegeSlug]/staff/dashboard` | Dynamic staff-role workspace |
 | Superadmin dashboard | `/superadmin/dashboard` | Platform dashboard |
 | Superadmin colleges | `/superadmin/colleges` | Create college tenants and their primary college admin |
+| Superadmin roles | `/superadmin/roles` | Manage global Student and College Admin permission templates |
 
 For current local seed data, the main college slug is:
 
@@ -264,9 +265,18 @@ Superadmin college provisioning:
 1. Superadmin signs in at `/staff/signin`.
 2. Open `/superadmin/colleges`.
 3. Enter college name/code and primary admin username, email, phone, and temporary password.
-4. The app creates the Strapi college, primary admin user, and college-scoped role assignment using the global `platform-college-admin` template.
-5. The global `platform-student` template is reused when students register under any college.
-6. The admin can sign in at `/staff/signin`, and the college appears on `/apply`.
+4. College name/slug, college code, contact email, admin username, and admin email must be unique.
+5. The app creates the Strapi college, primary admin user, and college-scoped role assignment using the global `platform-college-admin` template.
+6. The global `platform-student` template is reused when students register under any college.
+7. The admin can sign in at `/staff/signin`, and the college appears on `/apply`.
+
+Superadmin global role management:
+
+1. Superadmin opens `/superadmin/roles`.
+2. The screen manages only `platform-college-admin` and `platform-student`.
+3. Superadmin can create new `module.action` permission keys.
+4. Superadmin can toggle permissions on either global role template.
+5. College-local custom roles such as HOD, Clerk, Supervisor, and Teacher will be managed from the College Admin area in the next role-management phase.
 
 Payment flow:
 
