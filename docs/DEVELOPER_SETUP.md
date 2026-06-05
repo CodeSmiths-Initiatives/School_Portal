@@ -132,6 +132,7 @@ Important routes:
 | College admin dashboard | `/college/[collegeSlug]/admin/dashboard` | College admin workspace |
 | Staff dashboard | `/college/[collegeSlug]/staff/dashboard` | Dynamic staff-role workspace |
 | Superadmin dashboard | `/superadmin/dashboard` | Platform dashboard |
+| Superadmin colleges | `/superadmin/colleges` | Create college tenants and their primary college admin |
 
 For current local seed data, the main college slug is:
 
@@ -230,6 +231,8 @@ Main APIs:
 
 ```txt
 POST  /api/auth/register-student
+GET   /api/superadmin/colleges
+POST  /api/superadmin/colleges
 GET   /api/admissions/applications?collegeSlug=kwara-applied-sciences&email=student@example.com
 POST  /api/admissions/applications
 PATCH /api/admissions/applications/[applicationId]
@@ -249,6 +252,14 @@ up_users
 portal_roles
 role_assignments
 ```
+
+Superadmin college provisioning:
+
+1. Superadmin signs in at `/staff/signin`.
+2. Open `/superadmin/colleges`.
+3. Enter college name/code and primary admin username, email, phone, and temporary password.
+4. The app creates the Strapi college, college admin role, student role, admin user, and role assignment.
+5. The admin can sign in at `/staff/signin`, and the college appears on `/apply`.
 
 Payment flow:
 

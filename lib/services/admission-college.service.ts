@@ -1,4 +1,5 @@
 import { getActiveColleges } from "@/lib/services/college.service";
+import { getProvisionedColleges } from "@/lib/services/superadmin-college.service";
 
 export type AdmissionCollegeOption = {
 	id: string;
@@ -128,6 +129,24 @@ export async function getAdmissionCollegeOptions() {
 		}
 	} catch {
 		// Keep local development and MVP review usable when Strapi is offline.
+	}
+
+	try {
+		const colleges = await getProvisionedColleges();
+
+		if (colleges.length > 0) {
+			return colleges
+				.filter((college) => college.status === "active")
+				.map<AdmissionCollegeOption>((college) => ({
+					id: String(college.id),
+					name: college.name,
+					slug: college.slug,
+					code: college.code,
+					description: formatCollegeDescription(college.name),
+				}));
+		}
+	} catch {
+		// The static directory keeps the college picker usable without Strapi.
 	}
 
 	return FALLBACK_ADMISSION_COLLEGES;
