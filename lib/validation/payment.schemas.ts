@@ -8,6 +8,8 @@ export const paymentIntentSchema = z.object({
 	username: z.string().trim().min(1).optional(),
 	collegeSlug: z.string().trim().min(1).optional(),
 	studentId: z.string().trim().min(1).optional(),
+	applicationId: z.string().trim().min(1).optional(),
+	applicationNumber: z.string().trim().min(1).optional(),
 	module: z
 		.enum(["admission", "hostel", "tuition", "result", "transcript", "other"])
 		.default("admission"),

@@ -19,6 +19,8 @@ export interface RegistrationStep {
 
 interface RegistrationSidebarProps {
   currentStep: number;
+  collegeName?: string;
+  collegeCode?: string;
 }
 
 function RegistrationStepsList({
@@ -97,13 +99,21 @@ function RegistrationStepsList({
 
 export function MobileRegistrationSteps({
   currentStep,
+  collegeName,
+  collegeCode,
 }: RegistrationSidebarProps) {
   return (
     <div className="lg:hidden">
-      <div className="mb-3">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         <span className="rounded-full border border-[#B7770D] bg-[#B7770D]/10 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-[#B7770D]">
           Admission Open 2025
         </span>
+        {collegeName && (
+          <span className="rounded-full border border-[#d8e2f0] bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-[#35527d]">
+            {collegeCode ? `${collegeCode} - ` : ""}
+            {collegeName}
+          </span>
+        )}
       </div>
       <RegistrationStepsList currentStep={currentStep} compact />
     </div>
@@ -112,6 +122,8 @@ export function MobileRegistrationSteps({
 
 export default function RegistrationSidebar({
   currentStep,
+  collegeName,
+  collegeCode,
 }: RegistrationSidebarProps) {
   return (
     <aside className="app-scrollbar hidden h-full overflow-y-auto bg-[#0D2B55] px-7 py-8 lg:flex lg:flex-col xl:px-8 xl:py-10">
@@ -131,6 +143,21 @@ export default function RegistrationSidebar({
           Create your applicant account and complete your registration in
           minutes.
         </p>
+        {collegeName && (
+          <div className="mt-4 rounded-2xl border border-white/10 bg-white/8 px-4 py-3">
+            <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#8ea1be]">
+              Selected College
+            </p>
+            <p className="mt-1 text-sm font-bold leading-snug text-white">
+              {collegeName}
+            </p>
+            {collegeCode && (
+              <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#B7770D]">
+                {collegeCode}
+              </p>
+            )}
+          </div>
+        )}
         <div className="mt-5">
           <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.24em] text-[#8ea1be]">
             Portal Access

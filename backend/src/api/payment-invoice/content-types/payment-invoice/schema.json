@@ -67,6 +67,12 @@
       "relation": "manyToOne",
       "target": "plugin::users-permissions.user"
     },
+    "admissionApplication": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::admission-application.admission-application",
+      "inversedBy": "paymentInvoices"
+    },
     "transactions": {
       "type": "relation",
       "relation": "oneToMany",

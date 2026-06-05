@@ -1,6 +1,7 @@
 export const STRAPI_ENDPOINTS = {
 	health: "/_health",
 	colleges: "/api/colleges",
+	admissionApplications: "/api/admission-applications",
 	permissions: "/api/permissions",
 	menuItems: "/api/menu-items",
 	portalRoles: "/api/portal-roles",

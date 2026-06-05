@@ -60,7 +60,12 @@
       "relation": "oneToMany",
       "target": "api::portal-role.portal-role",
       "mappedBy": "college"
+    },
+    "applications": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::admission-application.admission-application",
+      "mappedBy": "college"
     }
   }
 }
-

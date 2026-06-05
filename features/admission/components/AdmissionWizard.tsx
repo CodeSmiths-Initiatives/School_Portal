@@ -11,17 +11,91 @@ import RegistrationSidebar, {
 	MobileRegistrationSteps,
 } from "@/features/admission/components/RegistrationSidebar";
 import SelectProgramme from "@/features/admission/components/SelectProgramme";
+import {
+	createAdmissionApplication,
+	createAdmissionApplicationDraft,
+	updateAdmissionApplication,
+} from "@/features/admission/services/admissionApplication.client";
 import type { PaymentVerificationResult } from "@/features/admission/types/payment.types";
+import type { AdmissionApplicationSummary } from "@/lib/services/admission-application.service";
+import type { ProgrammeSelectionInput } from "@/lib/validation";
+import { toast } from "@/lib/toast";
 
-export default function AdmissionWizard() {
+type AdmissionWizardProps = {
+	collegeSlug?: string;
+	collegeName?: string;
+	collegeCode?: string;
+};
+
+export default function AdmissionWizard({
+	collegeSlug,
+	collegeName,
+	collegeCode,
+}: AdmissionWizardProps) {
 	const [currentStep, setCurrentStep] = useState(1);
 	const [accountData, setAccountData] = useState<CreateAccountFormData | null>(null);
+	const [applicationData, setApplicationData] =
+		useState<AdmissionApplicationSummary | null>(null);
 	const [paymentResult, setPaymentResult] =
 		useState<PaymentVerificationResult | null>(null);
 
-	const handleAccountCreated = (data: CreateAccountFormData) => {
+	const handleAccountCreated = async (data: CreateAccountFormData) => {
+		if (!collegeSlug) {
+			throw new Error("Select a college before continuing the application.");
+		}
+
+		const application = await createAdmissionApplicationDraft({
+			collegeSlug,
+			account: {
+				username: data.username,
+				email: data.email,
+			},
+		});
+
 		setAccountData(data);
+		setApplicationData(application);
+		setPaymentResult(null);
 		setCurrentStep(2);
+		toast.success({
+			title: "Draft saved",
+			description: "Your application is saved under this college.",
+		});
+	};
+
+	const handleProgrammeSelected = async (programme: ProgrammeSelectionInput) => {
+		if (!accountData) {
+			throw new Error("Create the applicant account before selecting programme.");
+		}
+
+		if (!collegeSlug) {
+			throw new Error("Select a college before continuing the application.");
+		}
+
+		const application = applicationData?.persisted
+			? await updateAdmissionApplication(applicationData.id, {
+					collegeSlug,
+					account: {
+						username: accountData.username,
+						email: accountData.email,
+					},
+					programme,
+					status: "payment_pending",
+					paymentStatus: "pending",
+					currentStep: "payment",
+					completedStep: "programme",
+				})
+			: await createAdmissionApplication({
+					collegeSlug,
+					account: {
+						username: accountData.username,
+						email: accountData.email,
+					},
+					programme,
+				});
+
+		setApplicationData(application);
+		setPaymentResult(null);
+		setCurrentStep(3);
 	};
 
 	return (
@@ -29,7 +103,11 @@ export default function AdmissionWizard() {
 			<RegistrationHeader />
 
 			<div className="flex-1 lg:min-h-0 lg:grid lg:grid-cols-[22rem_minmax(0,1fr)] xl:grid-cols-[24rem_minmax(0,1fr)]">
-				<RegistrationSidebar currentStep={currentStep} />
+				<RegistrationSidebar
+					currentStep={currentStep}
+					collegeName={collegeName}
+					collegeCode={collegeCode}
+				/>
 
 				<main
 					className={`min-w-0 px-4 py-5 sm:px-6 sm:py-6 lg:app-scrollbar lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:px-8 lg:py-8 xl:px-10 xl:py-12 ${
@@ -37,7 +115,11 @@ export default function AdmissionWizard() {
 					}`}
 				>
 					<div className="mx-auto flex w-full max-w-3xl flex-col gap-5 lg:min-h-full lg:justify-center">
-						<MobileRegistrationSteps currentStep={currentStep} />
+						<MobileRegistrationSteps
+							currentStep={currentStep}
+							collegeName={collegeName}
+							collegeCode={collegeCode}
+						/>
 
 						<div className="mx-auto flex w-full items-start justify-center">
 							{currentStep === 1 && (
@@ -46,7 +128,7 @@ export default function AdmissionWizard() {
 
 							{currentStep === 2 && (
 								<SelectProgramme
-									onNext={() => setCurrentStep(3)}
+									onNext={handleProgrammeSelected}
 									onBack={() => setCurrentStep(1)}
 								/>
 							)}
@@ -54,6 +136,9 @@ export default function AdmissionWizard() {
 							{currentStep === 3 && (
 								<Payment
 									account={accountData}
+									collegeSlug={collegeSlug}
+									collegeName={collegeName}
+									application={applicationData}
 									onNext={(payment) => {
 										setPaymentResult(payment);
 										setCurrentStep(4);
@@ -65,6 +150,7 @@ export default function AdmissionWizard() {
 							{currentStep === 4 && (
 								<PaymentSuccessPanel
 									applicantEmail={accountData?.email}
+									collegeSlug={collegeSlug}
 									paymentResult={paymentResult}
 								/>
 							)}

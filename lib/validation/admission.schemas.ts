@@ -24,6 +24,70 @@ export const programmeSelectionSchema = z.object({
 	entrySession: requiredText("Entry session"),
 });
 
+export const admissionApplicationRequestSchema = z.object({
+	collegeSlug: requiredText("College"),
+	account: z.object({
+		username: requiredText("Username"),
+		email: z.email("Enter a valid applicant email address"),
+	}),
+	programme: programmeSelectionSchema,
+});
+
+export const admissionApplicationDraftRequestSchema = z.object({
+	collegeSlug: requiredText("College"),
+	account: z.object({
+		username: requiredText("Username"),
+		email: z.email("Enter a valid applicant email address"),
+	}),
+});
+
+export const admissionApplicationStepSchema = z.enum([
+	"account",
+	"programme",
+	"payment",
+	"biodata",
+	"contact",
+	"olevel",
+	"programme_details",
+	"declaration",
+	"submitted",
+]);
+
+export const admissionApplicationUpdateRequestSchema = z.object({
+	collegeSlug: requiredText("College"),
+	currentStep: admissionApplicationStepSchema.optional(),
+	completedStep: admissionApplicationStepSchema.optional(),
+	account: z
+		.object({
+			username: requiredText("Username").optional(),
+			email: z.email("Enter a valid applicant email address").optional(),
+		})
+		.optional(),
+	programme: programmeSelectionSchema.optional(),
+	formData: z.record(z.string(), z.unknown()).optional(),
+	status: z
+		.enum([
+			"draft",
+			"payment_pending",
+			"submitted",
+			"under_review",
+			"approved",
+			"rejected",
+			"cancelled",
+		])
+		.optional(),
+	paymentStatus: z
+		.enum(["not_started", "pending", "paid", "failed", "cancelled", "refunded"])
+		.optional(),
+});
+
+export const admissionApplicationListQuerySchema = z.object({
+	collegeSlug: requiredText("College"),
+	email: z.email("Enter a valid applicant email address").optional(),
+	status: z.string().trim().optional(),
+	limit: z.coerce.number().int().min(1).max(100).optional().default(25),
+});
+
 export const oLevelSubjectSchema = z.object({
 	subject: z.string().trim(),
 	grade: z.string().trim(),
@@ -112,4 +176,17 @@ export const biodataSchema = z
 	});
 
 export type ProgrammeSelectionInput = z.infer<typeof programmeSelectionSchema>;
+export type AdmissionApplicationRequestInput = z.infer<
+	typeof admissionApplicationRequestSchema
+>;
+export type AdmissionApplicationDraftRequestInput = z.infer<
+	typeof admissionApplicationDraftRequestSchema
+>;
+export type AdmissionApplicationUpdateRequestInput = z.infer<
+	typeof admissionApplicationUpdateRequestSchema
+>;
+export type AdmissionApplicationListQueryInput = z.infer<
+	typeof admissionApplicationListQuerySchema
+>;
+export type AdmissionApplicationStep = z.infer<typeof admissionApplicationStepSchema>;
 export type BiodataInput = z.infer<typeof biodataSchema>;

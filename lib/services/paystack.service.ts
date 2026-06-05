@@ -32,6 +32,8 @@ export interface AdmissionPaymentIntent {
 	method: PaystackPaymentMethod;
 	collegeSlug?: string;
 	studentId?: string;
+	applicationId?: string;
+	applicationNumber?: string;
 	module?: "admission" | "hostel" | "tuition" | "result" | "transcript" | "other";
 }
 

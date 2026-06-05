@@ -55,6 +55,7 @@ export default async function CollegeStudentAdmissionPage({
 				studentName={session.user.name}
 				email={session.user.email}
 				collegeName={collegeName}
+				collegeSlug={collegeSlug}
 			/>
 		</RoleDashboardShell>
 	);

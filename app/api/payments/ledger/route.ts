@@ -1,4 +1,4 @@
-import { getPaymentLedgerRecords } from "@/features/payments/data/paymentLedgerRecords";
+import { getPaymentLedgerRecords } from "@/lib/services/payment-ledger.service";
 import { getCurrentAuthSession } from "@/lib/auth/server-session";
 import { hasPermissions, type UserPermissionKey } from "@/lib/rbac";
 import { NextResponse } from "next/server";
@@ -23,7 +23,7 @@ export async function GET(request: Request) {
 		hasPermissions(permissions, ["payments.export"], { mode: "any" });
 	const scope = canViewCollegePayments ? "college" : "student";
 
-	const ledger = getPaymentLedgerRecords({
+	const ledger = await getPaymentLedgerRecords({
 		collegeSlug,
 		scope,
 		payerEmail: session.user.email,

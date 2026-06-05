@@ -1,0 +1,99 @@
+{
+  "kind": "collectionType",
+  "collectionName": "admission_applications",
+  "info": {
+    "singularName": "admission-application",
+    "pluralName": "admission-applications",
+    "displayName": "Admission Application",
+    "description": "Tenant-scoped applicant admission record linked to payments and future biodata steps."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "applicationNumber": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "applicantUsername": {
+      "type": "string"
+    },
+    "applicantEmail": {
+      "type": "email",
+      "required": true
+    },
+    "programmeType": {
+      "type": "enumeration",
+      "enum": ["undergraduate", "topup", "distance"]
+    },
+    "facultyKey": {
+      "type": "string"
+    },
+    "departmentKey": {
+      "type": "string"
+    },
+    "entrySession": {
+      "type": "string"
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": ["draft", "payment_pending", "submitted", "under_review", "approved", "rejected", "cancelled"],
+      "default": "payment_pending",
+      "required": true
+    },
+    "paymentStatus": {
+      "type": "enumeration",
+      "enum": ["not_started", "pending", "paid", "failed", "cancelled", "refunded"],
+      "default": "pending",
+      "required": true
+    },
+    "currentStep": {
+      "type": "enumeration",
+      "enum": ["account", "programme", "payment", "biodata", "contact", "olevel", "programme_details", "declaration", "submitted"],
+      "default": "account",
+      "required": true
+    },
+    "completedSteps": {
+      "type": "json"
+    },
+    "lastSavedAt": {
+      "type": "datetime"
+    },
+    "submittedAt": {
+      "type": "datetime"
+    },
+    "metadata": {
+      "type": "json"
+    },
+    "college": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::college.college",
+      "inversedBy": "applications"
+    },
+    "applicant": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "paymentInvoices": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::payment-invoice.payment-invoice",
+      "mappedBy": "admissionApplication"
+    },
+    "paymentTransactions": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::payment-transaction.payment-transaction",
+      "mappedBy": "admissionApplication"
+    },
+    "ledgerEntries": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::payment-ledger-entry.payment-ledger-entry",
+      "mappedBy": "admissionApplication"
+    }
+  }
+}

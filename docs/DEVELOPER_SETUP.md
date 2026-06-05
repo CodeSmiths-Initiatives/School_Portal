@@ -101,7 +101,45 @@ Frontend runs at:
 http://localhost:3000
 ```
 
-## 4. Dashboard Login Details
+## 4. Current Public and Tenant Routes
+
+The application is now tenant-first. Use `/apply` only as the college selector.
+After choosing a college, applicants should continue under the selected college
+slug so every application, invoice, transaction, and ledger entry can carry
+`collegeSlug`/`collegeId`.
+
+Important routes:
+
+| Area | Route | Purpose |
+| ---- | ----- | ------- |
+| Public landing page | `/` | Website entry page |
+| College selector | `/apply` | Pick the college before starting admission |
+| Tenant admission wizard | `/college/[collegeSlug]/apply` | Student applicant account, programme, Paystack payment |
+| Student login | `/signin` | Student/applicant sign in |
+| Student forgot password | `/forgot-password` | Student reset email flow |
+| Staff/admin login | `/staff/signin` | Staff, college admin, and superadmin sign in |
+| Staff forgot password | `/staff/forgot-password` | Internal reset email flow |
+| Student dashboard | `/college/[collegeSlug]/student/dashboard` | Student overview |
+| Student admission form | `/college/[collegeSlug]/student/admission` | Long 5-step student admission form with resumable saves |
+| Student profile | `/college/[collegeSlug]/student/profile` | Student profile workspace |
+| Shared college modules | `/college/[collegeSlug]/modules/[moduleKey]` | `courses`, `results`, `hostel`, `payments` |
+| College admin dashboard | `/college/[collegeSlug]/admin/dashboard` | College admin workspace |
+| Staff dashboard | `/college/[collegeSlug]/staff/dashboard` | Dynamic staff-role workspace |
+| Superadmin dashboard | `/superadmin/dashboard` | Platform dashboard |
+
+For current local seed data, the main college slug is:
+
+```txt
+kwara-applied-sciences
+```
+
+Example admission URL:
+
+```txt
+http://localhost:3000/college/kwara-applied-sciences/apply
+```
+
+## 5. Dashboard Login Details
 
 Use these exact seeded Strapi accounts:
 
@@ -113,6 +151,16 @@ Use these exact seeded Strapi accounts:
 | HOD           | `/staff/signin` | `hod.kwara@iums.test` or `kwara.hod`         | `Hod@1234`   |
 | Clerk         | `/staff/signin` | `clerk.kwara@iums.test` or `kwara.clerk`     | `Clerk@123`  |
 
+Additional local QA student accounts created for payment testing:
+
+| Dashboard | Login URL | Email / Username | Password |
+| --------- | --------- | ---------------- | -------- |
+| Student payment QA 1 | `/signin` | `qa.student.pay1@example.com` or `qa.student.pay1` | `Password@1` |
+| Student payment QA 2 | `/signin` | `qa.student.pay2@example.com` or `qa.student.pay2` | `Password@1` |
+
+Use `.com` emails for Paystack initialization tests. Paystack rejects `.test`
+addresses with `Invalid Email Address Passed`.
+
 Expected routes after login:
 
 ```txt
@@ -120,10 +168,10 @@ Student       -> /college/kwara-applied-sciences/student/dashboard
 College Admin -> /college/kwara-applied-sciences/admin/dashboard
 HOD           -> /college/kwara-applied-sciences/staff/dashboard
 Clerk         -> /college/kwara-applied-sciences/staff/dashboard
-Superadmin    -> /platform/dashboard
+Superadmin    -> /superadmin/dashboard
 ```
 
-## 5. Current Auth Architecture
+## 6. Current Auth and User Storage Architecture
 
 Frontend login posts to:
 
@@ -152,7 +200,75 @@ Protected dashboard routing is handled in:
 proxy.ts
 ```
 
-## 6. Build Checks
+User storage:
+
+- Portal login users are stored in Strapi Users & Permissions table `up_users`.
+- The Strapi admin panel has its own admin table `admin_users`; this is not used for portal login.
+- We do not create separate login tables for superadmin, college admin, staff, and student.
+- User type/dashboard access is resolved through `portal_roles` and `role_assignments`.
+- `role_assignments` links one `up_users` record to a `portal_role`, college, and optional faculty/department/course/self scope.
+
+This allows one user table while still supporting:
+
+- Platform superadmin
+- College admin per college
+- Dynamic staff roles per college
+- Student/applicant accounts per college
+
+## 7. Admission and Payment Persistence Checks
+
+The admission wizard now saves a draft application on Step 1 and updates the
+same application record as the user continues.
+
+Main APIs:
+
+```txt
+GET   /api/admissions/applications?collegeSlug=kwara-applied-sciences&email=student@example.com
+POST  /api/admissions/applications
+PATCH /api/admissions/applications/[applicationId]
+POST  /api/payments/initialize
+POST  /api/payments/verify
+GET   /api/payments/ledger?collegeSlug=kwara-applied-sciences
+```
+
+Important Strapi tables:
+
+```txt
+admission_applications
+payment_invoices
+payment_transactions
+payment_ledger_entries
+up_users
+portal_roles
+role_assignments
+```
+
+Payment flow:
+
+1. Applicant starts at `/apply` and selects a college.
+2. Applicant continues at `/college/[collegeSlug]/apply`.
+3. Step 1 creates/returns a draft `admission_application`.
+4. Step 2 updates that same application with programme/session and marks payment pending.
+5. Step 3 initializes Paystack and persists:
+   - `payment_invoice`
+   - `payment_transaction`
+   - debit `payment_ledger_entry`
+6. When Paystack verification succeeds, `/api/payments/verify` marks:
+   - transaction `success`
+   - invoice `paid`
+   - admission application `submitted` and `paymentStatus=paid`
+   - credit ledger entry
+
+The payments module at:
+
+```txt
+/college/kwara-applied-sciences/modules/payments
+```
+
+uses the authenticated session. Students see their own payment records; college
+admins and finance-capable roles see college-wide payment records.
+
+## 8. Build Checks
 
 Run before handoff:
 
@@ -161,7 +277,7 @@ npm run build
 npm run backend:build
 ```
 
-## 7. Next Backend Work
+## 9. Next Backend Work
 
 Remaining production auth work:
 

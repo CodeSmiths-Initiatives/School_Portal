@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ArrowLeft, BadgeCheck, LoaderCircle } from "lucide-react";
+import FieldFeedback from "@/components/forms/FieldFeedback";
 import SelectField from "@/components/forms/SelectField";
 import ProgrammeCard from "@/features/admission/components/ProgrammeCard";
 import type {
@@ -13,6 +14,11 @@ import {
 	PROGRAMMES,
 	SESSION_OPTIONS,
 } from "@/features/admission/utils/programmeData";
+import {
+	programmeSelectionSchema,
+	toFieldErrors,
+	type ProgrammeSelectionInput,
+} from "@/lib/validation";
 
 const initialData: ProgrammeFormData = {
 	programmeType: "",
@@ -21,19 +27,24 @@ const initialData: ProgrammeFormData = {
 };
 
 type SelectProgrammeProps = {
-	onNext: () => void;
+	onNext: (data: ProgrammeSelectionInput) => Promise<void> | void;
 	onBack: () => void;
 };
 
-function useProgrammeForm(onNext: () => void, onBack: () => void) {
+function useProgrammeForm(
+	onNext: (data: ProgrammeSelectionInput) => Promise<void> | void,
+	onBack: () => void,
+) {
 	const [formData, setFormData] = useState<ProgrammeFormData>(initialData);
 	const [errors, setErrors] = useState<
 		Partial<Record<keyof ProgrammeFormData, string>>
 	>({});
+	const [submitError, setSubmitError] = useState("");
 	const [isSubmitting, setIsSubmitting] = useState(false);
 
 	function selectProgramme(type: ProgrammeType) {
 		setFormData((prev) => ({ ...prev, programmeType: type }));
+		setSubmitError("");
 		if (errors.programmeType) {
 			setErrors((prev) => ({ ...prev, programmeType: undefined }));
 		}
@@ -44,6 +55,7 @@ function useProgrammeForm(onNext: () => void, onBack: () => void) {
 		value: string,
 	) {
 		setFormData((prev) => ({ ...prev, [field]: value }));
+		setSubmitError("");
 		if (errors[field]) {
 			setErrors((prev) => ({ ...prev, [field]: undefined }));
 		}
@@ -51,10 +63,28 @@ function useProgrammeForm(onNext: () => void, onBack: () => void) {
 
 	async function handleSubmit(event: React.FormEvent) {
 		event.preventDefault();
+		setSubmitError("");
+
+		const result = programmeSelectionSchema.safeParse(formData);
+
+		if (!result.success) {
+			setErrors(toFieldErrors<keyof ProgrammeFormData>(result.error));
+			return;
+		}
+
+		setErrors({});
 		setIsSubmitting(true);
-		await new Promise((resolve) => setTimeout(resolve, 800));
-		setIsSubmitting(false);
-		onNext();
+		try {
+			await onNext(result.data);
+		} catch (error) {
+			setSubmitError(
+				error instanceof Error
+					? error.message
+					: "Unable to save the application before payment.",
+			);
+		} finally {
+			setIsSubmitting(false);
+		}
 	}
 
 	function handleBack() {
@@ -64,6 +94,7 @@ function useProgrammeForm(onNext: () => void, onBack: () => void) {
 	return {
 		formData,
 		errors,
+		submitError,
 		isSubmitting,
 		selectProgramme,
 		handleSelectChange,
@@ -79,6 +110,7 @@ export default function SelectProgramme({
 	const {
 		formData,
 		errors,
+		submitError,
 		isSubmitting,
 		selectProgramme,
 		handleSelectChange,
@@ -139,6 +171,8 @@ export default function SelectProgramme({
 					onChange={(value) => handleSelectChange("entrySession", value)}
 				/>
 
+				{submitError ? <FieldFeedback message={submitError} /> : null}
+
 				<div className="mt-2 grid gap-3 pt-1 sm:grid-cols-[auto_minmax(0,1fr)]">
 					<button
 						type="button"
@@ -157,7 +191,7 @@ export default function SelectProgramme({
 						{isSubmitting ? (
 							<>
 								<LoaderCircle className="size-4 animate-spin" />
-								Saving...
+								Saving application...
 							</>
 						) : (
 							<>

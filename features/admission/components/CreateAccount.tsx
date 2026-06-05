@@ -23,12 +23,14 @@ const initialForm: CreateAccountFormData = {
 };
 
 interface CreateAccountFormProps {
-	onNext: (data: CreateAccountFormData) => void;
+	onNext: (data: CreateAccountFormData) => Promise<void> | void;
 }
 
 export default function CreateAccount({ onNext }: CreateAccountFormProps) {
 	const [showPassword, setShowPassword] = useState(false);
 	const [showConfirm, setShowConfirm] = useState(false);
+	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [submitError, setSubmitError] = useState("");
 	const [errors, setErrors] = useState<
 		Partial<Record<keyof CreateAccountFormData, string>>
 	>({});
@@ -46,7 +48,7 @@ export default function CreateAccount({ onNext }: CreateAccountFormProps) {
 		}
 	};
 
-	const handleSubmit = (e: React.FormEvent) => {
+	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 		const result = createAccountSchema.safeParse(form);
 
@@ -58,7 +60,20 @@ export default function CreateAccount({ onNext }: CreateAccountFormProps) {
 		}
 
 		setErrors({});
-		onNext(result.data);
+		setSubmitError("");
+		setIsSubmitting(true);
+
+		try {
+			await onNext(result.data);
+		} catch (error) {
+			setSubmitError(
+				error instanceof Error
+					? error.message
+					: "Unable to save your account details. Please try again.",
+			);
+		} finally {
+			setIsSubmitting(false);
+		}
 	};
 
 	return (
@@ -213,12 +228,15 @@ export default function CreateAccount({ onNext }: CreateAccountFormProps) {
 					message={errors.agreeToTerms}
 				/>
 
+				{submitError ? <FieldFeedback message={submitError} /> : null}
+
 				{/* CTA */}
 				<button
 					type="submit"
+					disabled={isSubmitting}
 					className="w-full bg-[#2E86C1] hover:bg-[#3a5f95] active:bg-[#2a4f85] text-white font-semibold text-sm tracking-wide rounded-lg py-3.5 transition-colors duration-200 mt-1"
 				>
-					Continue to Programme Selection
+					{isSubmitting ? "Saving draft..." : "Continue to Programme Selection"}
 				</button>
 
 				{/* Sign in link */}

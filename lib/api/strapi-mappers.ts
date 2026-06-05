@@ -55,12 +55,22 @@ export function getRelationId(value: unknown) {
 		return getRelationId((value as { data?: unknown }).data);
 	}
 
-	const relation = value as { documentId?: unknown; id?: unknown };
+	const relation = value as {
+		documentId?: unknown;
+		id?: unknown;
+		numericId?: unknown;
+	};
 	if (typeof relation.documentId === "string") {
 		return relation.documentId;
 	}
 	if (typeof relation.id === "number") {
 		return String(relation.id);
+	}
+	if (typeof relation.id === "string") {
+		return relation.id;
+	}
+	if (typeof relation.numericId === "number") {
+		return String(relation.numericId);
 	}
 
 	return undefined;

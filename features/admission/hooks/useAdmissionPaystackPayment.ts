@@ -20,6 +20,11 @@ interface StartPaymentArgs {
 	email: string;
 	username?: string;
 	method: PaystackPaymentMethod;
+	collegeSlug?: string;
+	studentId?: string;
+	applicationId?: string;
+	applicationNumber?: string;
+	module?: "admission" | "hostel" | "tuition" | "result" | "transcript" | "other";
 	onVerified: (payment: VerifiedPaymentSummary) => void;
 }
 
@@ -33,7 +38,17 @@ export function useAdmissionPaystackPayment() {
 	}, []);
 
 	const startPayment = useCallback(
-		async ({ email, username, method, onVerified }: StartPaymentArgs) => {
+		async ({
+			email,
+			username,
+			method,
+			collegeSlug,
+			studentId,
+			applicationId,
+			applicationNumber,
+			module,
+			onVerified,
+		}: StartPaymentArgs) => {
 			setStatus("preparing");
 			setMessage("Preparing secure checkout...");
 
@@ -42,6 +57,11 @@ export function useAdmissionPaystackPayment() {
 					email,
 					username,
 					method,
+					collegeSlug,
+					studentId,
+					applicationId,
+					applicationNumber,
+					module,
 				});
 
 				await resumeAdmissionPayment(payment.accessCode, {

@@ -12,6 +12,8 @@ const initializeRequestSchema = z.object({
 	method: z.enum(["card", "bank_transfer", "ussd"]),
 	collegeSlug: z.string().trim().min(1).optional(),
 	studentId: z.string().trim().min(1).optional(),
+	applicationId: z.string().trim().min(1).optional(),
+	applicationNumber: z.string().trim().min(1).optional(),
 	module: z
 		.enum(["admission", "hostel", "tuition", "result", "transcript", "other"])
 		.default("admission"),
@@ -92,6 +94,16 @@ export async function POST(request: Request) {
 								value: parsed.data.username ?? "Not provided",
 							},
 							{
+								display_name: "College Slug",
+								variable_name: "college_slug",
+								value: parsed.data.collegeSlug ?? "Not selected",
+							},
+							{
+								display_name: "Application Number",
+								variable_name: "application_number",
+								value: parsed.data.applicationNumber ?? "Not created",
+							},
+							{
 								display_name: "Payment Category",
 								variable_name: "payment_category",
 								value: "Application Fee",
@@ -136,6 +148,8 @@ export async function POST(request: Request) {
 					: `${parsed.data.module} payment`,
 			collegeSlug: parsed.data.collegeSlug,
 			studentId: parsed.data.studentId,
+			applicationId: parsed.data.applicationId,
+			applicationNumber: parsed.data.applicationNumber,
 			gateway: "paystack",
 			channel: parsed.data.method,
 		});

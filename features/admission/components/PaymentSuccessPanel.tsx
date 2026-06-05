@@ -3,11 +3,11 @@
 import { BadgeCheck, Hash, Mail, WalletCards } from "lucide-react";
 import Link from "next/link";
 import type { PaymentVerificationResult } from "@/features/admission/types/payment.types";
-import { DEFAULT_MVP_COLLEGE_SLUG } from "@/lib/auth";
 import { formatNaira } from "@/lib/services/paystack.service";
 
 type PaymentSuccessPanelProps = {
 	applicantEmail?: string;
+	collegeSlug?: string;
 	paymentResult: PaymentVerificationResult | null;
 };
 
@@ -43,8 +43,13 @@ function ReceiptItem({
 
 export default function PaymentSuccessPanel({
 	applicantEmail,
+	collegeSlug,
 	paymentResult,
 }: PaymentSuccessPanelProps) {
+	const dashboardHref = collegeSlug
+		? `/college/${collegeSlug}/student/dashboard`
+		: "/apply";
+
 	return (
 		<div className="surface-card w-full max-w-2xl p-5 text-center sm:p-6 lg:p-8">
 			<div className="mb-4">
@@ -114,10 +119,10 @@ export default function PaymentSuccessPanel({
 
 			<div className="mt-7 flex justify-center">
 				<Link
-					href={`/college/${DEFAULT_MVP_COLLEGE_SLUG}/student/dashboard`}
+					href={dashboardHref}
 					className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#2E86C1] px-5 text-sm font-semibold text-white shadow-md shadow-[#2e86c1]/20 transition hover:bg-[#2a78ae] hover:shadow-lg hover:shadow-[#2e86c1]/25"
 				>
-					Go to Student Dashboard
+					{collegeSlug ? "Go to Student Dashboard" : "Choose College"}
 				</Link>
 			</div>
 		</div>

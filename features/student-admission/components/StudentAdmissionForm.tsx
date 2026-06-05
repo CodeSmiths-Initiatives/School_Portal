@@ -41,6 +41,11 @@ import AdmissionField, {
 } from "@/features/student-admission/components/AdmissionField";
 import AdmissionStepIndicator from "@/features/student-admission/components/AdmissionStepIndicator";
 import {
+	createAdmissionApplicationDraft,
+	listAdmissionApplications,
+	updateAdmissionApplication,
+} from "@/features/admission/services/admissionApplication.client";
+import {
 	useStudentAdmissionStore,
 	type BioData,
 	type ContactData,
@@ -56,12 +61,17 @@ import {
 	validateOLevelData,
 	validateProgrammeData,
 } from "@/features/student-admission/lib/validation";
+import type {
+	AdmissionApplicationSummary,
+} from "@/lib/services/admission-application.service";
+import type { AdmissionApplicationStep } from "@/lib/validation";
 import { toast } from "@/lib/toast";
 
 type StudentAdmissionFormProps = {
 	studentName: string;
 	email: string;
 	collegeName: string;
+	collegeSlug: string;
 };
 
 type SectionHeaderProps = {
@@ -1009,10 +1019,27 @@ function createReferenceNumber() {
 	return `ADM-${Date.now()}-${random}`;
 }
 
+const saveStepByFormStep: Record<number, AdmissionApplicationStep> = {
+	1: "biodata",
+	2: "contact",
+	3: "olevel",
+	4: "programme_details",
+	5: "declaration",
+};
+
+const nextStepByFormStep: Record<number, AdmissionApplicationStep> = {
+	1: "contact",
+	2: "olevel",
+	3: "programme_details",
+	4: "declaration",
+	5: "submitted",
+};
+
 export default function StudentAdmissionForm({
 	studentName,
 	email,
 	collegeName,
+	collegeSlug,
 }: StudentAdmissionFormProps) {
 	const {
 		currentStep,
@@ -1026,6 +1053,9 @@ export default function StudentAdmissionForm({
 	} = useStudentAdmissionStore();
 	const [errors, setErrors] = useState<AdmissionErrors>({});
 	const [referenceNumber, setReferenceNumber] = useState("");
+	const [application, setApplication] =
+		useState<AdmissionApplicationSummary | null>(null);
+	const [isSaving, setIsSaving] = useState(false);
 	const isSuccess = currentStep === 6;
 
 	useEffect(() => {
@@ -1033,6 +1063,36 @@ export default function StudentAdmissionForm({
 			updateContactData({ emailAddress: email, confirmEmail: email });
 		}
 	}, [contactData.emailAddress, email, updateContactData]);
+
+	useEffect(() => {
+		let isMounted = true;
+
+		async function loadApplication() {
+			if (!collegeSlug || !email) {
+				return;
+			}
+
+			try {
+				const applications = await listAdmissionApplications({
+					collegeSlug,
+					email,
+					limit: 1,
+				});
+
+				if (isMounted) {
+					setApplication(applications[0] ?? null);
+				}
+			} catch {
+				// The form can still create a tenant draft on first successful continue.
+			}
+		}
+
+		void loadApplication();
+
+		return () => {
+			isMounted = false;
+		};
+	}, [collegeSlug, email]);
 
 	function validateCurrentStep() {
 		const stepErrors =
@@ -1050,7 +1110,54 @@ export default function StudentAdmissionForm({
 		return Object.keys(stepErrors).length === 0;
 	}
 
-	function handleNext() {
+	function getCurrentStepPayload() {
+		if (currentStep === 1) {
+			return { bioData };
+		}
+		if (currentStep === 2) {
+			return { contactData };
+		}
+		if (currentStep === 3) {
+			return { oLevelData };
+		}
+		if (currentStep === 4) {
+			return { programmeData };
+		}
+		return { declarationData };
+	}
+
+	async function ensureApplication() {
+		if (application?.persisted) {
+			return application;
+		}
+
+		const draft = await createAdmissionApplicationDraft({
+			collegeSlug,
+			account: {
+				username: studentName,
+				email,
+			},
+		});
+		setApplication(draft);
+		return draft;
+	}
+
+	async function saveCurrentStep() {
+		const currentApplication = await ensureApplication();
+		const saved = await updateAdmissionApplication(currentApplication.id, {
+			collegeSlug,
+			currentStep: nextStepByFormStep[currentStep],
+			completedStep: saveStepByFormStep[currentStep],
+			formData: getCurrentStepPayload(),
+			status: currentStep === 5 ? "submitted" : currentApplication.status,
+			paymentStatus: currentApplication.paymentStatus,
+		});
+
+		setApplication(saved);
+		return saved;
+	}
+
+	async function handleNext() {
 		if (!validateCurrentStep()) {
 			toast.error({
 				title: "Check admission form",
@@ -1060,9 +1167,30 @@ export default function StudentAdmissionForm({
 		}
 
 		setErrors({});
+		setIsSaving(true);
+
+		let savedApplication: AdmissionApplicationSummary;
+
+		try {
+			savedApplication = await saveCurrentStep();
+		} catch (error) {
+			toast.error({
+				title: "Unable to save progress",
+				description:
+					error instanceof Error
+						? error.message
+						: "Please try again before continuing.",
+			});
+			setIsSaving(false);
+			return;
+		}
+
+		setIsSaving(false);
 
 		if (currentStep === 5) {
-			setReferenceNumber(createReferenceNumber());
+			setReferenceNumber(
+				savedApplication.applicationNumber || createReferenceNumber(),
+			);
 			setStep(6);
 			toast.success({
 				title: "Application submitted",
@@ -1100,9 +1228,16 @@ export default function StudentAdmissionForm({
 									{collegeName}
 								</h1>
 							</div>
-							<div className="rounded-2xl border border-[#dbe5f1] bg-white px-4 py-2 text-sm">
-								<p className="font-bold text-[#0D2B55]">{studentName}</p>
-								<p className="text-xs text-[#60728f]">{email}</p>
+							<div className="flex flex-col gap-2 sm:items-end">
+								<div className="rounded-2xl border border-[#dbe5f1] bg-white px-4 py-2 text-sm">
+									<p className="font-bold text-[#0D2B55]">{studentName}</p>
+									<p className="text-xs text-[#60728f]">{email}</p>
+								</div>
+								{application ? (
+									<div className="rounded-full border border-[#dbe5f1] bg-[#f8fbff] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-[#60728f]">
+										{application.applicationNumber} · {application.currentStep ?? application.status}
+									</div>
+								) : null}
 							</div>
 						</div>
 					</div>
@@ -1131,9 +1266,14 @@ export default function StudentAdmissionForm({
 								<button
 									type="button"
 									onClick={handleNext}
+									disabled={isSaving}
 									className="rounded-xl bg-[#0D2B55] px-7 py-3 text-sm font-bold text-white shadow-[0_10px_22px_rgba(13,43,85,0.22)] transition hover:bg-[#173f77]"
 								>
-									{currentStep === 5 ? "Submit Application" : "Continue"}
+									{isSaving
+										? "Saving..."
+										: currentStep === 5
+											? "Submit Application"
+											: "Continue"}
 								</button>
 							</div>
 						</div>
