@@ -158,12 +158,12 @@ export default function RegistrationSidebar({
             )}
           </div>
         )}
-        <div className="mt-5">
+        {/* <div className="mt-5">
           <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.24em] text-[#8ea1be]">
             Portal Access
           </p>
           <PortalEntrySwitch activePortal="student" />
-        </div>
+        </div> */}
       </div>
 
       {/* Steps */}
