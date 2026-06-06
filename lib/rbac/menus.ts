@@ -209,6 +209,20 @@ export function getVisibleDashboardMenus({
       };
     }
 
+    if (item.key === "roles" && domain === "admin" && collegeSlug) {
+      return {
+        ...item,
+        href: `/college/${collegeSlug}/admin/roles`,
+      };
+    }
+
+    if (item.key === "reports" && ["admin", "staff"].includes(domain) && collegeSlug) {
+      return {
+        ...item,
+        href: `/college/${collegeSlug}/admin/reports`,
+      };
+    }
+
     if (item.href.includes("[collegeSlug]")) {
       return {
         ...item,

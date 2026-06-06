@@ -10,13 +10,14 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { AdmissionApplicationSummary } from "@/lib/services/admission-application.service";
+import type { CollegeAdminStudentRecord } from "@/lib/services/college-admin.service";
 
 type StudentStatus = "all" | AdmissionApplicationSummary["status"];
 type PaymentStatus = "all" | AdmissionApplicationSummary["paymentStatus"];
 type StepStatus = "all" | NonNullable<AdmissionApplicationSummary["currentStep"]>;
 
 type CollegeStudentsWorkspaceProps = {
-	applications: AdmissionApplicationSummary[];
+	students: CollegeAdminStudentRecord[];
 	collegeName: string;
 	collegeSlug: string;
 };
@@ -229,10 +230,20 @@ function statusPill(status: AdmissionApplicationSummary["status"]) {
 }
 
 export default function CollegeStudentsWorkspace({
-	applications,
+	students,
 	collegeName,
 	collegeSlug,
 }: CollegeStudentsWorkspaceProps) {
+	const applications = useMemo(
+		() =>
+			students
+				.map((student) => student.application)
+				.filter(
+					(application): application is AdmissionApplicationSummary =>
+						Boolean(application),
+				),
+		[students],
+	);
 	const [search, setSearch] = useState("");
 	const [status, setStatus] = useState<StudentStatus>("all");
 	const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("all");
@@ -240,7 +251,7 @@ export default function CollegeStudentsWorkspace({
 	const [programme, setProgramme] = useState("all");
 	const [from, setFrom] = useState("");
 	const [to, setTo] = useState("");
-	const [selectedId, setSelectedId] = useState(applications[0]?.id ?? "");
+	const [selectedId, setSelectedId] = useState(students[0]?.id ?? "");
 
 	const programmeOptions = useMemo(
 		() =>
@@ -250,64 +261,76 @@ export default function CollegeStudentsWorkspace({
 		[applications],
 	);
 
-	const filteredApplications = useMemo(() => {
+	const filteredStudents = useMemo(() => {
 		const normalizedSearch = search.trim().toLowerCase();
 		const fromTime = from ? new Date(`${from}T00:00:00.000Z`).getTime() : null;
 		const toTime = to ? new Date(`${to}T23:59:59.999Z`).getTime() : null;
 
-		return applications.filter((application) => {
+		return students.filter((student) => {
+			const application = student.application;
 			const haystack = [
-				application.applicationNumber,
-				application.applicantEmail,
-				application.applicantUsername,
-				getStudentName(application),
-				getProgrammeLabel(application),
+				student.username,
+				student.email,
+				application?.applicationNumber,
+				application?.applicantEmail,
+				application?.applicantUsername,
+				application ? getStudentName(application) : "",
+				application ? getProgrammeLabel(application) : "",
 			]
 				.join(" ")
 				.toLowerCase();
-			const savedTime = application.lastSavedAt
+			const savedTime = application?.lastSavedAt
 				? new Date(application.lastSavedAt).getTime()
 				: null;
 
 			return (
 				(!normalizedSearch || haystack.includes(normalizedSearch)) &&
-				(status === "all" || application.status === status) &&
-				(paymentStatus === "all" || application.paymentStatus === paymentStatus) &&
-				(step === "all" || application.currentStep === step) &&
-				(programme === "all" || getProgrammeLabel(application) === programme) &&
+				(status === "all" || application?.status === status) &&
+				(paymentStatus === "all" || application?.paymentStatus === paymentStatus) &&
+				(step === "all" || application?.currentStep === step) &&
+				(programme === "all" ||
+					(application ? getProgrammeLabel(application) === programme : false)) &&
 				(!fromTime || (savedTime !== null && savedTime >= fromTime)) &&
 				(!toTime || (savedTime !== null && savedTime <= toTime))
 			);
 		});
-	}, [applications, from, paymentStatus, programme, search, status, step, to]);
+	}, [from, paymentStatus, programme, search, status, step, students, to]);
 
-	const selectedApplication =
-		filteredApplications.find((application) => application.id === selectedId) ??
-		filteredApplications[0] ??
+	const selectedStudent =
+		filteredStudents.find((student) => student.id === selectedId) ??
+		filteredStudents[0] ??
 		null;
+	const selectedApplication = selectedStudent?.application ?? null;
 	const stats = useMemo(
 		() => ({
-			total: applications.length,
+			total: students.length,
+			withAdmission: students.filter((item) => item.hasAdmissionData).length,
 			submitted: applications.filter((item) => item.status === "submitted").length,
 			drafts: applications.filter((item) => item.status === "draft").length,
 			paid: applications.filter((item) => item.paymentStatus === "paid").length,
 		}),
-		[applications],
+		[applications, students],
 	);
 
 	function exportFiltered() {
 		downloadCsv(
 			`${collegeSlug}-students-${toDateInput(new Date().toISOString())}.csv`,
-			filteredApplications.map((application) => ({
-				applicationNumber: application.applicationNumber,
-				name: getStudentName(application),
-				email: application.applicantEmail,
-				username: application.applicantUsername,
-				programme: getProgrammeLabel(application),
-				status: STATUS_LABELS[application.status],
-				paymentStatus: PAYMENT_LABELS[application.paymentStatus],
-				currentStep: application.currentStep ? STEP_LABELS[application.currentStep] : "",
-				lastSavedAt: application.lastSavedAt,
+			filteredStudents.map((student) => ({
+				username: student.username,
+				email: student.email,
+				accountStatus: student.blocked ? "Blocked" : "Active",
+				hasAdmissionData: student.hasAdmissionData ? "Yes" : "No",
+				applicationNumber: student.application?.applicationNumber ?? "",
+				name: student.application ? getStudentName(student.application) : "",
+				programme: student.application ? getProgrammeLabel(student.application) : "",
+				status: student.application ? STATUS_LABELS[student.application.status] : "",
+				paymentStatus: student.application
+					? PAYMENT_LABELS[student.application.paymentStatus]
+					: "",
+				currentStep: student.application?.currentStep
+					? STEP_LABELS[student.application.currentStep]
+					: "",
+				lastSavedAt: student.application?.lastSavedAt ?? "",
 			})),
 		);
 	}
@@ -324,13 +347,15 @@ export default function CollegeStudentsWorkspace({
 							Admission-backed student list
 						</h2>
 						<p className="mt-2 max-w-3xl text-sm leading-7 text-[#556987]">
-							Only students with saved admission data appear here. College admin can review, print, and export records within {collegeName}.
+							Created student accounts appear here for {collegeName}. Full
+							admission detail, print, and record export unlock only after
+							admission data is saved.
 						</p>
 					</div>
 					<button
 						type="button"
 						onClick={exportFiltered}
-						disabled={filteredApplications.length === 0}
+						disabled={filteredStudents.length === 0}
 						className="inline-flex h-12 items-center gap-2 rounded-2xl bg-[#0D2B55] px-5 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.18)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
 					>
 						<Download className="size-4" />
@@ -340,9 +365,9 @@ export default function CollegeStudentsWorkspace({
 
 				<div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
 					{[
-						["Admission Records", stats.total],
+						["Student Accounts", stats.total],
+						["With Admission Data", stats.withAdmission],
 						["Submitted", stats.submitted],
-						["Drafts", stats.drafts],
 						["Paid Students", stats.paid],
 					].map(([label, value]) => (
 						<div
@@ -404,67 +429,87 @@ export default function CollegeStudentsWorkspace({
 
 			<div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_26rem]">
 				<div className="space-y-3">
-					{filteredApplications.length === 0 ? (
+					{filteredStudents.length === 0 ? (
 						<div className="rounded-3xl border border-dashed border-[#cbd9ec] bg-white p-8 text-center">
 							<div className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#eef4fb] text-[#2E86C1]">
 								<UserRound className="size-6" />
 							</div>
 							<h3 className="mt-4 text-lg font-black text-[#06183A]">
-								No admission-backed students found
+								No students found
 							</h3>
 							<p className="mt-2 text-sm text-[#60728f]">
-								Students appear here only after admission data is saved under this college.
+								Student accounts will appear here after they are created under
+								this college. Full details unlock when admission data is saved.
 							</p>
 						</div>
 					) : (
-						filteredApplications.map((application) => (
-							<button
-								key={application.id}
-								type="button"
-								onClick={() => setSelectedId(application.id)}
-								className={`w-full rounded-3xl border bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(13,43,85,0.09)] ${
-									selectedApplication?.id === application.id
-										? "border-[#B7770D] ring-2 ring-[#B7770D]/10"
-										: "border-[#d7e2f0]"
-								}`}
-							>
-								<div className="flex flex-wrap items-start justify-between gap-3">
-									<div>
-										<p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#8395AF]">
-											{application.applicationNumber}
-										</p>
-										<h3 className="mt-2 text-lg font-black text-[#06183A]">
-											{getStudentName(application)}
-										</h3>
-										<p className="mt-1 text-sm font-semibold text-[#60728f]">
-											{application.applicantEmail}
-										</p>
+						filteredStudents.map((student) => {
+							const application = student.application;
+							const title = application ? getStudentName(application) : student.username;
+
+							return (
+								<button
+									key={student.id}
+									type="button"
+									onClick={() => setSelectedId(student.id)}
+									className={`w-full rounded-3xl border bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(13,43,85,0.09)] ${
+										selectedStudent?.id === student.id
+											? "border-[#B7770D] ring-2 ring-[#B7770D]/10"
+											: "border-[#d7e2f0]"
+									}`}
+								>
+									<div className="flex flex-wrap items-start justify-between gap-3">
+										<div>
+											<p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#8395AF]">
+												{application?.applicationNumber ?? "No admission record yet"}
+											</p>
+											<h3 className="mt-2 text-lg font-black text-[#06183A]">
+												{title}
+											</h3>
+											<p className="mt-1 text-sm font-semibold text-[#60728f]">
+												{student.email}
+											</p>
+										</div>
+										{application ? (
+											<span className={statusPill(application.status)}>
+												{STATUS_LABELS[application.status]}
+											</span>
+										) : (
+											<span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-slate-600">
+												No admission data
+											</span>
+										)}
 									</div>
-									<span className={statusPill(application.status)}>
-										{STATUS_LABELS[application.status]}
-									</span>
-								</div>
-								<div className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
-									<div>
-										<p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8395AF]">Programme</p>
-										<p className="mt-1 font-black text-[#0D2B55]">{getProgrammeLabel(application)}</p>
+									<div className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+										<div>
+											<p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8395AF]">Programme</p>
+											<p className="mt-1 font-black text-[#0D2B55]">
+												{application ? getProgrammeLabel(application) : "Not started"}
+											</p>
+										</div>
+										<div>
+											<p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8395AF]">Payment</p>
+											<p className="mt-1 font-black text-[#0D2B55]">
+												{application
+													? PAYMENT_LABELS[application.paymentStatus]
+													: "Not available"}
+											</p>
+										</div>
+										<div>
+											<p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8395AF]">Saved</p>
+											<p className="mt-1 font-black text-[#0D2B55]">
+												{application ? formatDate(application.lastSavedAt) : "Not saved"}
+											</p>
+										</div>
 									</div>
-									<div>
-										<p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8395AF]">Payment</p>
-										<p className="mt-1 font-black text-[#0D2B55]">{PAYMENT_LABELS[application.paymentStatus]}</p>
-									</div>
-									<div>
-										<p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8395AF]">Saved</p>
-										<p className="mt-1 font-black text-[#0D2B55]">{formatDate(application.lastSavedAt)}</p>
-									</div>
-								</div>
-							</button>
-						))
+								</button>
+							);
+						})
 					)}
 				</div>
 
 				<aside className="rounded-3xl border border-[#d7e2f0] bg-white p-5 shadow-[0_18px_45px_rgba(13,43,85,0.08)] xl:sticky xl:top-6 xl:self-start">
-					{selectedApplication ? (
+					{selectedStudent ? (
 						<>
 							<div className="flex items-start justify-between gap-3">
 								<div>
@@ -472,10 +517,13 @@ export default function CollegeStudentsWorkspace({
 										Student Detail
 									</p>
 									<h3 className="mt-2 text-xl font-black text-[#06183A]">
-										{getStudentName(selectedApplication)}
+										{selectedApplication
+											? getStudentName(selectedApplication)
+											: selectedStudent.username}
 									</h3>
 									<p className="mt-1 text-sm font-semibold text-[#60728f]">
-										{selectedApplication.applicationNumber}
+										{selectedApplication?.applicationNumber ??
+											"Admission data has not been saved yet."}
 									</p>
 								</div>
 								<div className="flex size-12 items-center justify-center rounded-2xl bg-[#eef4fb] text-[#2E86C1]">
@@ -485,8 +533,13 @@ export default function CollegeStudentsWorkspace({
 							<div className="mt-5 flex gap-2">
 								<button
 									type="button"
-									onClick={() => printApplication(selectedApplication, collegeName)}
-									className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-[#d3dfed] bg-white text-sm font-black text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+									onClick={() =>
+										selectedApplication
+											? printApplication(selectedApplication, collegeName)
+											: null
+									}
+									disabled={!selectedApplication}
+									className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-[#d3dfed] bg-white text-sm font-black text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D] disabled:cursor-not-allowed disabled:opacity-50"
 								>
 									<Printer className="size-4" />
 									Print
@@ -494,18 +547,29 @@ export default function CollegeStudentsWorkspace({
 								<button
 									type="button"
 									onClick={() =>
-										downloadCsv(`${selectedApplication.applicationNumber}.csv`, [
-											Object.fromEntries(detailRows(selectedApplication)),
-										])
+										selectedApplication
+											? downloadCsv(`${selectedApplication.applicationNumber}.csv`, [
+													Object.fromEntries(detailRows(selectedApplication)),
+												])
+											: null
 									}
-									className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] text-sm font-black text-white transition hover:bg-[#113765]"
+									disabled={!selectedApplication}
+									className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] text-sm font-black text-white transition hover:bg-[#113765] disabled:cursor-not-allowed disabled:opacity-50"
 								>
 									<Download className="size-4" />
 									Export
 								</button>
 							</div>
 							<div className="mt-5 space-y-2">
-								{detailRows(selectedApplication).map(([label, value]) => (
+								{(selectedApplication
+									? detailRows(selectedApplication)
+									: ([
+											["Username", selectedStudent.username],
+											["Email", selectedStudent.email],
+											["Account Status", selectedStudent.blocked ? "Blocked" : "Active"],
+											["Admission Data", "Not saved yet"],
+										] as Array<[string, unknown]>)
+								).map(([label, value]) => (
 									<div
 										key={label}
 										className="rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] p-3"
@@ -523,7 +587,7 @@ export default function CollegeStudentsWorkspace({
 					) : (
 						<div className="py-10 text-center">
 							<p className="text-sm font-semibold text-[#60728f]">
-								Select a student admission record to view details.
+								Select a student to view details.
 							</p>
 						</div>
 					)}

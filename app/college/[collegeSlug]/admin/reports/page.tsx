@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { CollegeStudentsWorkspace } from "@/features/college-students";
+import { CollegeAdminReportsWorkspace } from "@/features/college-admin";
 import RoleDashboardShell from "@/features/dashboard/components/RoleDashboardShell";
 import {
 	createCollegeAdminDashboardContent,
@@ -11,14 +11,14 @@ import {
 	hasPermissions,
 	type UserPermissionKey,
 } from "@/lib/rbac";
-import { listCollegeAdminStudents } from "@/lib/services/college-admin.service";
+import { getCollegeAdminReports } from "@/lib/services/college-admin.service";
 
 export const metadata = {
-	title: "Students | College Admin",
-	description: "Review admission-backed student records for the selected college.",
+	title: "Reports | College Admin",
+	description: "College-scoped admission, payment, student, and staff reports.",
 };
 
-export default async function CollegeAdminStudentsPage({
+export default async function CollegeAdminReportsPage({
 	params,
 }: {
 	params: Promise<{ collegeSlug: string }>;
@@ -34,10 +34,7 @@ export default async function CollegeAdminStudentsPage({
 		redirect(session.destination.path);
 	}
 
-	if (
-		session.user.collegeSlug &&
-		session.user.collegeSlug !== collegeSlug
-	) {
+	if (session.user.collegeSlug !== collegeSlug) {
 		redirect(session.destination.path);
 	}
 
@@ -45,24 +42,23 @@ export default async function CollegeAdminStudentsPage({
 		? session.user.permissions
 		: getDefaultPermissionsForDomain(session.user.domain)) as UserPermissionKey[];
 
-	if (!hasPermissions(permissions, ["students.view"], { mode: "any" })) {
+	if (!hasPermissions(permissions, ["reports.view"], { mode: "any" })) {
 		redirect(session.destination.path);
 	}
 
 	const dashboard = createCollegeAdminDashboardContent(collegeSlug);
-	const collegeName =
-		session.user.collegeName ?? formatCollegeName(collegeSlug);
-	const studentPayload = await listCollegeAdminStudents(collegeSlug);
+	const collegeName = session.user.collegeName ?? formatCollegeName(collegeSlug);
+	const report = await getCollegeAdminReports({ collegeSlug });
 
 	return (
 		<RoleDashboardShell
 			badge={dashboard.badge}
 			title={dashboard.title}
-			subtitle="Review admission-backed student records, filter application progress, and export or print student information."
+			subtitle="Review college-only admissions, payments, students, staff, and operational trends."
 			domain={session.user.domain}
 			roleLabel={session.user.roleLabel ?? dashboard.roleLabel}
 			tenantSlug={collegeSlug}
-			activeMenuKey="students"
+			activeMenuKey="reports"
 			permissions={permissions}
 			stats={dashboard.stats}
 			highlights={dashboard.highlights}
@@ -73,10 +69,10 @@ export default async function CollegeAdminStudentsPage({
 			showOverviewContent={false}
 			contentWidth="wide"
 		>
-			<CollegeStudentsWorkspace
-				students={studentPayload.students}
-				collegeName={collegeName}
+			<CollegeAdminReportsWorkspace
+				initialReport={report}
 				collegeSlug={collegeSlug}
+				collegeName={collegeName}
 			/>
 		</RoleDashboardShell>
 	);

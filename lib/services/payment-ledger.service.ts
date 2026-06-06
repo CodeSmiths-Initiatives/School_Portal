@@ -6,7 +6,6 @@ import {
 	type StrapiCollectionResponse,
 	type StrapiQueryValue,
 } from "@/lib/api";
-import { getPaymentLedgerRecords as getFallbackPaymentLedgerRecords } from "@/features/payments/data/paymentLedgerRecords";
 import type {
 	PaymentInvoice,
 	PaymentInvoiceStatus,
@@ -341,54 +340,46 @@ export async function getPaymentLedgerRecords(
 	input: PaymentLedgerInput,
 ): Promise<PaymentLedgerResponse> {
 	if (!hasPersistenceToken()) {
-		try {
-			return await getInternalPaymentLedgerRecords(input);
-		} catch {
-			return getFallbackPaymentLedgerRecords(input);
-		}
+		return getInternalPaymentLedgerRecords(input);
 	}
 
-	try {
-		const filters: Record<string, StrapiQueryValue> = {};
+	const filters: Record<string, StrapiQueryValue> = {};
 
-		if (input.collegeSlug) {
-			filters.college = { slug: { $eq: input.collegeSlug } };
-		}
+	if (input.collegeSlug) {
+		filters.college = { slug: { $eq: input.collegeSlug } };
+	}
 
-		if (input.scope === "student" && input.payerEmail) {
-			filters.payerEmail = { $eqi: input.payerEmail };
-		}
+	if (input.scope === "student" && input.payerEmail) {
+		filters.payerEmail = { $eqi: input.payerEmail };
+	}
 
-		const response = await strapiGet<StrapiCollectionResponse<StrapiPaymentInvoice>>(
-			"/api/payment-invoices",
-			{
-				cache: "no-store",
-				query: {
-					filters,
-					sort: ["createdAt:desc"],
-					pagination: { page: 1, pageSize: 100 },
-					populate: {
-						college: true,
-						transactions: true,
-						ledgerEntries: true,
-					},
+	const response = await strapiGet<StrapiCollectionResponse<StrapiPaymentInvoice>>(
+		"/api/payment-invoices",
+		{
+			cache: "no-store",
+			query: {
+				filters,
+				sort: ["createdAt:desc"],
+				pagination: { page: 1, pageSize: 100 },
+				populate: {
+					college: true,
+					transactions: true,
+					ledgerEntries: true,
 				},
 			},
-		);
-		const invoices = unwrapStrapiCollection(response.data).map((invoice) =>
-			mapInvoice(invoice, input.collegeSlug),
-		);
+		},
+	);
+	const invoices = unwrapStrapiCollection(response.data).map((invoice) =>
+		mapInvoice(invoice, input.collegeSlug),
+	);
 
-		return {
-			scope: input.scope,
-			collegeName:
-				invoices[0]?.collegeName ??
-				input.collegeSlug ??
-				(input.scope === "student" ? "Student payments" : "College payments"),
-			invoices,
-			summary: summarize(invoices),
-		};
-	} catch {
-		return getFallbackPaymentLedgerRecords(input);
-	}
+	return {
+		scope: input.scope,
+		collegeName:
+			invoices[0]?.collegeName ??
+			input.collegeSlug ??
+			(input.scope === "student" ? "Student payments" : "College payments"),
+		invoices,
+		summary: summarize(invoices),
+	};
 }

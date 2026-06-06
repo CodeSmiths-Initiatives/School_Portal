@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { CollegeStudentsWorkspace } from "@/features/college-students";
+import { CollegeAdminRolesWorkspace } from "@/features/college-admin";
 import RoleDashboardShell from "@/features/dashboard/components/RoleDashboardShell";
 import {
 	createCollegeAdminDashboardContent,
@@ -11,14 +11,14 @@ import {
 	hasPermissions,
 	type UserPermissionKey,
 } from "@/lib/rbac";
-import { listCollegeAdminStudents } from "@/lib/services/college-admin.service";
+import { getCollegeAdminRoles } from "@/lib/services/college-admin.service";
 
 export const metadata = {
-	title: "Students | College Admin",
-	description: "Review admission-backed student records for the selected college.",
+	title: "Roles | College Admin",
+	description: "Create and manage college-scoped staff roles and permissions.",
 };
 
-export default async function CollegeAdminStudentsPage({
+export default async function CollegeAdminRolesPage({
 	params,
 }: {
 	params: Promise<{ collegeSlug: string }>;
@@ -30,14 +30,11 @@ export default async function CollegeAdminStudentsPage({
 		redirect("/staff/signin");
 	}
 
-	if (!["admin", "staff"].includes(session.user.domain)) {
+	if (session.user.domain !== "admin") {
 		redirect(session.destination.path);
 	}
 
-	if (
-		session.user.collegeSlug &&
-		session.user.collegeSlug !== collegeSlug
-	) {
+	if (session.user.collegeSlug !== collegeSlug) {
 		redirect(session.destination.path);
 	}
 
@@ -45,24 +42,23 @@ export default async function CollegeAdminStudentsPage({
 		? session.user.permissions
 		: getDefaultPermissionsForDomain(session.user.domain)) as UserPermissionKey[];
 
-	if (!hasPermissions(permissions, ["students.view"], { mode: "any" })) {
+	if (!hasPermissions(permissions, ["roles.view"], { mode: "any" })) {
 		redirect(session.destination.path);
 	}
 
 	const dashboard = createCollegeAdminDashboardContent(collegeSlug);
-	const collegeName =
-		session.user.collegeName ?? formatCollegeName(collegeSlug);
-	const studentPayload = await listCollegeAdminStudents(collegeSlug);
+	const collegeName = session.user.collegeName ?? formatCollegeName(collegeSlug);
+	const payload = await getCollegeAdminRoles(collegeSlug);
 
 	return (
 		<RoleDashboardShell
 			badge={dashboard.badge}
 			title={dashboard.title}
-			subtitle="Review admission-backed student records, filter application progress, and export or print student information."
+			subtitle="Create college-specific staff roles and assign menu/action permissions for this tenant only."
 			domain={session.user.domain}
 			roleLabel={session.user.roleLabel ?? dashboard.roleLabel}
 			tenantSlug={collegeSlug}
-			activeMenuKey="students"
+			activeMenuKey="roles"
 			permissions={permissions}
 			stats={dashboard.stats}
 			highlights={dashboard.highlights}
@@ -73,10 +69,17 @@ export default async function CollegeAdminStudentsPage({
 			showOverviewContent={false}
 			contentWidth="wide"
 		>
-			<CollegeStudentsWorkspace
-				students={studentPayload.students}
-				collegeName={collegeName}
+			<CollegeAdminRolesWorkspace
 				collegeSlug={collegeSlug}
+				collegeName={collegeName}
+				initialRoles={payload.roles}
+				permissions={payload.permissions}
+				canCreate={hasPermissions(permissions, ["roles.create"], { mode: "any" })}
+				canUpdate={hasPermissions(
+					permissions,
+					["roles.update", "roles.assign_permissions"],
+					{ mode: "any" },
+				)}
 			/>
 		</RoleDashboardShell>
 	);
