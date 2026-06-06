@@ -47,7 +47,7 @@ export const MENU_CATALOG = [
   {
     key: "students",
     label: "Students",
-    href: "/students",
+    href: "/college/[collegeSlug]/admin/students",
     icon: "Users",
     domains: ["staff", "admin"],
     requiredPermissions: ["students.view"],
@@ -57,7 +57,7 @@ export const MENU_CATALOG = [
     label: "Staff",
     href: "/staff",
     icon: "Users",
-    domains: ["admin", "superadmin"],
+    domains: ["admin"],
     requiredPermissions: ["staff.view"],
   },
   {
@@ -185,6 +185,27 @@ export function getVisibleDashboardMenus({
       return {
         ...item,
         href: "/superadmin/roles",
+      };
+    }
+
+    if (item.key === "reports" && domain === "superadmin") {
+      return {
+        ...item,
+        href: "/superadmin/reports",
+      };
+    }
+
+    if (item.key === "audit" && domain === "superadmin") {
+      return {
+        ...item,
+        href: "/superadmin/audit",
+      };
+    }
+
+    if (item.key === "settings" && domain === "superadmin") {
+      return {
+        ...item,
+        href: "/superadmin/settings",
       };
     }
 

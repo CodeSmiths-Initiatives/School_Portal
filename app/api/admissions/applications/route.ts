@@ -16,6 +16,11 @@ export async function GET(request: Request) {
 		collegeSlug: searchParams.get("collegeSlug"),
 		email: searchParams.get("email") || undefined,
 		status: searchParams.get("status") || undefined,
+		paymentStatus: searchParams.get("paymentStatus") || undefined,
+		currentStep: searchParams.get("currentStep") || undefined,
+		from: searchParams.get("from") || undefined,
+		to: searchParams.get("to") || undefined,
+		search: searchParams.get("search") || undefined,
 		limit: searchParams.get("limit") || undefined,
 	});
 

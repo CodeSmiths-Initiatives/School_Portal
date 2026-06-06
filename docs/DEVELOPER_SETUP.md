@@ -134,12 +134,20 @@ Important routes:
 | Superadmin dashboard | `/superadmin/dashboard` | Platform dashboard |
 | Superadmin colleges | `/superadmin/colleges` | Create college tenants and their primary college admin |
 | Superadmin roles | `/superadmin/roles` | Manage global Student and College Admin permission templates |
+| Superadmin reports | `/superadmin/reports` | College-wise admission, payment, student, and revenue reports |
+| Superadmin audit | `/superadmin/audit` | Platform-wide audit by college, actor, activity, and date range |
 
-For current local seed data, the main college slug is:
+Current local seed data provisions five active demo colleges. `/apply` shows
+only active colleges; archived local QA colleges stay hidden from applicant
+entry.
 
-```txt
-kwara-applied-sciences
-```
+| Code | College | Slug |
+| ---- | ------- | ---- |
+| KAS | Kwara State College of Applied Sciences | `kwara-applied-sciences` |
+| KBH | Kwara State College of Business and Health | `kwara-business-health` |
+| KCE | Kwara College of Education | `kwara-college-education` |
+| KPI | Kwara Polytechnic Institute | `kwara-polytechnic-institute` |
+| KAT | Kwara Agriculture and Technology | `kwara-agriculture-technology` |
 
 Example admission URL:
 
@@ -151,13 +159,37 @@ http://localhost:3000/college/kwara-applied-sciences/apply
 
 Use these exact seeded Strapi accounts:
 
-| Dashboard     | Login URL       | Email / Username                             | Password     |
-| ------------- | --------------- | -------------------------------------------- | ------------ |
-| Superadmin    | `/staff/signin` | `superadmin@iums.test` or `superadmin`       | `Super@123`  |
-| College Admin | `/staff/signin` | `admin.kwara@iums.test` or `kwara.admin`     | `Admin@123`  |
-| Student       | `/signin`       | `student.kwara@iums.test` or `kwara.student` | `Password@1` |
-| HOD           | `/staff/signin` | `hod.kwara@iums.test` or `kwara.hod`         | `Hod@1234`   |
-| Clerk         | `/staff/signin` | `clerk.kwara@iums.test` or `kwara.clerk`     | `Clerk@123`  |
+| Dashboard | Login URL | Email / Username | Password |
+| --------- | --------- | ---------------- | -------- |
+| Superadmin | `/staff/signin` | `superadmin@iums.test` or `superadmin` | `Super@123` |
+| KAS Admin | `/staff/signin` | `admin.kas@iums.test` or `admin.kas` | `Admin@123` |
+| KAS Student 1 | `/signin` | `student1.kas@iums.test` or `student1.kas` | `Student@1` |
+| KAS HOD | `/staff/signin` | `hod.kas@iums.test` or `hod.kas` | `Hod@1234` |
+| KAS Clerk 1 | `/staff/signin` | `clerk1.kas@iums.test` or `clerk1.kas` | `Clerk@123` |
+| KAS Clerk 2 | `/staff/signin` | `clerk2.kas@iums.test` or `clerk2.kas` | `Clerk@123` |
+| KAS Cashier | `/staff/signin` | `cashier.kas@iums.test` or `cashier.kas` | `Cashier@1` |
+
+The same pattern is available for every seeded college code: `kas`, `kbh`,
+`kce`, `kpi`, and `kat`.
+
+Examples:
+
+| Role | KBH | KCE | KPI | KAT |
+| ---- | --- | --- | --- | --- |
+| Admin | `admin.kbh@iums.test` | `admin.kce@iums.test` | `admin.kpi@iums.test` | `admin.kat@iums.test` |
+| Student 1 | `student1.kbh@iums.test` | `student1.kce@iums.test` | `student1.kpi@iums.test` | `student1.kat@iums.test` |
+| HOD | `hod.kbh@iums.test` | `hod.kce@iums.test` | `hod.kpi@iums.test` | `hod.kat@iums.test` |
+| Clerk 1 | `clerk1.kbh@iums.test` | `clerk1.kce@iums.test` | `clerk1.kpi@iums.test` | `clerk1.kat@iums.test` |
+| Clerk 2 | `clerk2.kbh@iums.test` | `clerk2.kce@iums.test` | `clerk2.kpi@iums.test` | `clerk2.kat@iums.test` |
+| Cashier | `cashier.kbh@iums.test` | `cashier.kce@iums.test` | `cashier.kpi@iums.test` | `cashier.kat@iums.test` |
+
+Per college, the seed creates:
+
+- 1 college admin
+- 5 students: `student1.<code>` through `student5.<code>`
+- 1 HOD
+- 2 clerks
+- 1 cashier
 
 Additional local QA student accounts created for payment testing:
 
@@ -172,12 +204,15 @@ addresses with `Invalid Email Address Passed`.
 Expected routes after login:
 
 ```txt
-Student       -> /college/kwara-applied-sciences/student/dashboard
-College Admin -> /college/kwara-applied-sciences/admin/dashboard
-HOD           -> /college/kwara-applied-sciences/staff/dashboard
-Clerk         -> /college/kwara-applied-sciences/staff/dashboard
+Student       -> /college/[collegeSlug]/student/dashboard
+College Admin -> /college/[collegeSlug]/admin/dashboard
+HOD           -> /college/[collegeSlug]/staff/dashboard
+Clerk         -> /college/[collegeSlug]/staff/dashboard
+Cashier       -> /college/[collegeSlug]/staff/dashboard
 Superadmin    -> /superadmin/dashboard
 ```
+
+For KAS, `[collegeSlug]` is `kwara-applied-sciences`.
 
 ## 6. Current Auth and User Storage Architecture
 
@@ -270,6 +305,28 @@ Superadmin college provisioning:
 6. The global `platform-student` template is reused when students register under any college.
 7. The admin can sign in at `/staff/signin`, and the college appears on `/apply`.
 
+Current seeded college verification:
+
+```txt
+Colleges: 5 active demo colleges
+Admins: 5 total, 1 per college
+Students: 25 total, 5 per college
+Staff roles: 20 total, 1 HOD + 2 clerks + 1 cashier per college
+Applications: 25 total, 5 per college
+Invoices: 15 paid + 5 pending
+Audit logs: 17 structured current demo rows
+```
+
+College lifecycle management:
+
+1. Superadmin can edit college name, contact email, admin name, admin username, admin email, admin phone, and status from `/superadmin/colleges`.
+2. College code is locked after creation.
+3. College slug is locked after creation and does not change when the college name changes. Existing URLs, admissions, invoices, payments, and ledgers depend on it.
+4. Admin email and admin username can be changed only when the new values are globally unique in `up_users`.
+5. Setting a college to `inactive` hides it from `/apply`.
+6. Users assigned to an inactive college cannot complete portal-session resolution, so college admin, staff, and student logins are blocked until the college is reactivated.
+7. Superadmin remains platform-scoped and can still manage inactive colleges.
+
 Superadmin global role management:
 
 1. Superadmin opens `/superadmin/roles`.
@@ -277,6 +334,49 @@ Superadmin global role management:
 3. Superadmin can create new `module.action` permission keys.
 4. Superadmin can toggle permissions on either global role template.
 5. College-local custom roles such as HOD, Clerk, Supervisor, and Teacher will be managed from the College Admin area in the next role-management phase.
+
+Audit visibility model:
+
+1. Superadmin audit is platform-wide and can filter/export activity across every college.
+2. College Admin audit must be college-scoped only; it can show activity for users, payments, admissions, and modules inside that college.
+3. College-created roles such as HOD, Clerk, Supervisor, or Teacher can see college audit only when their assigned role has `audit.view`.
+4. Student audit must be self-scoped only. A student can see actions they performed and actions where their student record/application/payment was the target.
+5. Audit records should store actor, actor role, college, target user/entity, action, timestamp, IP/device metadata, and before/after metadata for sensitive edits.
+
+Report visibility model:
+
+1. Superadmin reports are platform-wide and must start with a college filter plus date range.
+2. Superadmin can compare all colleges or isolate one college across admissions, students, payments, unpaid balances, and revenue.
+3. College Admin reports should reuse the same report model but force `collegeSlug` from the logged-in session.
+4. College-created roles can view report modules only when their role has `reports.view`; data remains scoped to their college and later can be narrowed by department/course assignment.
+5. Student reports are not platform reports. Students should see only their own payment/admission/profile summaries.
+
+Superadmin report and audit APIs:
+
+```txt
+GET  /api/superadmin/reports
+GET  /api/superadmin/audit
+POST /api/superadmin/audit-events
+```
+
+These routes are internal Strapi endpoints. Next.js calls them with
+`x-portal-internal-secret`. The report endpoint defaults to active colleges
+only, aggregates live Strapi data, and supports `collegeSlug`, `from`, and `to`
+query filters. The audit endpoint returns structured/current rows sorted by the
+actual event timestamp.
+
+Superadmin settings:
+
+1. Superadmin settings are available at `/superadmin/settings`.
+2. The side menu uses the existing `settings.view` permission and updates require `settings.update`.
+3. The current settings workspace covers:
+   - Superadmin password change through Strapi `/api/auth/change-password` when a JWT session token is available.
+   - Platform notice creation for all users, students, staff, or college admins.
+   - Maintenance-window messaging with start/end dates and impact level.
+4. `GET /api/superadmin/settings` returns the current MVP settings contract.
+5. `PATCH /api/superadmin/settings` validates password, notice, and maintenance updates.
+6. Notice and maintenance updates write structured audit rows through the internal Strapi audit endpoint.
+7. Notice and maintenance persistence is currently MVP/local-preview. The production backend slice should persist these records in Strapi settings/content types and expose active public notices to guest/auth layouts.
 
 Payment flow:
 

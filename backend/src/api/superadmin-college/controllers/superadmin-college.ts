@@ -1,11 +1,15 @@
+import { randomInt } from "node:crypto";
+
 type StrapiContext = {
 	request: {
 		body?: unknown;
 		header: Record<string, string | undefined>;
+		params?: Record<string, string | undefined>;
 	};
 	unauthorized: (message?: string) => unknown;
 	badRequest: (message?: string) => unknown;
 	conflict: (message?: string) => unknown;
+	notFound?: (message?: string) => unknown;
 	body: unknown;
 };
 
@@ -20,9 +24,20 @@ type ProvisionCollegePayload = {
 	temporaryPassword?: unknown;
 };
 
+type UpdateCollegePayload = {
+	name?: unknown;
+	contactEmail?: unknown;
+	adminName?: unknown;
+	adminUsername?: unknown;
+	adminEmail?: unknown;
+	adminPhone?: unknown;
+	status?: unknown;
+};
+
 const DEV_INTERNAL_SECRET = "iums-local-registration-secret-change-before-production";
 const GLOBAL_COLLEGE_ADMIN_ROLE_CODE = "platform-college-admin";
 const GLOBAL_STUDENT_ROLE_CODE = "platform-student";
+const ALPHANUMERIC = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
 const COLLEGE_ADMIN_PERMISSIONS = [
 	"dashboard.view",
@@ -122,6 +137,35 @@ function toText(value: unknown) {
 	return typeof value === "string" ? value.trim() : "";
 }
 
+function toStatus(value: unknown) {
+	const status = toText(value).toLowerCase();
+
+	if (status === "active" || status === "inactive" || status === "archived") {
+		return status;
+	}
+
+	return "";
+}
+
+function padTwo(value: number) {
+	return String(value).padStart(2, "0");
+}
+
+function randomAlphaNumeric(length: number) {
+	return Array.from({ length }, () => {
+		const index = randomInt(ALPHANUMERIC.length);
+		return ALPHANUMERIC[index];
+	}).join("");
+}
+
+function createTemporaryPassword(now = new Date()) {
+	const yy = padTwo(now.getFullYear() % 100);
+	const hh = padTwo(now.getHours());
+	const mm = padTwo(now.getMinutes());
+
+	return `${randomAlphaNumeric(5)}@${yy}${hh}${mm}!`;
+}
+
 function parsePayload(body: unknown) {
 	const payload = (body ?? {}) as ProvisionCollegePayload;
 	const name = toText(payload.name);
@@ -132,7 +176,9 @@ function parsePayload(body: unknown) {
 	const adminEmail = normalizeEmail(toText(payload.adminEmail));
 	const adminPhone = toText(payload.adminPhone);
 	const temporaryPassword =
-		typeof payload.temporaryPassword === "string" ? payload.temporaryPassword : "";
+		typeof payload.temporaryPassword === "string" && payload.temporaryPassword.trim()
+			? payload.temporaryPassword.trim()
+			: createTemporaryPassword();
 
 	return {
 		name,
@@ -144,6 +190,29 @@ function parsePayload(body: unknown) {
 		adminEmail,
 		adminPhone,
 		temporaryPassword,
+	};
+}
+
+function parseUpdatePayload(body: unknown) {
+	const payload = (body ?? {}) as UpdateCollegePayload;
+
+	return {
+		name: toText(payload.name),
+		contactEmail:
+			typeof payload.contactEmail === "string"
+				? normalizeEmail(payload.contactEmail)
+				: "",
+		adminName: toText(payload.adminName),
+		adminUsername:
+			typeof payload.adminUsername === "string"
+				? normalizeUsername(payload.adminUsername)
+				: "",
+		adminEmail:
+			typeof payload.adminEmail === "string"
+				? normalizeEmail(payload.adminEmail)
+				: "",
+		adminPhone: toText(payload.adminPhone),
+		status: toStatus(payload.status),
 	};
 }
 
@@ -360,6 +429,116 @@ function serializeCollege(college: Record<string, unknown>) {
 	};
 }
 
+function getCollegeAdminMetadata(college: Record<string, unknown>) {
+	const metadata =
+		college.metadata && typeof college.metadata === "object" && !Array.isArray(college.metadata)
+			? (college.metadata as Record<string, unknown>)
+			: {};
+
+	return metadata.admin && typeof metadata.admin === "object" && !Array.isArray(metadata.admin)
+		? (metadata.admin as Record<string, unknown>)
+		: {};
+}
+
+function sameId(left: unknown, right: unknown) {
+	return String(left) === String(right);
+}
+
+async function findCollegeById(id: string) {
+	const numericId = Number(id);
+
+	if (Number.isInteger(numericId) && numericId > 0) {
+		const byId = await strapi.db.query("api::college.college").findOne({
+			where: { id: numericId },
+		});
+
+		if (byId?.id) {
+			return byId;
+		}
+	}
+
+	return strapi.db.query("api::college.college").findOne({
+		where: {
+			$or: [{ documentId: id }, { slug: id }],
+		},
+	});
+}
+
+async function ensureUniqueCollegeUpdate(input: {
+	collegeId: unknown;
+	name?: string;
+	contactEmail?: string;
+}) {
+	const colleges = await strapi.db.query("api::college.college").findMany({});
+	const normalizedName = input.name?.trim().toLowerCase();
+	const normalizedEmail = input.contactEmail?.trim().toLowerCase();
+
+	for (const college of colleges as Array<Record<string, unknown>>) {
+		if (sameId(college.id, input.collegeId)) {
+			continue;
+		}
+
+		if (
+			normalizedName &&
+			String(college.name ?? "").trim().toLowerCase() === normalizedName
+		) {
+			throw new Error("A college with this name already exists.");
+		}
+
+		if (
+			normalizedEmail &&
+			String(college.contactEmail ?? "").trim().toLowerCase() === normalizedEmail
+		) {
+			throw new Error("A college with this contact email already exists.");
+		}
+	}
+}
+
+async function updateLinkedAdminUser(input: {
+	adminUserId?: number;
+	currentAdmin: Record<string, unknown>;
+	username: string;
+	email: string;
+}) {
+	const fallbackEmail = normalizeEmail(String(input.currentAdmin.email ?? ""));
+	const fallbackUsername = normalizeUsername(String(input.currentAdmin.username ?? ""));
+	const existingTarget = await strapi.db
+		.query("plugin::users-permissions.user")
+		.findOne({
+			where: {
+				$or: [{ email: input.email }, { username: input.username }],
+			},
+		});
+	const linkedUser =
+		input.adminUserId
+			? await strapi.db.query("plugin::users-permissions.user").findOne({
+					where: { id: input.adminUserId },
+				})
+			: await strapi.db.query("plugin::users-permissions.user").findOne({
+					where: {
+						$or: [{ email: fallbackEmail }, { username: fallbackUsername }],
+					},
+				});
+
+	if (!linkedUser?.id) {
+		throw new Error("Linked college admin user could not be resolved.");
+	}
+
+	if (existingTarget?.id && !sameId(existingTarget.id, linkedUser.id)) {
+		throw new Error("Admin email or username is already linked to another portal account.");
+	}
+
+	const userService = strapi.plugin("users-permissions").service("user");
+
+	return userService.edit(linkedUser.id, {
+		username: input.username,
+		email: input.email,
+		provider: "local",
+		confirmed: true,
+		blocked: false,
+	});
+}
+
 function authorize(ctx: StrapiContext) {
 	const expectedSecret = getInternalSecret();
 	const providedSecret = getHeader(ctx, "x-portal-internal-secret");
@@ -530,6 +709,146 @@ export default {
 				error instanceof Error ? error.message : "Unable to provision college.";
 
 			if (message.includes("already linked")) {
+				return ctx.conflict(message);
+			}
+
+			return ctx.badRequest(message);
+		}
+	},
+
+	async updateCollege(ctx: StrapiContext) {
+		if (!authorize(ctx)) {
+			return ctx.unauthorized("College provisioning is not authorized.");
+		}
+
+		const collegeId = ctx.request.params?.id;
+
+		if (!collegeId) {
+			return ctx.badRequest("College id is required.");
+		}
+
+		const college = await findCollegeById(collegeId);
+
+		if (!college?.id) {
+			return ctx.notFound
+				? ctx.notFound("College could not be found.")
+				: ctx.badRequest("College could not be found.");
+		}
+
+		const payload = parseUpdatePayload(ctx.request.body);
+		const currentAdmin = getCollegeAdminMetadata(college);
+		const nextName = payload.name || String(college.name ?? "");
+		const nextContactEmail =
+			payload.contactEmail || String(college.contactEmail ?? currentAdmin.email ?? "");
+		const nextStatus = payload.status || String(college.status ?? "active");
+		const nextAdminName = payload.adminName || String(currentAdmin.name ?? "");
+		const nextAdminUsername =
+			payload.adminUsername || normalizeUsername(String(currentAdmin.username ?? ""));
+		const nextAdminEmail =
+			payload.adminEmail || normalizeEmail(String(currentAdmin.email ?? ""));
+		const nextAdminPhone = payload.adminPhone || String(currentAdmin.phone ?? "");
+		const hasAdminUpdate = Boolean(
+			payload.adminName !== undefined ||
+				payload.adminUsername !== undefined ||
+				payload.adminEmail !== undefined ||
+				payload.adminPhone !== undefined,
+		);
+		const hasAdminIdentity = Boolean(nextAdminUsername && nextAdminEmail);
+		const adminUserId =
+			typeof currentAdmin.userId === "number"
+				? currentAdmin.userId
+				: Number.isInteger(Number(currentAdmin.userId))
+					? Number(currentAdmin.userId)
+					: undefined;
+
+		if (!nextName) {
+			return ctx.badRequest("College name is required.");
+		}
+
+		if (hasAdminUpdate && !hasAdminIdentity) {
+			return ctx.badRequest("Admin username and admin email are required.");
+		}
+
+		try {
+			await ensureUniqueCollegeUpdate({
+				collegeId: college.id,
+				name: nextName,
+				contactEmail: nextContactEmail,
+			});
+
+			const adminUser = hasAdminIdentity
+				? await updateLinkedAdminUser({
+						adminUserId,
+						currentAdmin,
+						username: nextAdminUsername,
+						email: nextAdminEmail,
+					})
+				: null;
+			const nextMetadata =
+				college.metadata &&
+				typeof college.metadata === "object" &&
+				!Array.isArray(college.metadata)
+					? (college.metadata as Record<string, unknown>)
+					: {};
+			const nextAdmin =
+				Object.keys(currentAdmin).length > 0 || hasAdminUpdate || adminUser?.id
+					? {
+							...currentAdmin,
+							name: nextAdminName,
+							username: nextAdminUsername,
+							email: nextAdminEmail,
+							phone: nextAdminPhone,
+							userId: adminUser?.id ?? currentAdmin.userId,
+							updatedAt: new Date().toISOString(),
+						}
+					: undefined;
+			const previousStatus = String(college.status ?? "active");
+
+			const updatedCollege = await strapi.db.query("api::college.college").update({
+				where: { id: college.id },
+				data: {
+					name: nextName,
+					status: nextStatus,
+					contactEmail: nextContactEmail,
+					metadata: {
+						...nextMetadata,
+						...(nextAdmin ? { admin: nextAdmin } : {}),
+						statusHistory: [
+							...((nextMetadata.statusHistory as unknown[]) ?? []),
+							...(previousStatus !== nextStatus
+								? [
+										{
+											status: nextStatus,
+											updatedAt: new Date().toISOString(),
+										},
+									]
+								: []),
+						],
+					},
+				},
+			});
+
+			ctx.body = {
+				ok: true,
+				college: serializeCollege(updatedCollege),
+				...(adminUser
+					? {
+							admin: {
+								id: adminUser.id,
+								username: adminUser.username,
+								email: adminUser.email,
+								roleCode: String(
+									currentAdmin.roleCode ?? GLOBAL_COLLEGE_ADMIN_ROLE_CODE,
+								),
+							},
+						}
+					: {}),
+			};
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : "Unable to update college.";
+
+			if (message.includes("already")) {
 				return ctx.conflict(message);
 			}
 

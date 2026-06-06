@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const passwordSchema = z
+export const portalPasswordSchema = z
 	.string()
 	.min(8, "Password must be at least 8 characters")
 	.max(15, "Password cannot be more than 15 characters")
@@ -31,7 +31,7 @@ export const createAccountSchema = z
 				"Username can only contain letters, numbers, dots, underscores, and hyphens",
 			),
 		email: z.string().trim().email("Enter a valid email address"),
-		password: passwordSchema,
+		password: portalPasswordSchema,
 		confirmPassword: z.string().min(1, "Confirm your password"),
 		agreeToTerms: z.literal(true, {
 			error: "You must agree to the terms and privacy policy",
@@ -53,7 +53,7 @@ export const resetPasswordSchema = z
 			.trim()
 			.min(1, "Reset code is required")
 			.max(160, "Reset code is too long"),
-		password: passwordSchema,
+		password: portalPasswordSchema,
 		confirmPassword: z.string().min(1, "Confirm your password"),
 	})
 	.refine((data) => data.password === data.confirmPassword, {

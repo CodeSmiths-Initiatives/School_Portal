@@ -216,3 +216,18 @@ export const DEFAULT_DOMAIN_PERMISSIONS: Record<DashboardDomain, PermissionKey[]
 export function getDefaultPermissionsForDomain(domain: DashboardDomain) {
 	return DEFAULT_DOMAIN_PERMISSIONS[domain];
 }
+
+export function getEffectivePermissionsForDomain(
+	domain: DashboardDomain,
+	permissions?: readonly string[] | null,
+) {
+	if (permissions && permissions.length > 0) {
+		return permissions as PermissionKey[];
+	}
+
+	if (domain === "superadmin") {
+		return DEFAULT_DOMAIN_PERMISSIONS.superadmin;
+	}
+
+	return [];
+}

@@ -139,6 +139,17 @@ export default {
 		const college =
 			(primaryAssignment.college as Record<string, unknown> | undefined) ??
 			(role.college as Record<string, unknown> | undefined);
+		const roleCode = String(role.code ?? "").toLowerCase();
+
+		if (
+			roleCode !== "platform-superadmin" &&
+			college &&
+			String(college.status ?? "active") !== "active"
+		) {
+			return ctx.unauthorized(
+				"Your college access is currently inactive. Please contact the administrator.",
+			);
+		}
 
 		ctx.body = {
 			user: {
@@ -167,6 +178,7 @@ export default {
 						name: college.name,
 						slug: college.slug,
 						code: college.code,
+						status: college.status,
 					}
 				: null,
 		};

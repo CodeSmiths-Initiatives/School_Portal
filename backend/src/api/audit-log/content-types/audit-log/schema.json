@@ -15,11 +15,36 @@
       "type": "string",
       "required": true
     },
+    "eventType": {
+      "type": "enumeration",
+      "enum": ["created", "updated", "deleted", "login", "exported", "settings", "payment"],
+      "default": "updated",
+      "required": true
+    },
+    "actorName": {
+      "type": "string"
+    },
+    "actorEmail": {
+      "type": "email"
+    },
+    "actorRole": {
+      "type": "string"
+    },
     "entityType": {
       "type": "string"
     },
     "entityId": {
       "type": "string"
+    },
+    "targetLabel": {
+      "type": "string"
+    },
+    "ipAddress": {
+      "type": "string"
+    },
+    "occurredAt": {
+      "type": "datetime",
+      "required": true
     },
     "summary": {
       "type": "text"
@@ -39,4 +64,3 @@
     }
   }
 }
-

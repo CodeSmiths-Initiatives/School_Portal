@@ -6,36 +6,38 @@ import {
 	Building2,
 	KeyRound,
 	Mail,
+	Pencil,
 	Phone,
 	Plus,
 	ShieldCheck,
+	UserCog,
 	UserRound,
+	X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "@/lib/toast";
 import type {
 	ProvisionCollegeInput,
 	ProvisionedCollege,
+	UpdateCollegeInput,
 } from "@/lib/services/superadmin-college.service";
+import { createTemporaryPassword } from "@/lib/security/temporary-password";
 
 type CollegeProvisioningWorkspaceProps = {
 	initialColleges: ProvisionedCollege[];
 };
 
-const emptyForm: ProvisionCollegeInput = {
-	name: "",
-	code: "",
-	contactEmail: "",
-	adminName: "",
-	adminUsername: "",
-	adminEmail: "",
-	adminPhone: "",
-	temporaryPassword: "",
-};
-
-function createTemporaryPassword(code: string) {
-	const normalizedCode = code.trim().replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
-	return `${normalizedCode || "COL"}@${new Date().getFullYear()}!`;
+function createEmptyForm(): ProvisionCollegeInput {
+	return {
+		name: "",
+		code: "",
+		contactEmail: "",
+		adminName: "",
+		adminUsername: "",
+		adminEmail: "",
+		adminPhone: "",
+		temporaryPassword: createTemporaryPassword(),
+	};
 }
 
 function formatDate(value?: string) {
@@ -54,12 +56,27 @@ function getActiveCount(colleges: ProvisionedCollege[]) {
 	return colleges.filter((college) => college.status === "active").length;
 }
 
+function createEditForm(college: ProvisionedCollege): UpdateCollegeInput {
+	return {
+		name: college.name,
+		contactEmail: college.contactEmail ?? college.admin?.email ?? "",
+		adminName: college.admin?.name ?? "",
+		adminUsername: college.admin?.username ?? "",
+		adminEmail: college.admin?.email ?? "",
+		adminPhone: college.admin?.phone ?? "",
+		status: college.status,
+	};
+}
+
 export function CollegeProvisioningWorkspace({
 	initialColleges,
 }: CollegeProvisioningWorkspaceProps) {
 	const [colleges, setColleges] = useState(initialColleges);
-	const [form, setForm] = useState<ProvisionCollegeInput>(emptyForm);
+	const [form, setForm] = useState<ProvisionCollegeInput>(() => createEmptyForm());
+	const [editingCollege, setEditingCollege] = useState<ProvisionedCollege | null>(null);
+	const [editForm, setEditForm] = useState<UpdateCollegeInput | null>(null);
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [isUpdating, setIsUpdating] = useState(false);
 	const [search, setSearch] = useState("");
 
 	const filteredColleges = useMemo(() => {
@@ -83,10 +100,31 @@ export function CollegeProvisioningWorkspace({
 		setForm((current) => ({
 			...current,
 			[key]: value,
-			...(key === "code" && !current.temporaryPassword
-				? { temporaryPassword: createTemporaryPassword(String(value)) }
-				: {}),
 		}));
+	}
+
+	function updateEditField<Key extends keyof UpdateCollegeInput>(
+		key: Key,
+		value: UpdateCollegeInput[Key],
+	) {
+		setEditForm((current) =>
+			current
+				? {
+						...current,
+						[key]: value,
+					}
+				: current,
+		);
+	}
+
+	function openEditDrawer(college: ProvisionedCollege) {
+		setEditingCollege(college);
+		setEditForm(createEditForm(college));
+	}
+
+	function closeEditDrawer() {
+		setEditingCollege(null);
+		setEditForm(null);
 	}
 
 	async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -110,7 +148,7 @@ export function CollegeProvisioningWorkspace({
 			}
 
 			setColleges((current) => [payload.college!, ...current]);
-			setForm(emptyForm);
+			setForm(createEmptyForm());
 			toast.success({
 				title: "College created",
 				description: payload.emailSent
@@ -128,6 +166,84 @@ export function CollegeProvisioningWorkspace({
 		} finally {
 			setIsSubmitting(false);
 		}
+	}
+
+	async function updateCollege(
+		college: ProvisionedCollege,
+		payload: UpdateCollegeInput,
+		successTitle: string,
+	) {
+		setIsUpdating(true);
+
+		try {
+			const response = await fetch(`/api/superadmin/colleges/${college.id}`, {
+				method: "PATCH",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify(payload),
+			});
+			const result = (await response.json().catch(() => null)) as
+				| { college?: ProvisionedCollege; error?: string }
+				| null;
+
+			if (!response.ok || !result?.college) {
+				throw new Error(result?.error ?? "Unable to update college.");
+			}
+
+			setColleges((current) =>
+				current.map((item) =>
+					String(item.id) === String(result.college!.id) ? result.college! : item,
+				),
+			);
+			toast.success({
+				title: successTitle,
+				description:
+					result.college.status === "active"
+						? "College access is active and visible on the Apply page."
+						: "College access is blocked and hidden from the Apply page.",
+			});
+			closeEditDrawer();
+		} catch (error) {
+			toast.error({
+				title: "College update failed",
+				description:
+					error instanceof Error
+						? error.message
+						: "Please check the college and admin details.",
+			});
+		} finally {
+			setIsUpdating(false);
+		}
+	}
+
+	function handleStatusChange(college: ProvisionedCollege) {
+		const nextStatus = college.status === "active" ? "inactive" : "active";
+		const confirmed =
+			nextStatus === "active" ||
+			window.confirm(
+				"This will block all users under this college and hide it from the Apply page.",
+			);
+
+		if (!confirmed) {
+			return;
+		}
+
+		void updateCollege(
+			college,
+			{ status: nextStatus },
+			nextStatus === "active" ? "College reactivated" : "College deactivated",
+		);
+	}
+
+	function handleEditSubmit(event: React.FormEvent<HTMLFormElement>) {
+		event.preventDefault();
+
+		if (!editingCollege || !editForm) {
+			return;
+		}
+
+		void updateCollege(editingCollege, editForm, "College updated");
 	}
 
 	return (
@@ -209,7 +325,13 @@ export function CollegeProvisioningWorkspace({
 										</p>
 									</div>
 								</div>
-								<span className="rounded-full border border-[#cfe8d3] bg-[#eefaf0] px-3 py-1 text-xs font-black capitalize text-[#0B7A32]">
+								<span
+									className={`rounded-full border px-3 py-1 text-xs font-black capitalize ${
+										college.status === "active"
+											? "border-[#cfe8d3] bg-[#eefaf0] text-[#0B7A32]"
+											: "border-[#f0d49d] bg-[#fff8eb] text-[#B7770D]"
+									}`}
+								>
 									{college.status}
 								</span>
 							</div>
@@ -237,6 +359,37 @@ export function CollegeProvisioningWorkspace({
 							<div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs font-bold text-[#6b7f9c]">
 								<span>{college.slug}</span>
 								<span>Updated {formatDate(college.updatedAt)}</span>
+							</div>
+
+							<div className="mt-4 grid gap-2 sm:grid-cols-3">
+								<button
+									type="button"
+									onClick={() => openEditDrawer(college)}
+									className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#dbe5f1] bg-white px-3 text-xs font-black text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+								>
+									<UserCog className="size-4" />
+									View Admin
+								</button>
+								<button
+									type="button"
+									onClick={() => openEditDrawer(college)}
+									className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#dbe5f1] bg-white px-3 text-xs font-black text-[#0D2B55] transition hover:border-[#2E86C1] hover:text-[#2E86C1]"
+								>
+									<Pencil className="size-4" />
+									Edit
+								</button>
+								<button
+									type="button"
+									disabled={isUpdating}
+									onClick={() => handleStatusChange(college)}
+									className={`inline-flex h-10 items-center justify-center rounded-xl px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${
+										college.status === "active"
+											? "border border-[#f0d49d] bg-[#fff8eb] text-[#B7770D] hover:bg-[#fff2d7]"
+											: "border border-[#cfe8d3] bg-[#effaf1] text-[#0B7A32] hover:bg-[#e2f7e6]"
+									}`}
+								>
+									{college.status === "active" ? "Deactivate" : "Reactivate"}
+								</button>
 							</div>
 						</article>
 					))}
@@ -374,17 +527,15 @@ export function CollegeProvisioningWorkspace({
 						<div className="mt-2 flex gap-2">
 							<input
 								required
+								readOnly
 								value={form.temporaryPassword}
-								onChange={(event) =>
-									updateField("temporaryPassword", event.target.value)
-								}
-								placeholder="KCS@2026!"
-								className="h-12 min-w-0 flex-1 rounded-2xl border border-[#cbd9ec] bg-[#f8fbff] px-4 text-sm font-semibold text-[#0D2B55] outline-none transition focus:border-[#2E86C1]"
+								placeholder="A1b2C@261430!"
+								className="h-12 min-w-0 flex-1 rounded-2xl border border-[#cbd9ec] bg-[#eef4fb] px-4 text-sm font-black tracking-[0.06em] text-[#0D2B55] outline-none transition focus:border-[#2E86C1]"
 							/>
 							<button
 								type="button"
 								onClick={() =>
-									updateField("temporaryPassword", createTemporaryPassword(form.code))
+									updateField("temporaryPassword", createTemporaryPassword())
 								}
 								className="flex size-12 items-center justify-center rounded-2xl border border-[#cbd9ec] bg-white text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
 								aria-label="Generate temporary password"
@@ -398,9 +549,9 @@ export function CollegeProvisioningWorkspace({
 						<div className="flex gap-3">
 							<ShieldCheck className="mt-0.5 size-5 shrink-0" />
 							<p>
-								The admin will receive a temporary password and can sign in via
-								the staff portal. Admin and student permissions are global
-								templates; tenant data remains scoped by college assignment.
+								The temporary password is auto-generated in the required
+								RandomAlphaNumeric(5)@YYHHmm! pattern and sent to the admin
+								invitation email.
 							</p>
 						</div>
 					</div>
@@ -415,6 +566,190 @@ export function CollegeProvisioningWorkspace({
 					</button>
 				</form>
 			</aside>
+
+			{editingCollege && editForm ? (
+				<div className="fixed inset-0 z-50 flex justify-end bg-[#06183A]/45 backdrop-blur-sm">
+					<button
+						type="button"
+						className="hidden flex-1 cursor-default lg:block"
+						aria-label="Close college editor"
+						onClick={closeEditDrawer}
+					/>
+					<aside className="app-scrollbar h-full w-full max-w-xl overflow-y-auto bg-white shadow-[-24px_0_60px_rgba(6,24,58,0.24)]">
+						<div className="sticky top-0 z-10 border-b border-[#dbe5f1] bg-white/95 p-5 backdrop-blur">
+							<div className="flex items-start justify-between gap-4">
+								<div>
+									<p className="text-[11px] font-black uppercase tracking-[0.28em] text-[#B7770D]">
+										Edit College
+									</p>
+									<h3 className="mt-2 text-2xl font-black text-[#06183A]">
+										{editingCollege.name}
+									</h3>
+									<p className="mt-1 text-sm font-semibold text-[#60728f]">
+										Code and slug are locked to protect URLs, invoices, payments,
+										and admission records.
+									</p>
+								</div>
+								<button
+									type="button"
+									onClick={closeEditDrawer}
+									className="flex size-11 items-center justify-center rounded-full border border-[#dbe5f1] text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+									aria-label="Close editor"
+								>
+									<X className="size-5" />
+								</button>
+							</div>
+						</div>
+
+						<form className="space-y-5 p-5" onSubmit={handleEditSubmit}>
+							<div className="grid gap-3 sm:grid-cols-2">
+								<div className="rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] p-4">
+									<p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8395AF]">
+										Locked Code
+									</p>
+									<p className="mt-2 text-lg font-black text-[#0D2B55]">
+										{editingCollege.code}
+									</p>
+								</div>
+								<div className="rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] p-4">
+									<p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8395AF]">
+										Locked Slug
+									</p>
+									<p className="mt-2 break-all text-sm font-black text-[#0D2B55]">
+										{editingCollege.slug}
+									</p>
+								</div>
+							</div>
+
+							<label className="block">
+								<span className="text-[11px] font-black uppercase tracking-[0.22em] text-[#0D2B55]">
+									College Name
+								</span>
+								<input
+									required
+									value={editForm.name ?? ""}
+									onChange={(event) => updateEditField("name", event.target.value)}
+									className="mt-2 h-12 w-full rounded-2xl border border-[#cbd9ec] bg-[#f8fbff] px-4 text-sm font-semibold text-[#0D2B55] outline-none transition focus:border-[#2E86C1]"
+								/>
+							</label>
+
+							<div className="grid gap-3 sm:grid-cols-2">
+								<label className="block">
+									<span className="text-[11px] font-black uppercase tracking-[0.22em] text-[#0D2B55]">
+										Contact Email
+									</span>
+									<input
+										value={editForm.contactEmail ?? ""}
+										onChange={(event) =>
+											updateEditField("contactEmail", event.target.value)
+										}
+										className="mt-2 h-12 w-full rounded-2xl border border-[#cbd9ec] bg-[#f8fbff] px-4 text-sm font-semibold text-[#0D2B55] outline-none transition focus:border-[#2E86C1]"
+									/>
+								</label>
+								<label className="block">
+									<span className="text-[11px] font-black uppercase tracking-[0.22em] text-[#0D2B55]">
+										Status
+									</span>
+									<select
+										value={editForm.status ?? "active"}
+										onChange={(event) =>
+											updateEditField(
+												"status",
+												event.target.value as UpdateCollegeInput["status"],
+											)
+										}
+										className="mt-2 h-12 w-full rounded-2xl border border-[#cbd9ec] bg-[#f8fbff] px-4 text-sm font-semibold text-[#0D2B55] outline-none transition focus:border-[#2E86C1]"
+									>
+										<option value="active">Active</option>
+										<option value="inactive">Inactive</option>
+										<option value="archived">Archived</option>
+									</select>
+								</label>
+							</div>
+
+							<div className="rounded-2xl border border-[#f0d49d] bg-[#fff8eb] p-4 text-sm font-semibold leading-6 text-[#7a4d04]">
+								Admin email and username are editable, but both must remain
+								globally unique because portal login accepts either value.
+							</div>
+
+							<label className="block">
+								<span className="text-[11px] font-black uppercase tracking-[0.22em] text-[#0D2B55]">
+									Admin Name
+								</span>
+								<input
+									value={editForm.adminName ?? ""}
+									onChange={(event) =>
+										updateEditField("adminName", event.target.value)
+									}
+									className="mt-2 h-12 w-full rounded-2xl border border-[#cbd9ec] bg-[#f8fbff] px-4 text-sm font-semibold text-[#0D2B55] outline-none transition focus:border-[#2E86C1]"
+								/>
+							</label>
+
+							<div className="grid gap-3 sm:grid-cols-2">
+								<label className="block">
+									<span className="text-[11px] font-black uppercase tracking-[0.22em] text-[#0D2B55]">
+										Admin Username
+									</span>
+									<input
+										required
+										value={editForm.adminUsername ?? ""}
+										onChange={(event) =>
+											updateEditField("adminUsername", event.target.value)
+										}
+										className="mt-2 h-12 w-full rounded-2xl border border-[#cbd9ec] bg-[#f8fbff] px-4 text-sm font-semibold text-[#0D2B55] outline-none transition focus:border-[#2E86C1]"
+									/>
+								</label>
+								<label className="block">
+									<span className="text-[11px] font-black uppercase tracking-[0.22em] text-[#0D2B55]">
+										Admin Email
+									</span>
+									<input
+										required
+										value={editForm.adminEmail ?? ""}
+										onChange={(event) =>
+											updateEditField("adminEmail", event.target.value)
+										}
+										className="mt-2 h-12 w-full rounded-2xl border border-[#cbd9ec] bg-[#f8fbff] px-4 text-sm font-semibold text-[#0D2B55] outline-none transition focus:border-[#2E86C1]"
+									/>
+								</label>
+							</div>
+
+							<label className="block">
+								<span className="text-[11px] font-black uppercase tracking-[0.22em] text-[#0D2B55]">
+									Admin Phone
+								</span>
+								<input
+									value={editForm.adminPhone ?? ""}
+									onChange={(event) =>
+										updateEditField("adminPhone", event.target.value)
+									}
+									className="mt-2 h-12 w-full rounded-2xl border border-[#cbd9ec] bg-[#f8fbff] px-4 text-sm font-semibold text-[#0D2B55] outline-none transition focus:border-[#2E86C1]"
+								/>
+							</label>
+
+							<div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+								<button
+									type="submit"
+									disabled={isUpdating}
+									className="flex h-12 items-center justify-center rounded-2xl bg-[#0D2B55] px-5 text-sm font-black text-white shadow-[0_14px_26px_rgba(13,43,85,0.24)] transition hover:bg-[#123a73] disabled:cursor-not-allowed disabled:opacity-60"
+								>
+									{isUpdating ? "Saving..." : "Save College Changes"}
+								</button>
+								<button
+									type="button"
+									disabled={isUpdating}
+									onClick={() => handleStatusChange(editingCollege)}
+									className="flex h-12 items-center justify-center rounded-2xl border border-[#f0d49d] bg-[#fff8eb] px-5 text-sm font-black text-[#B7770D] transition hover:bg-[#fff2d7] disabled:cursor-not-allowed disabled:opacity-60"
+								>
+									{editingCollege.status === "active"
+										? "Deactivate"
+										: "Reactivate"}
+								</button>
+							</div>
+						</form>
+					</aside>
+				</div>
+			) : null}
 		</div>
 	);
 }

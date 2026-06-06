@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+	createTemporaryPassword,
+	TEMPORARY_PASSWORD_PATTERN,
+} from "@/lib/security/temporary-password";
 
 const DEV_INTERNAL_SECRET = "iums-local-registration-secret-change-before-production";
 
@@ -17,11 +21,24 @@ export const provisionCollegeSchema = z.object({
 	adminPhone: z.string().trim().optional().or(z.literal("")),
 	temporaryPassword: z
 		.string()
-		.min(8, "Temporary password must be at least 8 characters")
-		.max(32, "Temporary password is too long"),
+		.regex(
+			TEMPORARY_PASSWORD_PATTERN,
+			"Temporary password must use RandomAlphaNumeric(5)@YYHHmm! format",
+		),
+});
+
+export const updateCollegeSchema = z.object({
+	name: z.string().trim().min(3, "College name is required").optional(),
+	contactEmail: z.string().trim().email().optional().or(z.literal("")),
+	adminName: z.string().trim().min(2, "Admin name is required").optional(),
+	adminUsername: z.string().trim().min(3, "Admin username is required").optional(),
+	adminEmail: z.string().trim().email("Admin email is required").optional(),
+	adminPhone: z.string().trim().optional().or(z.literal("")),
+	status: z.enum(["active", "inactive", "archived"]).optional(),
 });
 
 export type ProvisionCollegeInput = z.infer<typeof provisionCollegeSchema>;
+export type UpdateCollegeInput = z.infer<typeof updateCollegeSchema>;
 
 export type ProvisionedCollege = {
 	id: number | string;
@@ -115,7 +132,10 @@ export async function getProvisionedColleges() {
 }
 
 export async function provisionCollegeWithAdmin(input: ProvisionCollegeInput) {
-	const validation = provisionCollegeSchema.safeParse(input);
+	const validation = provisionCollegeSchema.safeParse({
+		...input,
+		temporaryPassword: input.temporaryPassword || createTemporaryPassword(),
+	});
 
 	if (!validation.success) {
 		throw new Error(validation.error.issues[0]?.message ?? "Invalid college data.");
@@ -137,4 +157,39 @@ export async function provisionCollegeWithAdmin(input: ProvisionCollegeInput) {
 	}
 
 	return response.json() as Promise<ProvisionCollegeResult>;
+}
+
+export async function updateProvisionedCollege(
+	collegeId: string | number,
+	input: UpdateCollegeInput,
+) {
+	const validation = updateCollegeSchema.safeParse(input);
+
+	if (!validation.success) {
+		throw new Error(validation.error.issues[0]?.message ?? "Invalid college update data.");
+	}
+
+	const response = await fetch(
+		`${getStrapiBaseUrl()}/api/superadmin/colleges/${collegeId}`,
+		{
+			method: "PATCH",
+			headers: {
+				Accept: "application/json",
+				"Content-Type": "application/json",
+				"x-portal-internal-secret": getInternalSecret(),
+			},
+			body: JSON.stringify(validation.data),
+			cache: "no-store",
+		},
+	);
+
+	if (!response.ok) {
+		throw new Error(await parseError(response, "Unable to update college."));
+	}
+
+	return response.json() as Promise<{
+		ok: true;
+		college: ProvisionedCollege;
+		admin?: ProvisionCollegeResult["admin"];
+	}>;
 }

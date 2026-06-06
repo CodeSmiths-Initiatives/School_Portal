@@ -26,6 +26,9 @@ import type {
 	AdmissionApplicationUpdateRequestInput,
 } from "@/lib/validation";
 
+const DEV_INTERNAL_SECRET =
+	"iums-local-registration-secret-change-before-production";
+
 export type AdmissionApplicationSummary = {
 	id: string;
 	documentId?: string;
@@ -60,6 +63,21 @@ type StrapiAdmissionApplication = Record<string, unknown> & {
 
 function hasPersistenceToken() {
 	return Boolean(process.env.STRAPI_API_TOKEN?.trim());
+}
+
+function getInternalSecret() {
+	const configured =
+		process.env.PORTAL_INTERNAL_API_SECRET ?? process.env.PORTAL_REGISTRATION_SECRET;
+
+	if (configured) {
+		return configured;
+	}
+
+	if (process.env.NODE_ENV === "production") {
+		throw new Error("PORTAL_INTERNAL_API_SECRET is required in production.");
+	}
+
+	return DEV_INTERNAL_SECRET;
 }
 
 function createApplicationNumber(collegeCode?: string) {
@@ -479,7 +497,27 @@ export async function listAdmissionApplicationRecords(
 	input: AdmissionApplicationListQueryInput,
 ): Promise<AdmissionApplicationSummary[]> {
 	if (!hasPersistenceToken()) {
-		return [];
+		const response = await strapiGet<{
+			applications?: AdmissionApplicationSummary[];
+		}>("/api/internal/admission-applications", {
+			cache: "no-store",
+			headers: {
+				"x-portal-internal-secret": getInternalSecret(),
+			},
+			query: {
+				collegeSlug: input.collegeSlug,
+				email: input.email,
+				status: input.status,
+				paymentStatus: input.paymentStatus,
+				currentStep: input.currentStep,
+				from: input.from,
+				to: input.to,
+				search: input.search,
+				limit: input.limit,
+			},
+		});
+
+		return response.applications ?? [];
 	}
 
 	const filters: Record<string, StrapiQueryValue> = {
@@ -492,6 +530,29 @@ export async function listAdmissionApplicationRecords(
 
 	if (input.status) {
 		filters.status = { $eq: input.status };
+	}
+
+	if (input.paymentStatus) {
+		filters.paymentStatus = { $eq: input.paymentStatus };
+	}
+
+	if (input.currentStep) {
+		filters.currentStep = { $eq: input.currentStep };
+	}
+
+	if (input.search) {
+		filters.$or = [
+			{ applicationNumber: { $containsi: input.search } },
+			{ applicantUsername: { $containsi: input.search } },
+			{ applicantEmail: { $containsi: input.search } },
+		];
+	}
+
+	if (input.from || input.to) {
+		filters.lastSavedAt = {
+			...(input.from ? { $gte: `${input.from}T00:00:00.000Z` } : {}),
+			...(input.to ? { $lte: `${input.to}T23:59:59.999Z` } : {}),
+		};
 	}
 
 	const response = await strapiGet<

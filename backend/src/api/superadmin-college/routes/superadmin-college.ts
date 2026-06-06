@@ -16,5 +16,13 @@ export default {
 				auth: false,
 			},
 		},
+		{
+			method: "PATCH",
+			path: "/superadmin/colleges/:id",
+			handler: "superadmin-college.updateCollege",
+			config: {
+				auth: false,
+			},
+		},
 	],
 };

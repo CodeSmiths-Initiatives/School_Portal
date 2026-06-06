@@ -96,41 +96,7 @@ function formatCollegeDescription(name: string) {
 	return `College-scoped admission, payment, and student services for ${name}.`;
 }
 
-function mergeWithFallbackColleges(colleges: AdmissionCollegeOption[]) {
-	const collegesBySlug = new Map(
-		colleges.map((college) => [college.slug, college]),
-	);
-
-	for (const fallbackCollege of FALLBACK_ADMISSION_COLLEGES) {
-		if (!collegesBySlug.has(fallbackCollege.slug)) {
-			collegesBySlug.set(fallbackCollege.slug, fallbackCollege);
-		}
-	}
-
-	return Array.from(collegesBySlug.values());
-}
-
 export async function getAdmissionCollegeOptions() {
-	try {
-		const colleges = await getActiveColleges({ cache: "no-store" });
-
-		if (colleges.length > 0) {
-			const activeColleges = colleges.map<AdmissionCollegeOption>((college) => ({
-				id: college.id,
-				name: college.name,
-				slug: college.slug,
-				code: college.code,
-				description: formatCollegeDescription(college.name),
-			}));
-
-			return activeColleges.length < 6
-				? mergeWithFallbackColleges(activeColleges)
-				: activeColleges;
-		}
-	} catch {
-		// Keep local development and MVP review usable when Strapi is offline.
-	}
-
 	try {
 		const colleges = await getProvisionedColleges();
 
@@ -146,7 +112,23 @@ export async function getAdmissionCollegeOptions() {
 				}));
 		}
 	} catch {
-		// The static directory keeps the college picker usable without Strapi.
+		// Continue to public Strapi collection or static fallback below.
+	}
+
+	try {
+		const colleges = await getActiveColleges({ cache: "no-store" });
+
+		if (colleges.length > 0) {
+			return colleges.map<AdmissionCollegeOption>((college) => ({
+				id: college.id,
+				name: college.name,
+				slug: college.slug,
+				code: college.code,
+				description: formatCollegeDescription(college.name),
+			}));
+		}
+	} catch {
+		// Keep local development and MVP review usable when Strapi is offline.
 	}
 
 	return FALLBACK_ADMISSION_COLLEGES;

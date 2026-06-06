@@ -6,7 +6,7 @@ import {
 	updateGlobalRolePermissions,
 } from "@/lib/services/superadmin-role.service";
 import { getCurrentAuthSession } from "@/lib/auth/server-session";
-import { hasPermissions, type UserPermissionKey } from "@/lib/rbac";
+import { getEffectivePermissionsForDomain, hasPermissions } from "@/lib/rbac";
 import { NextResponse } from "next/server";
 
 function assertSuperadmin(
@@ -20,7 +20,10 @@ function assertSuperadmin(
 	const permission = action === "view" ? "roles.view" : "roles.assign_permissions";
 
 	return hasPermissions(
-		(session.user.permissions ?? []) as UserPermissionKey[],
+		getEffectivePermissionsForDomain(
+			session.user.domain,
+			session.user.permissions,
+		),
 		[permission],
 		{ mode: "any" },
 	);

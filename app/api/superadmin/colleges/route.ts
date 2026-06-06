@@ -4,7 +4,8 @@ import {
 	provisionCollegeWithAdmin,
 } from "@/lib/services/superadmin-college.service";
 import { getCurrentAuthSession } from "@/lib/auth/server-session";
-import { hasPermissions, type UserPermissionKey } from "@/lib/rbac";
+import { getEffectivePermissionsForDomain, hasPermissions } from "@/lib/rbac";
+import { createTemporaryPassword } from "@/lib/security/temporary-password";
 import { NextResponse } from "next/server";
 
 function assertSuperadmin(
@@ -19,7 +20,10 @@ function assertSuperadmin(
 		action === "create" ? "colleges.create" : "colleges.view";
 
 	return hasPermissions(
-		(session.user.permissions ?? []) as UserPermissionKey[],
+		getEffectivePermissionsForDomain(
+			session.user.domain,
+			session.user.permissions,
+		),
 		[permission],
 		{ mode: "any" },
 	);
@@ -50,7 +54,18 @@ export async function POST(request: Request) {
 	}
 
 	const json = await request.json().catch(() => null);
-	const validation = provisionCollegeSchema.safeParse(json);
+	const input =
+		json && typeof json === "object"
+			? {
+					...json,
+					temporaryPassword:
+						typeof (json as { temporaryPassword?: unknown }).temporaryPassword === "string" &&
+						(json as { temporaryPassword: string }).temporaryPassword.trim()
+							? (json as { temporaryPassword: string }).temporaryPassword
+							: createTemporaryPassword(),
+				}
+			: json;
+	const validation = provisionCollegeSchema.safeParse(input);
 
 	if (!validation.success) {
 		return NextResponse.json(

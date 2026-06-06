@@ -85,7 +85,12 @@ export const admissionApplicationListQuerySchema = z.object({
 	collegeSlug: requiredText("College"),
 	email: z.email("Enter a valid applicant email address").optional(),
 	status: z.string().trim().optional(),
-	limit: z.coerce.number().int().min(1).max(100).optional().default(25),
+	paymentStatus: z.string().trim().optional(),
+	currentStep: admissionApplicationStepSchema.optional(),
+	from: z.string().trim().optional(),
+	to: z.string().trim().optional(),
+	search: z.string().trim().optional(),
+	limit: z.coerce.number().int().min(1).max(500).optional().default(100),
 });
 
 export const oLevelSubjectSchema = z.object({
