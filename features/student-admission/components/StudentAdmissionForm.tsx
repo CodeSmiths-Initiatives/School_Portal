@@ -41,7 +41,7 @@ import AdmissionField, {
 } from "@/features/student-admission/components/AdmissionField";
 import AdmissionStepIndicator from "@/features/student-admission/components/AdmissionStepIndicator";
 import {
-	createAdmissionApplicationDraft,
+	createAdmissionApplication,
 	listAdmissionApplications,
 	updateAdmissionApplication,
 } from "@/features/admission/services/admissionApplication.client";
@@ -64,7 +64,7 @@ import {
 import type {
 	AdmissionApplicationSummary,
 } from "@/lib/services/admission-application.service";
-import type { AdmissionApplicationStep } from "@/lib/validation";
+import type { ProgrammeSelectionInput } from "@/lib/validation";
 import { toast } from "@/lib/toast";
 
 type StudentAdmissionFormProps = {
@@ -1019,22 +1019,6 @@ function createReferenceNumber() {
 	return `ADM-${Date.now()}-${random}`;
 }
 
-const saveStepByFormStep: Record<number, AdmissionApplicationStep> = {
-	1: "biodata",
-	2: "contact",
-	3: "olevel",
-	4: "programme_details",
-	5: "declaration",
-};
-
-const nextStepByFormStep: Record<number, AdmissionApplicationStep> = {
-	1: "contact",
-	2: "olevel",
-	3: "programme_details",
-	4: "declaration",
-	5: "submitted",
-};
-
 export default function StudentAdmissionForm({
 	studentName,
 	email,
@@ -1064,36 +1048,6 @@ export default function StudentAdmissionForm({
 		}
 	}, [contactData.emailAddress, email, updateContactData]);
 
-	useEffect(() => {
-		let isMounted = true;
-
-		async function loadApplication() {
-			if (!collegeSlug || !email) {
-				return;
-			}
-
-			try {
-				const applications = await listAdmissionApplications({
-					collegeSlug,
-					email,
-					limit: 1,
-				});
-
-				if (isMounted) {
-					setApplication(applications[0] ?? null);
-				}
-			} catch {
-				// The form can still create a tenant draft on first successful continue.
-			}
-		}
-
-		void loadApplication();
-
-		return () => {
-			isMounted = false;
-		};
-	}, [collegeSlug, email]);
-
 	function validateCurrentStep() {
 		const stepErrors =
 			currentStep === 1
@@ -1110,46 +1064,67 @@ export default function StudentAdmissionForm({
 		return Object.keys(stepErrors).length === 0;
 	}
 
-	function getCurrentStepPayload() {
-		if (currentStep === 1) {
-			return { bioData };
-		}
-		if (currentStep === 2) {
-			return { contactData };
-		}
-		if (currentStep === 3) {
-			return { oLevelData };
-		}
-		if (currentStep === 4) {
-			return { programmeData };
-		}
-		return { declarationData };
+	function getCompleteFormPayload() {
+		return {
+			bioData,
+			contactData,
+			oLevelData,
+			programmeData,
+			declarationData,
+		};
 	}
 
-	async function ensureApplication() {
-		if (application?.persisted) {
-			return application;
-		}
+	function getProgrammeSelection(): ProgrammeSelectionInput {
+		const programmeTypeValue = programmeData.programmeType.toLowerCase();
+		const programmeType = programmeTypeValue.includes("top")
+			? "topup"
+			: programmeTypeValue.includes("distance")
+				? "distance"
+				: "undergraduate";
 
-		const draft = await createAdmissionApplicationDraft({
+		return {
+			programmeType,
+			facultyId: `${programmeData.faculty}::${programmeData.department}`,
+			entrySession: programmeData.jambYear || "2026/2027",
+		};
+	}
+
+	async function findExistingApplication() {
+		const applications = await listAdmissionApplications({
+			collegeSlug,
+			email,
+			limit: 1,
+		});
+
+		return applications.find(
+			(item) => item.status !== "cancelled" && item.status !== "rejected",
+		) ?? null;
+	}
+
+	async function submitApplication() {
+		const existingApplication = await findExistingApplication();
+		const currentApplication =
+			existingApplication ??
+			(await createAdmissionApplication({
+				collegeSlug,
+				account: {
+					username: studentName,
+					email,
+				},
+				programme: getProgrammeSelection(),
+			}));
+
+		const saved = await updateAdmissionApplication(currentApplication.id, {
 			collegeSlug,
 			account: {
 				username: studentName,
 				email,
 			},
-		});
-		setApplication(draft);
-		return draft;
-	}
-
-	async function saveCurrentStep() {
-		const currentApplication = await ensureApplication();
-		const saved = await updateAdmissionApplication(currentApplication.id, {
-			collegeSlug,
-			currentStep: nextStepByFormStep[currentStep],
-			completedStep: saveStepByFormStep[currentStep],
-			formData: getCurrentStepPayload(),
-			status: currentStep === 5 ? "submitted" : currentApplication.status,
+			programme: getProgrammeSelection(),
+			currentStep: "submitted",
+			completedStep: "submitted",
+			formData: getCompleteFormPayload(),
+			status: "submitted",
 			paymentStatus: currentApplication.paymentStatus,
 		});
 
@@ -1167,27 +1142,27 @@ export default function StudentAdmissionForm({
 		}
 
 		setErrors({});
-		setIsSaving(true);
-
-		let savedApplication: AdmissionApplicationSummary;
-
-		try {
-			savedApplication = await saveCurrentStep();
-		} catch (error) {
-			toast.error({
-				title: "Unable to save progress",
-				description:
-					error instanceof Error
-						? error.message
-						: "Please try again before continuing.",
-			});
-			setIsSaving(false);
-			return;
-		}
-
-		setIsSaving(false);
 
 		if (currentStep === 5) {
+			let savedApplication: AdmissionApplicationSummary;
+
+			setIsSaving(true);
+
+			try {
+				savedApplication = await submitApplication();
+			} catch (error) {
+				toast.error({
+					title: "Unable to submit application",
+					description:
+						error instanceof Error
+							? error.message
+							: "Please try again before submitting.",
+				});
+				setIsSaving(false);
+				return;
+			}
+
+			setIsSaving(false);
 			setReferenceNumber(
 				savedApplication.applicationNumber || createReferenceNumber(),
 			);

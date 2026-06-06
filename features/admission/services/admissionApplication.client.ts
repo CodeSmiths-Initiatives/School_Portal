@@ -1,6 +1,5 @@
 import type { AdmissionApplicationSummary } from "@/lib/services/admission-application.service";
 import type {
-	AdmissionApplicationDraftRequestInput,
 	AdmissionApplicationListQueryInput,
 	AdmissionApplicationRequestInput,
 	AdmissionApplicationUpdateRequestInput,
@@ -30,30 +29,6 @@ export async function createAdmissionApplication(
 	return result.application;
 }
 
-export async function createAdmissionApplicationDraft(
-	payload: AdmissionApplicationDraftRequestInput,
-) {
-	const response = await fetch("/api/admissions/applications", {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-		},
-		body: JSON.stringify(payload),
-	});
-
-	const result = (await response.json()) as
-		| { application?: AdmissionApplicationSummary; error?: string }
-		| undefined;
-
-	if (!response.ok || !result?.application) {
-		throw new Error(
-			result?.error ?? "Unable to save the admission application draft.",
-		);
-	}
-
-	return result.application;
-}
-
 export async function updateAdmissionApplication(
 	applicationId: string,
 	payload: AdmissionApplicationUpdateRequestInput,
@@ -72,7 +47,7 @@ export async function updateAdmissionApplication(
 
 	if (!response.ok || !result?.application) {
 		throw new Error(
-			result?.error ?? "Unable to update the admission application draft.",
+			result?.error ?? "Unable to update the admission application.",
 		);
 	}
 

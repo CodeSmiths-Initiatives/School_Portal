@@ -236,7 +236,7 @@ export default function CreateAccount({ onNext }: CreateAccountFormProps) {
 					disabled={isSubmitting}
 					className="w-full bg-[#2E86C1] hover:bg-[#3a5f95] active:bg-[#2a4f85] text-white font-semibold text-sm tracking-wide rounded-lg py-3.5 transition-colors duration-200 mt-1"
 				>
-					{isSubmitting ? "Saving draft..." : "Continue to Programme Selection"}
+					{isSubmitting ? "Creating account..." : "Continue to Programme Selection"}
 				</button>
 
 				{/* Sign in link */}

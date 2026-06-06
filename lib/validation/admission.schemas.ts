@@ -33,14 +33,6 @@ export const admissionApplicationRequestSchema = z.object({
 	programme: programmeSelectionSchema,
 });
 
-export const admissionApplicationDraftRequestSchema = z.object({
-	collegeSlug: requiredText("College"),
-	account: z.object({
-		username: requiredText("Username"),
-		email: z.email("Enter a valid applicant email address"),
-	}),
-});
-
 export const admissionApplicationStepSchema = z.enum([
 	"account",
 	"programme",
@@ -183,9 +175,6 @@ export const biodataSchema = z
 export type ProgrammeSelectionInput = z.infer<typeof programmeSelectionSchema>;
 export type AdmissionApplicationRequestInput = z.infer<
 	typeof admissionApplicationRequestSchema
->;
-export type AdmissionApplicationDraftRequestInput = z.infer<
-	typeof admissionApplicationDraftRequestSchema
 >;
 export type AdmissionApplicationUpdateRequestInput = z.infer<
 	typeof admissionApplicationUpdateRequestSchema

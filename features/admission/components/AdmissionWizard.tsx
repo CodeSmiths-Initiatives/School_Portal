@@ -13,8 +13,6 @@ import RegistrationSidebar, {
 import SelectProgramme from "@/features/admission/components/SelectProgramme";
 import {
 	createAdmissionApplication,
-	createAdmissionApplicationDraft,
-	updateAdmissionApplication,
 } from "@/features/admission/services/admissionApplication.client";
 import { registerStudentPortalAccount } from "@/features/admission/services/studentRegistration.client";
 import type { PaymentVerificationResult } from "@/features/admission/types/payment.types";
@@ -52,21 +50,13 @@ export default function AdmissionWizard({
 			password: data.password,
 		});
 
-		const application = await createAdmissionApplicationDraft({
-			collegeSlug,
-			account: {
-				username: data.username,
-				email: data.email,
-			},
-		});
-
 		setAccountData(data);
-		setApplicationData(application);
+		setApplicationData(null);
 		setPaymentResult(null);
 		setCurrentStep(2);
 		toast.success({
 			title: "Student login created",
-			description: "Your application and portal access are saved for this college.",
+			description: "Your portal access is ready. Continue to programme selection.",
 		});
 	};
 
@@ -79,27 +69,14 @@ export default function AdmissionWizard({
 			throw new Error("Select a college before continuing the application.");
 		}
 
-		const application = applicationData?.persisted
-			? await updateAdmissionApplication(applicationData.id, {
-					collegeSlug,
-					account: {
-						username: accountData.username,
-						email: accountData.email,
-					},
-					programme,
-					status: "payment_pending",
-					paymentStatus: "pending",
-					currentStep: "payment",
-					completedStep: "programme",
-				})
-			: await createAdmissionApplication({
-					collegeSlug,
-					account: {
-						username: accountData.username,
-						email: accountData.email,
-					},
-					programme,
-				});
+		const application = await createAdmissionApplication({
+			collegeSlug,
+			account: {
+				username: accountData.username,
+				email: accountData.email,
+			},
+			programme,
+		});
 
 		setApplicationData(application);
 		setPaymentResult(null);

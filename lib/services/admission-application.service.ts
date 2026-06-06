@@ -18,9 +18,8 @@ import {
 	getActiveColleges,
 	type CollegeSummary,
 } from "@/lib/services/college.service";
-import type { AdmissionApplicationRequestInput } from "@/lib/validation";
 import type {
-	AdmissionApplicationDraftRequestInput,
+	AdmissionApplicationRequestInput,
 	AdmissionApplicationListQueryInput,
 	AdmissionApplicationStep,
 	AdmissionApplicationUpdateRequestInput,
@@ -255,37 +254,6 @@ function getCollegeCode(
 export async function createAdmissionApplicationRecord(
 	input: AdmissionApplicationRequestInput,
 ): Promise<AdmissionApplicationSummary> {
-	const draft = await createAdmissionApplicationDraftRecord({
-		collegeSlug: input.collegeSlug,
-		account: input.account,
-	});
-
-	if (!draft.persisted) {
-		return {
-			...draft,
-			status: "payment_pending",
-			paymentStatus: "pending",
-			currentStep: "payment",
-			metadata: {
-				...(draft.metadata ?? {}),
-				programmeSelection: input.programme,
-			},
-		};
-	}
-
-	return updateAdmissionApplicationRecord(draft.id, {
-		collegeSlug: input.collegeSlug,
-		programme: input.programme,
-		status: "payment_pending",
-		paymentStatus: "pending",
-		currentStep: "payment",
-		completedStep: "programme",
-	});
-}
-
-export async function createAdmissionApplicationDraftRecord(
-	input: AdmissionApplicationDraftRequestInput,
-): Promise<AdmissionApplicationSummary> {
 	const college = await getApplicationCollege(input.collegeSlug);
 	const applicationNumber = createApplicationNumber(
 		getCollegeCode(input.collegeSlug, college),
@@ -301,7 +269,25 @@ export async function createAdmissionApplicationDraftRecord(
 		existingApplication.status !== "cancelled" &&
 		existingApplication.status !== "rejected"
 	) {
-		return existingApplication;
+		return updateAdmissionApplicationRecord(existingApplication.id, {
+			collegeSlug: input.collegeSlug,
+			account: input.account,
+			programme: input.programme,
+			status:
+				existingApplication.status === "draft"
+					? "payment_pending"
+					: existingApplication.status,
+			paymentStatus:
+				existingApplication.paymentStatus === "not_started"
+					? "pending"
+					: existingApplication.paymentStatus,
+			currentStep:
+				existingApplication.currentStep === "account" ||
+				existingApplication.currentStep === "programme"
+					? "payment"
+					: existingApplication.currentStep,
+			completedStep: "programme",
+		});
 	}
 
 	if (!hasPersistenceToken()) {
@@ -310,11 +296,17 @@ export async function createAdmissionApplicationDraftRecord(
 			applicationNumber,
 			collegeId,
 			collegeSlug: input.collegeSlug,
-			status: "draft",
-			paymentStatus: "not_started",
-			currentStep: "account",
-			completedSteps: ["account"],
+			status: "payment_pending",
+			paymentStatus: "pending",
+			currentStep: "payment",
+			completedSteps: ["programme"],
 			lastSavedAt: new Date().toISOString(),
+			metadata: {
+				collegeSlug: input.collegeSlug,
+				account: input.account,
+				programmeSelection: input.programme,
+				source: "tenant-admission-wizard",
+			},
 			persisted: false,
 			reason: "STRAPI_API_TOKEN is not configured.",
 		};
@@ -325,17 +317,26 @@ export async function createAdmissionApplicationDraftRecord(
 			id: applicationNumber,
 			applicationNumber,
 			collegeSlug: input.collegeSlug,
-			status: "draft",
-			paymentStatus: "not_started",
-			currentStep: "account",
-			completedSteps: ["account"],
+			status: "payment_pending",
+			paymentStatus: "pending",
+			currentStep: "payment",
+			completedSteps: ["programme"],
 			lastSavedAt: new Date().toISOString(),
+			metadata: {
+				collegeSlug: input.collegeSlug,
+				account: input.account,
+				programmeSelection: input.programme,
+				source: "tenant-admission-wizard",
+			},
 			persisted: false,
 			reason: "Selected college could not be resolved in Strapi.",
 		};
 	}
 
 	try {
+		const { facultyKey, departmentKey } = splitFacultyDepartment(
+			input.programme.facultyId,
+		);
 		const savedAt = new Date().toISOString();
 		const response = await strapiPost<
 			StrapiSingleResponse<StrapiAdmissionApplication>
@@ -344,18 +345,20 @@ export async function createAdmissionApplicationDraftRecord(
 				applicationNumber,
 				applicantUsername: input.account.username,
 				applicantEmail: input.account.email,
-				status: "draft",
-				paymentStatus: "not_started",
-				currentStep: "account",
-				completedSteps: ["account"],
+				programmeType: input.programme.programmeType,
+				facultyKey,
+				departmentKey,
+				entrySession: input.programme.entrySession,
+				status: "payment_pending",
+				paymentStatus: "pending",
+				currentStep: "payment",
+				completedSteps: ["programme"],
 				lastSavedAt: savedAt,
 				college: collegeId,
 				metadata: {
 					collegeSlug: input.collegeSlug,
-					account: {
-						username: input.account.username,
-						email: input.account.email,
-					},
+					account: input.account,
+					programmeSelection: input.programme,
 					source: "tenant-admission-wizard",
 				},
 			},
@@ -365,19 +368,28 @@ export async function createAdmissionApplicationDraftRecord(
 			throw new Error("Strapi did not return the created application record.");
 		}
 
-		const application = unwrapStrapiEntity(response.data);
-		return toAdmissionApplicationSummary(application, input.collegeSlug, collegeId);
+		return toAdmissionApplicationSummary(
+			unwrapStrapiEntity(response.data),
+			input.collegeSlug,
+			collegeId,
+		);
 	} catch (error) {
 		return {
 			id: applicationNumber,
 			applicationNumber,
 			collegeId,
 			collegeSlug: input.collegeSlug,
-			status: "draft",
-			paymentStatus: "not_started",
-			currentStep: "account",
-			completedSteps: ["account"],
+			status: "payment_pending",
+			paymentStatus: "pending",
+			currentStep: "payment",
+			completedSteps: ["programme"],
 			lastSavedAt: new Date().toISOString(),
+			metadata: {
+				collegeSlug: input.collegeSlug,
+				account: input.account,
+				programmeSelection: input.programme,
+				source: "tenant-admission-wizard",
+			},
 			persisted: false,
 			reason:
 				error instanceof Error

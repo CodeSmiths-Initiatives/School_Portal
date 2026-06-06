@@ -99,8 +99,8 @@ export async function loginWithMvpCredentials(
 			ok: false,
 			message:
 				audience === "student"
-					? "Student login failed. Use the seeded student account for this MVP."
-					: "Internal login failed. Use a seeded admin, staff, or superadmin account for this MVP.",
+					? "Student login failed. Check your email or username and password."
+					: "Internal login failed. Check your staff email or username and password.",
 		};
 	}
 

@@ -1,10 +1,8 @@
 import {
-	createAdmissionApplicationDraftRecord,
 	createAdmissionApplicationRecord,
 	listAdmissionApplicationRecords,
 } from "@/lib/services/admission-application.service";
 import {
-	admissionApplicationDraftRequestSchema,
 	admissionApplicationListQuerySchema,
 	admissionApplicationRequestSchema,
 } from "@/lib/validation";
@@ -66,22 +64,14 @@ export async function POST(request: Request) {
 	const parsed = admissionApplicationRequestSchema.safeParse(payload);
 
 	if (!parsed.success) {
-		const draftParsed = admissionApplicationDraftRequestSchema.safeParse(payload);
-
-		if (!draftParsed.success) {
-			return NextResponse.json(
-				{
-					error:
-						parsed.error.issues[0]?.message ??
-						draftParsed.error.issues[0]?.message ??
-						"Invalid admission application details.",
-				},
-				{ status: 400 },
-			);
-		}
-
-		const draft = await createAdmissionApplicationDraftRecord(draftParsed.data);
-		return NextResponse.json({ application: draft }, { status: 201 });
+		return NextResponse.json(
+			{
+				error:
+					parsed.error.issues[0]?.message ??
+					"Invalid admission application details.",
+			},
+			{ status: 400 },
+		);
 	}
 
 	const application = await createAdmissionApplicationRecord(parsed.data);
