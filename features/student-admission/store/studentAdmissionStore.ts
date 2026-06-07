@@ -81,6 +81,14 @@ type StudentAdmissionState = {
 	updateOLevelData: (data: Partial<OLevelData>) => void;
 	updateProgrammeData: (data: Partial<ProgrammeData>) => void;
 	updateDeclarationData: (data: Partial<DeclarationData>) => void;
+	hydrateAdmission: (data: {
+		currentStep?: number;
+		bioData?: Partial<BioData>;
+		contactData?: Partial<ContactData>;
+		oLevelData?: Partial<OLevelData>;
+		programmeData?: Partial<ProgrammeData>;
+		declarationData?: Partial<DeclarationData>;
+	}) => void;
 	resetAdmission: () => void;
 };
 
@@ -166,6 +174,15 @@ export const useStudentAdmissionStore = create<StudentAdmissionState>((set) => (
 	updateDeclarationData: (data) =>
 		set((state) => ({
 			declarationData: { ...state.declarationData, ...data },
+		})),
+	hydrateAdmission: (data) =>
+		set((state) => ({
+			currentStep: data.currentStep ?? state.currentStep,
+			bioData: { ...state.bioData, ...data.bioData },
+			contactData: { ...state.contactData, ...data.contactData },
+			oLevelData: { ...state.oLevelData, ...data.oLevelData },
+			programmeData: { ...state.programmeData, ...data.programmeData },
+			declarationData: { ...state.declarationData, ...data.declarationData },
 		})),
 	resetAdmission: () =>
 		set({

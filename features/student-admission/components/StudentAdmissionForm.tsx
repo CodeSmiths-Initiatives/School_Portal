@@ -41,10 +41,10 @@ import AdmissionField, {
 } from "@/features/student-admission/components/AdmissionField";
 import AdmissionStepIndicator from "@/features/student-admission/components/AdmissionStepIndicator";
 import {
-	createAdmissionApplication,
-	listAdmissionApplications,
-	updateAdmissionApplication,
-} from "@/features/admission/services/admissionApplication.client";
+	loadAdmissionProfile,
+	saveAdmissionProfileStep,
+	submitAdmissionProfile,
+} from "@/features/student-admission/services/studentAdmissionProfile.client";
 import {
 	useStudentAdmissionStore,
 	type BioData,
@@ -64,7 +64,7 @@ import {
 import type {
 	AdmissionApplicationSummary,
 } from "@/lib/services/admission-application.service";
-import type { ProgrammeSelectionInput } from "@/lib/validation";
+import type { StudentAdmissionProfileStep } from "@/lib/services/student-admission-profile.service";
 import { toast } from "@/lib/toast";
 
 type StudentAdmissionFormProps = {
@@ -1019,6 +1019,34 @@ function createReferenceNumber() {
 	return `ADM-${Date.now()}-${random}`;
 }
 
+function asRecord(value: unknown) {
+	return value && typeof value === "object" && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: {};
+}
+
+function asStepData<T>(value: unknown) {
+	return asRecord(value) as Partial<T>;
+}
+
+function stepFromApplication(application: AdmissionApplicationSummary) {
+	switch (application.currentStep) {
+		case "contact":
+			return 2;
+		case "olevel":
+			return 3;
+		case "programme_details":
+			return 4;
+		case "declaration":
+			return 5;
+		case "submitted":
+			return 6;
+		case "biodata":
+		default:
+			return 1;
+	}
+}
+
 export default function StudentAdmissionForm({
 	studentName,
 	email,
@@ -1034,11 +1062,13 @@ export default function StudentAdmissionForm({
 		programmeData,
 		declarationData,
 		updateContactData,
+		hydrateAdmission,
 	} = useStudentAdmissionStore();
 	const [errors, setErrors] = useState<AdmissionErrors>({});
 	const [referenceNumber, setReferenceNumber] = useState("");
 	const [application, setApplication] =
 		useState<AdmissionApplicationSummary | null>(null);
+	const [isLoading, setIsLoading] = useState(true);
 	const [isSaving, setIsSaving] = useState(false);
 	const isSuccess = currentStep === 6;
 
@@ -1047,6 +1077,67 @@ export default function StudentAdmissionForm({
 			updateContactData({ emailAddress: email, confirmEmail: email });
 		}
 	}, [contactData.emailAddress, email, updateContactData]);
+
+	useEffect(() => {
+		let isMounted = true;
+
+		async function hydrateSavedProfile() {
+			setIsLoading(true);
+
+			try {
+				const result = await loadAdmissionProfile(collegeSlug);
+				const savedApplication = result.application;
+
+				if (!isMounted) return;
+
+				if (savedApplication) {
+					const metadata = asRecord(savedApplication.metadata);
+					const admissionProfile = asRecord(metadata.admissionProfile);
+
+					hydrateAdmission({
+						currentStep: stepFromApplication(savedApplication),
+						bioData: asStepData<BioData>(admissionProfile.bioData),
+						contactData: {
+							emailAddress: email,
+							confirmEmail: email,
+							...asStepData<ContactData>(admissionProfile.contactData),
+						},
+						oLevelData: asStepData<OLevelData>(admissionProfile.oLevelData),
+						programmeData: asStepData<ProgrammeData>(
+							admissionProfile.programmeData,
+						),
+						declarationData: asStepData<DeclarationData>(
+							admissionProfile.declarationData,
+						),
+					});
+					setApplication(savedApplication);
+
+					if (savedApplication.currentStep === "submitted") {
+						setReferenceNumber(
+							savedApplication.applicationNumber || createReferenceNumber(),
+						);
+					}
+				}
+			} catch (error) {
+				if (!isMounted) return;
+				toast.error({
+					title: "Unable to load admission profile",
+					description:
+						error instanceof Error
+							? error.message
+							: "Please refresh and try again.",
+				});
+			} finally {
+				if (isMounted) setIsLoading(false);
+			}
+		}
+
+		void hydrateSavedProfile();
+
+		return () => {
+			isMounted = false;
+		};
+	}, [collegeSlug, email, hydrateAdmission]);
 
 	function validateCurrentStep() {
 		const stepErrors =
@@ -1064,72 +1155,47 @@ export default function StudentAdmissionForm({
 		return Object.keys(stepErrors).length === 0;
 	}
 
-	function getCompleteFormPayload() {
-		return {
-			bioData,
-			contactData,
-			oLevelData,
-			programmeData,
-			declarationData,
-		};
+	function getCurrentStepConfig(): {
+		step: StudentAdmissionProfileStep;
+		payload:
+			| BioData
+			| ContactData
+			| OLevelData
+			| ProgrammeData
+			| DeclarationData;
+	} {
+		if (currentStep === 1) {
+			return { step: "bioData", payload: bioData };
+		}
+
+		if (currentStep === 2) {
+			return { step: "contactData", payload: contactData };
+		}
+
+		if (currentStep === 3) {
+			return { step: "oLevelData", payload: oLevelData };
+		}
+
+		if (currentStep === 4) {
+			return { step: "programmeData", payload: programmeData };
+		}
+
+		return { step: "declarationData", payload: declarationData };
 	}
 
-	function getProgrammeSelection(): ProgrammeSelectionInput {
-		const programmeTypeValue = programmeData.programmeType.toLowerCase();
-		const programmeType = programmeTypeValue.includes("top")
-			? "topup"
-			: programmeTypeValue.includes("distance")
-				? "distance"
-				: "undergraduate";
-
-		return {
-			programmeType,
-			facultyId: `${programmeData.faculty}::${programmeData.department}`,
-			entrySession: programmeData.jambYear || "2026/2027",
-		};
-	}
-
-	async function findExistingApplication() {
-		const applications = await listAdmissionApplications({
+	async function saveCurrentStep() {
+		const { step, payload } = getCurrentStepConfig();
+		const result = await saveAdmissionProfileStep({
 			collegeSlug,
-			email,
-			limit: 1,
+			step,
+			payload,
 		});
 
-		return applications.find(
-			(item) => item.status !== "cancelled" && item.status !== "rejected",
-		) ?? null;
-	}
+		if (result.application) {
+			setApplication(result.application);
+		}
 
-	async function submitApplication() {
-		const existingApplication = await findExistingApplication();
-		const currentApplication =
-			existingApplication ??
-			(await createAdmissionApplication({
-				collegeSlug,
-				account: {
-					username: studentName,
-					email,
-				},
-				programme: getProgrammeSelection(),
-			}));
-
-		const saved = await updateAdmissionApplication(currentApplication.id, {
-			collegeSlug,
-			account: {
-				username: studentName,
-				email,
-			},
-			programme: getProgrammeSelection(),
-			currentStep: "submitted",
-			completedStep: "submitted",
-			formData: getCompleteFormPayload(),
-			status: "submitted",
-			paymentStatus: currentApplication.paymentStatus,
-		});
-
-		setApplication(saved);
-		return saved;
+		return result.application;
 	}
 
 	async function handleNext() {
@@ -1143,43 +1209,70 @@ export default function StudentAdmissionForm({
 
 		setErrors({});
 
-		if (currentStep === 5) {
-			let savedApplication: AdmissionApplicationSummary;
+		setIsSaving(true);
 
-			setIsSaving(true);
+		try {
+			await saveCurrentStep();
 
-			try {
-				savedApplication = await submitApplication();
-			} catch (error) {
-				toast.error({
-					title: "Unable to submit application",
-					description:
-						error instanceof Error
-							? error.message
-							: "Please try again before submitting.",
+			if (currentStep === 5) {
+				const submitted = await submitAdmissionProfile(collegeSlug);
+				const savedApplication = submitted.application;
+
+				if (!savedApplication) {
+					throw new Error("Application was submitted without a reference.");
+				}
+
+				setApplication(savedApplication);
+				setReferenceNumber(
+					savedApplication.applicationNumber || createReferenceNumber(),
+				);
+				setStep(6);
+				toast.success({
+					title: "Application submitted",
+					description: "Your student admission form was submitted for review.",
 				});
-				setIsSaving(false);
 				return;
 			}
 
-			setIsSaving(false);
-			setReferenceNumber(
-				savedApplication.applicationNumber || createReferenceNumber(),
-			);
-			setStep(6);
+			setStep(currentStep + 1);
 			toast.success({
-				title: "Application submitted",
-				description: "Your student admission form was submitted for review.",
+				title: "Admission step saved",
+				description: "Your progress has been saved safely.",
 			});
-			return;
+		} catch (error) {
+			toast.error({
+				title:
+					currentStep === 5
+						? "Unable to submit application"
+						: "Unable to save admission step",
+				description:
+					error instanceof Error
+						? error.message
+						: "Please try again before continuing.",
+			});
+		} finally {
+			setIsSaving(false);
 		}
-
-		setStep(currentStep + 1);
 	}
 
 	function handleBack() {
 		setErrors({});
 		setStep(Math.max(1, currentStep - 1));
+	}
+
+	if (isLoading) {
+		return (
+			<div className="mx-auto w-full max-w-[77.5rem]">
+				<div className="rounded-3xl border border-[#dbe5f1] bg-white p-8 text-center shadow-[0_18px_45px_rgba(13,43,85,0.08)]">
+					<p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#B7770D]">
+						Student Admission
+					</p>
+					<p className="mt-3 text-lg font-bold text-[#0D2B55]">
+						Loading saved admission details...
+					</p>
+				</div>
+			</div>
+		);
 	}
 
 	return (

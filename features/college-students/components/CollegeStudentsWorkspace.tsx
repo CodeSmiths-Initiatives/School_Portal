@@ -149,7 +149,7 @@ function detailRows(application: AdmissionApplicationSummary) {
 	const programmeData = getProgrammeData(application);
 
 	return [
-		["Application No.", application.applicationNumber],
+		["Admission ID", application.applicationNumber],
 		["Student Name", getStudentName(application)],
 		["Email", application.applicantEmail],
 		["Username", application.applicantUsername],
@@ -343,7 +343,7 @@ export default function CollegeStudentsWorkspace({
 					student.hasAdmissionData || hasSubmittedAdmissionData(student.application)
 						? "Yes"
 						: "No",
-				applicationNumber: student.application?.applicationNumber ?? "",
+				admissionId: student.application?.applicationNumber ?? "",
 				name: student.application ? getStudentName(student.application) : "",
 				programme: student.application ? getProgrammeLabel(student.application) : "",
 				status: student.application ? STATUS_LABELS[student.application.status] : "",
@@ -417,7 +417,7 @@ export default function CollegeStudentsWorkspace({
 						<input
 							value={search}
 							onChange={(event) => setSearch(event.target.value)}
-							placeholder="Search name, email, application no."
+							placeholder="Search name, email, admission ID"
 							className="h-12 w-full rounded-2xl border border-[#d3dfed] bg-[#f8fbff] pl-11 pr-4 text-sm font-semibold text-[#0D2B55] outline-none transition focus:border-[#2E86C1]"
 						/>
 					</label>

@@ -122,6 +122,14 @@ export function strapiPut<T>(
 	return strapiRequest<T>(path, { ...options, method: "PUT", body });
 }
 
+export function strapiPatch<T>(
+	path: string,
+	body: unknown,
+	options?: StrapiRequestOptions,
+) {
+	return strapiRequest<T>(path, { ...options, method: "PATCH", body });
+}
+
 export function strapiDelete<T>(path: string, options?: StrapiRequestOptions) {
 	return strapiRequest<T>(path, { ...options, method: "DELETE" });
 }
