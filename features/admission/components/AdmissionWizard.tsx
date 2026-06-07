@@ -15,7 +15,10 @@ import {
 	createAdmissionApplication,
 } from "@/features/admission/services/admissionApplication.client";
 import { registerStudentPortalAccount } from "@/features/admission/services/studentRegistration.client";
-import type { PaymentVerificationResult } from "@/features/admission/types/payment.types";
+import type {
+	PaymentApplicantProfile,
+	PaymentVerificationResult,
+} from "@/features/admission/types/payment.types";
 import type { AdmissionApplicationSummary } from "@/lib/services/admission-application.service";
 import type { ProgrammeSelectionInput } from "@/lib/validation";
 import { toast } from "@/lib/toast";
@@ -24,17 +27,24 @@ type AdmissionWizardProps = {
 	collegeSlug?: string;
 	collegeName?: string;
 	collegeCode?: string;
+	initialAccount?: PaymentApplicantProfile;
+	initialApplication?: AdmissionApplicationSummary | null;
+	initialStep?: 1 | 2 | 3 | 4;
 };
 
 export default function AdmissionWizard({
 	collegeSlug,
 	collegeName,
 	collegeCode,
+	initialAccount,
+	initialApplication,
+	initialStep,
 }: AdmissionWizardProps) {
-	const [currentStep, setCurrentStep] = useState(1);
-	const [accountData, setAccountData] = useState<CreateAccountFormData | null>(null);
+	const [currentStep, setCurrentStep] = useState(initialStep ?? 1);
+	const [accountData, setAccountData] =
+		useState<PaymentApplicantProfile | null>(initialAccount ?? null);
 	const [applicationData, setApplicationData] =
-		useState<AdmissionApplicationSummary | null>(null);
+		useState<AdmissionApplicationSummary | null>(initialApplication ?? null);
 	const [paymentResult, setPaymentResult] =
 		useState<PaymentVerificationResult | null>(null);
 
@@ -55,13 +65,14 @@ export default function AdmissionWizard({
 		setPaymentResult(null);
 		setCurrentStep(2);
 		toast.success({
-			title: "Student login created",
-			description: "Your portal access is ready. Continue to programme selection.",
+			title: "Applicant account saved",
+			description:
+				"Continue to programme selection and complete payment to activate student login.",
 		});
 	};
 
 	const handleProgrammeSelected = async (programme: ProgrammeSelectionInput) => {
-		if (!accountData) {
+		if (!accountData?.username || !accountData.email) {
 			throw new Error("Create the applicant account before selecting programme.");
 		}
 
@@ -114,7 +125,10 @@ export default function AdmissionWizard({
 							{currentStep === 2 && (
 								<SelectProgramme
 									onNext={handleProgrammeSelected}
-									onBack={() => setCurrentStep(1)}
+									onBack={() => {
+										setApplicationData(null);
+										setCurrentStep(1);
+									}}
 								/>
 							)}
 

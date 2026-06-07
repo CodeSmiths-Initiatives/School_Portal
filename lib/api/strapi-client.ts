@@ -26,7 +26,7 @@ export class StrapiApiError extends Error {
 	}
 }
 
-function getStrapiBaseUrl() {
+export function getStrapiBaseUrl() {
 	return (
 		process.env.STRAPI_API_URL ??
 		process.env.NEXT_PUBLIC_STRAPI_API_URL ??

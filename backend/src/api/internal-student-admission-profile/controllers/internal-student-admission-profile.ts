@@ -110,6 +110,16 @@ function getChangedFields(payload: Record<string, unknown>) {
 	return Object.keys(payload).filter((key) => payload[key] !== undefined);
 }
 
+function isPersistedPhotoSource(value: unknown) {
+	const photo = asString(value);
+
+	return (
+		photo.startsWith("http://") ||
+		photo.startsWith("https://") ||
+		photo.startsWith("/uploads/")
+	);
+}
+
 function mergeUniqueSteps(existing: unknown, nextStep: string) {
 	return Array.from(new Set([...asArray(existing).map(String), nextStep]));
 }
@@ -415,6 +425,10 @@ export default {
 
 		if (!Object.keys(payload).length) {
 			return ctx.badRequest("Admission step payload is required.");
+		}
+
+		if (step === "bioData" && !isPersistedPhotoSource(payload.passportPhoto)) {
+			return ctx.badRequest("Upload a valid passport photograph before continuing.");
 		}
 
 		const resolved = await resolveContext(ctx, body);

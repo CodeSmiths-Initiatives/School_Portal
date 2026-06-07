@@ -198,26 +198,22 @@ export default {
 			return ctx.conflict("Username is already linked to another email address.");
 		}
 
+		if (existingUser?.id) {
+			return ctx.conflict(
+				"This applicant account already exists. Sign in to continue the admission flow.",
+			);
+		}
+
 		const userService = strapi.plugin("users-permissions").service("user");
-		const user = existingUser?.id
-			? await userService.edit(existingUser.id, {
-					username: payload.username,
-					email: payload.email,
-					password: payload.password,
-					provider: "local",
-					confirmed: true,
-					blocked: false,
-					role: pluginRoleId,
-				})
-			: await userService.add({
-					username: payload.username,
-					email: payload.email,
-					password: payload.password,
-					provider: "local",
-					confirmed: true,
-					blocked: false,
-					role: pluginRoleId,
-				});
+		const user = await userService.add({
+			username: payload.username,
+			email: payload.email,
+			password: payload.password,
+			provider: "local",
+			confirmed: true,
+			blocked: false,
+			role: pluginRoleId,
+		});
 
 		const assignment = await findExistingAssignment(user.id, studentRole.id, college.id);
 		await demoteOtherPrimaryAssignments(user.id);

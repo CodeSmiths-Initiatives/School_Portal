@@ -10,7 +10,6 @@ import { useAuthStore } from "@/lib/store";
 import { toast } from "@/lib/toast";
 import { loginSchema, toFieldErrors, type LoginInput } from "@/lib/validation";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import AuthPasswordField from "./AuthPasswordField";
 import AuthSubmitButton from "./AuthSubmitButton";
@@ -28,7 +27,6 @@ type SignInFormProps = {
 export default function SignInForm({
 	audience = "student",
 }: SignInFormProps) {
-	const router = useRouter();
 	const [form, setForm] = useState<LoginInput>(initialForm);
 	const [errors, setErrors] = useState<Partial<Record<keyof LoginInput, string>>>(
 		{},
@@ -61,9 +59,9 @@ export default function SignInForm({
 		setErrors({});
 		setIsSubmitting(true);
 		const loginResult = await loginThroughSessionRoute(result.data, audience);
-		setIsSubmitting(false);
 
 		if (!loginResult.ok) {
+			setIsSubmitting(false);
 			toast.error({
 				title: "Sign in failed",
 				description: loginResult.message,
@@ -85,10 +83,12 @@ export default function SignInForm({
 							? `Redirecting to ${
 									STAFF_ROLE_LABELS[destination.role as StaffRole]
 								} dashboard.`
-							: "Redirecting to the student dashboard.",
+							: destination.path.includes("/apply")
+								? "Redirecting to continue your admission and payment."
+								: "Redirecting to the student dashboard.",
 		});
 		setTimeout(() => {
-			router.push(destination.path);
+			window.location.assign(destination.path);
 		}, 500);
 	}
 

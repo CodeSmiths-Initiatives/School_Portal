@@ -1,5 +1,6 @@
 import {
 	registerStudentPortalAccount,
+	StudentRegistrationError,
 	studentPortalRegistrationSchema,
 } from "@/lib/services/student-registration.service";
 import { NextResponse } from "next/server";
@@ -24,6 +25,9 @@ export async function POST(request: Request) {
 
 		return NextResponse.json({ registration });
 	} catch (error) {
+		const status =
+			error instanceof StudentRegistrationError ? error.status : 502;
+
 		return NextResponse.json(
 			{
 				error:
@@ -31,7 +35,7 @@ export async function POST(request: Request) {
 						? error.message
 						: "Unable to create the student portal account.",
 			},
-			{ status: 502 },
+			{ status },
 		);
 	}
 }

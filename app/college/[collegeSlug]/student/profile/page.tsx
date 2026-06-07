@@ -10,6 +10,7 @@ import {
 	getDefaultPermissionsForDomain,
 	type UserPermissionKey,
 } from "@/lib/rbac";
+import { getStudentAdmissionProfile } from "@/lib/services/student-admission-profile.service";
 
 export default async function CollegeStudentProfilePage({
 	params,
@@ -33,6 +34,9 @@ export default async function CollegeStudentProfilePage({
 		: getDefaultPermissionsForDomain("student")) as UserPermissionKey[];
 	const collegeName =
 		session.user.collegeName ?? formatCollegeName(collegeSlug);
+	const admissionProfile = await getStudentAdmissionProfile(collegeSlug).catch(
+		() => ({ application: null }),
+	);
 
 	return (
 		<RoleDashboardShell
@@ -55,6 +59,8 @@ export default async function CollegeStudentProfilePage({
 				studentName={session.user.name}
 				email={session.user.email}
 				collegeName={collegeName}
+				collegeSlug={collegeSlug}
+				application={admissionProfile.application}
 			/>
 		</RoleDashboardShell>
 	);

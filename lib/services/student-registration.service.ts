@@ -34,6 +34,16 @@ export type StudentPortalRegistrationResult = {
 	};
 };
 
+export class StudentRegistrationError extends Error {
+	status: number;
+
+	constructor(message: string, status: number) {
+		super(message);
+		this.name = "StudentRegistrationError";
+		this.status = status;
+	}
+}
+
 function getStrapiBaseUrl() {
 	return (
 		process.env.STRAPI_API_URL ??
@@ -85,7 +95,10 @@ export async function registerStudentPortalAccount(
 					? payload.message
 					: undefined;
 
-		throw new Error(message ?? "Unable to create the student portal account.");
+		throw new StudentRegistrationError(
+			message ?? "Unable to create the student portal account.",
+			response.status,
+		);
 	}
 
 	return payload;

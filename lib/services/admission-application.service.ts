@@ -47,6 +47,17 @@ export type AdmissionApplicationSummary = {
 	reason?: string;
 };
 
+export function isAdmissionApplicationDashboardReady(
+	application?: Pick<AdmissionApplicationSummary, "paymentStatus" | "status"> | null,
+) {
+	return (
+		application?.paymentStatus === "paid" ||
+		application?.status === "submitted" ||
+		application?.status === "under_review" ||
+		application?.status === "approved"
+	);
+}
+
 type StrapiAdmissionApplication = Record<string, unknown> & {
 	applicationNumber?: unknown;
 	applicantUsername?: unknown;
@@ -239,6 +250,13 @@ async function findLatestApplicationByEmail(
 	return application
 		? toAdmissionApplicationSummary(application, collegeSlug)
 		: null;
+}
+
+export function getAdmissionApplicationForApplicant(input: {
+	collegeSlug: string;
+	email: string;
+}) {
+	return findLatestApplicationByEmail(input.collegeSlug, input.email);
 }
 
 function getCollegeCode(

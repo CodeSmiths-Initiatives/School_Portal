@@ -48,6 +48,8 @@ backend/.strapi-updater.json
 backend/dist/
 backend/build/
 backend/types/generated/
+backend/public/uploads/*
+!backend/public/uploads/.gitkeep
 
 # codex local runtime/log artifacts
 .codex/

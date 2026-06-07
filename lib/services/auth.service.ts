@@ -9,6 +9,10 @@ import { buildDashboardPath } from "@/lib/auth/config";
 import type { DashboardDomain, PlatformRole, TenantScope } from "@/lib/auth/types";
 import { createSessionExpiry } from "@/lib/auth/session";
 import type { LoginInput } from "@/lib/validation";
+import {
+	getAdmissionApplicationForApplicant,
+	isAdmissionApplicationDashboardReady,
+} from "@/lib/services/admission-application.service";
 import { strapiGet, strapiPost, StrapiApiError } from "@/lib/api";
 
 export type LoginSuccess = {
@@ -70,7 +74,11 @@ function getAuthProviderMode(): AuthProviderMode {
 		return value;
 	}
 
-	return "auto";
+	return "strapi";
+}
+
+function isMvpFallbackEnabled() {
+	return process.env.ENABLE_MVP_AUTH_FALLBACK === "true";
 }
 
 function createPreviewToken(accountId: string) {
@@ -117,20 +125,6 @@ export async function loginWithMvpCredentials(
 			issuedAt,
 			expiresAt: createSessionExpiry(new Date(issuedAt)),
 		},
-	};
-}
-
-function createSessionFromAccount(account: NonNullable<ReturnType<typeof findMvpAccount>>, token: string): AuthSession {
-	const { password: _password, ...user } = account;
-	const destination = createDashboardDestinationForAccount(account);
-	const issuedAt = new Date().toISOString();
-
-	return {
-		token,
-		user,
-		destination,
-		issuedAt,
-		expiresAt: createSessionExpiry(new Date(issuedAt)),
 	};
 }
 
@@ -271,6 +265,56 @@ function createSessionFromStrapiPortal(
 	};
 }
 
+function normalizeApplicationStatus(value: unknown) {
+	return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+async function applyStudentAdmissionDestination(session: AuthSession) {
+	if (
+		session.user.domain !== "student" ||
+		!session.user.collegeSlug ||
+		!session.user.email
+	) {
+		return session;
+	}
+
+	let application: Awaited<
+		ReturnType<typeof getAdmissionApplicationForApplicant>
+	> = null;
+
+	try {
+		application = await getAdmissionApplicationForApplicant({
+			collegeSlug: session.user.collegeSlug,
+			email: session.user.email,
+		});
+	} catch {
+		application = null;
+	}
+
+	if (isAdmissionApplicationDashboardReady(application)) {
+		return session;
+	}
+
+	const currentStep = normalizeApplicationStatus(application?.currentStep);
+	const resumeStep =
+		currentStep === "payment" ? "payment" : application ? "programme" : "account";
+	const applyPath = `/college/${session.user.collegeSlug}/apply?resume=${resumeStep}`;
+
+	return {
+		...session,
+		destination: {
+			...session.destination,
+			currentPath: applyPath,
+			routeTemplate: `/college/${session.user.collegeSlug}/apply`,
+			label: "Continue Admission",
+			description:
+				"Complete programme selection and verified payment before student dashboard access is opened.",
+			path: applyPath,
+			resolvedCollegeSlug: session.user.collegeSlug,
+		},
+	};
+}
+
 async function loginWithStrapiCredentials(
 	input: LoginInput,
 	audience: AuthAudience,
@@ -282,7 +326,9 @@ async function loginWithStrapiCredentials(
 		});
 
 		const portal = await getStrapiPortalSession(response.jwt);
-		const session = createSessionFromStrapiPortal(portal, response.jwt);
+		const session = await applyStudentAdmissionDestination(
+			createSessionFromStrapiPortal(portal, response.jwt),
+		);
 
 		if (!isDomainAllowedForAudience(session.user.domain, audience)) {
 			return {
@@ -332,6 +378,10 @@ export async function loginWithConfiguredAuthProvider(
 	const strapiResult = await loginWithStrapiCredentials(input, audience);
 
 	if (strapiResult.ok || provider === "strapi") {
+		return strapiResult;
+	}
+
+	if (provider === "auto" && !isMvpFallbackEnabled()) {
 		return strapiResult;
 	}
 

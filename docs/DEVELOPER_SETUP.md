@@ -1,10 +1,10 @@
 # School Portal Developer Setup
 
-This project runs a Next.js frontend and a Strapi backend. For the current MVP, auth can run in `auto` mode:
+This project runs a Next.js frontend and a Strapi backend. For the current MVP, auth should run in `strapi` mode:
 
 - First it tries Strapi Users & Permissions auth.
 - After Strapi validates credentials, Next.js calls Strapi `/api/auth/portal-session` to resolve the user's college, role, scope, and permissions.
-- If Strapi is not reachable or the Strapi user is not ready, `auto` mode can fall back to the seeded MVP accounts.
+- Static MVP credentials are not used unless a developer explicitly enables them for local preview.
 
 ## 1. Install Packages
 
@@ -22,7 +22,7 @@ Frontend `.env.local` should include:
 ```env
 NEXT_PUBLIC_STRAPI_API_URL=http://localhost:1337
 STRAPI_API_URL=http://localhost:1337
-NEXT_PUBLIC_AUTH_PROVIDER=auto
+NEXT_PUBLIC_AUTH_PROVIDER=strapi
 AUTH_SESSION_SECRET=replace_with_32_plus_random_characters
 PORTAL_REGISTRATION_SECRET=replace_with_internal_registration_secret
 PORTAL_INTERNAL_API_SECRET=replace_with_internal_payment_secret
@@ -30,9 +30,9 @@ PORTAL_INTERNAL_API_SECRET=replace_with_internal_payment_secret
 
 Auth provider options:
 
-- `auto`: try Strapi first, then MVP fallback.
 - `strapi`: Strapi auth only.
 - `mvp`: local seeded frontend auth only.
+- `auto`: try Strapi first. Static MVP fallback only runs when `ENABLE_MVP_AUTH_FALLBACK=true`.
 
 Backend `backend/.env` should include PostgreSQL settings:
 

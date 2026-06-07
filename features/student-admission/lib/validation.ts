@@ -12,10 +12,22 @@ const nameRegex = /^[a-zA-Z\s'-]+$/;
 const nigerianPhoneRegex = /^0\d{10}$/;
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+function isPersistedPhotoSource(value: string | null) {
+	if (!value) {
+		return false;
+	}
+
+	return (
+		value.startsWith("http://") ||
+		value.startsWith("https://") ||
+		value.startsWith("/uploads/")
+	);
+}
+
 export function validateBioData(data: BioData): AdmissionErrors {
 	const errors: AdmissionErrors = {};
 
-	if (!data.passportPhoto) {
+	if (!isPersistedPhotoSource(data.passportPhoto)) {
 		errors.passportPhoto = "Passport photograph is required";
 	}
 

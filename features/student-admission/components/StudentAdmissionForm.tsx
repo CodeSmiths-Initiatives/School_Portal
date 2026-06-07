@@ -44,6 +44,7 @@ import {
 	loadAdmissionProfile,
 	saveAdmissionProfileStep,
 	submitAdmissionProfile,
+	uploadAdmissionPassportPhoto,
 } from "@/features/student-admission/services/studentAdmissionProfile.client";
 import {
 	useStudentAdmissionStore,
@@ -119,27 +120,78 @@ function SelectOptions({ options }: { options: readonly SelectOption[] }) {
 	);
 }
 
-function BioDataStep({ errors }: { errors: AdmissionErrors }) {
+function BioDataStep({
+	errors,
+	collegeSlug,
+}: {
+	errors: AdmissionErrors;
+	collegeSlug: string;
+}) {
 	const fileRef = useRef<HTMLInputElement>(null);
+	const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+	const [localPhotoPreview, setLocalPhotoPreview] = useState<string | null>(null);
 	const { bioData, updateBioData } = useStudentAdmissionStore();
+	const persistedPhoto =
+		bioData.passportPhoto &&
+		(bioData.passportPhoto.startsWith("http://") ||
+			bioData.passportPhoto.startsWith("https://") ||
+			bioData.passportPhoto.startsWith("/uploads/"))
+			? bioData.passportPhoto
+			: null;
+	const displayedPhoto = localPhotoPreview ?? persistedPhoto;
 
 	function update<K extends keyof BioData>(field: K, value: BioData[K]) {
 		updateBioData({ [field]: value });
 	}
 
-	function handlePhoto(event: React.ChangeEvent<HTMLInputElement>) {
+	async function handlePhoto(event: React.ChangeEvent<HTMLInputElement>) {
 		const file = event.target.files?.[0];
 		if (!file) return;
+
+		if (!["image/png", "image/jpeg"].includes(file.type)) {
+			toast.error({
+				title: "Invalid photo format",
+				description: "Upload a JPG or PNG passport photograph.",
+			});
+			event.target.value = "";
+			return;
+		}
 
 		if (file.size > 2 * 1024 * 1024) {
 			toast.error({
 				title: "Photo too large",
 				description: "Passport photograph must be under 2MB.",
 			});
+			event.target.value = "";
 			return;
 		}
 
-		update("passportPhoto", URL.createObjectURL(file));
+		const localPreview = URL.createObjectURL(file);
+		setLocalPhotoPreview(localPreview);
+		setIsUploadingPhoto(true);
+
+		try {
+			const result = await uploadAdmissionPassportPhoto({ collegeSlug, file });
+			update("passportPhoto", result.file.url);
+			setLocalPhotoPreview(null);
+			toast.success({
+				title: "Passport uploaded",
+				description: "Your passport photograph is saved securely.",
+			});
+		} catch (error) {
+			setLocalPhotoPreview(null);
+			toast.error({
+				title: "Photo upload failed",
+				description:
+					error instanceof Error
+						? error.message
+						: "Unable to upload passport photograph.",
+			});
+		} finally {
+			URL.revokeObjectURL(localPreview);
+			setIsUploadingPhoto(false);
+			event.target.value = "";
+		}
 	}
 
 	return (
@@ -160,13 +212,21 @@ function BioDataStep({ errors }: { errors: AdmissionErrors }) {
 						<button
 							type="button"
 							onClick={() => fileRef.current?.click()}
+							disabled={isUploadingPhoto}
 							className={`flex size-32 shrink-0 flex-col items-center justify-center rounded-2xl border-2 border-dashed bg-white text-center transition hover:border-[#E4A11B] ${
 								errors.passportPhoto ? "border-[#ffb4b4]" : "border-[#c8d4e3]"
-							}`}
+							} ${isUploadingPhoto ? "cursor-wait opacity-75" : ""}`}
 						>
-							{bioData.passportPhoto ? (
+							{isUploadingPhoto ? (
+								<>
+									<div className="size-8 animate-spin rounded-full border-2 border-[#dbe5f1] border-t-[#E4A11B]" />
+									<span className="mt-2 text-xs font-bold text-[#B7770D]">
+										Uploading
+									</span>
+								</>
+							) : displayedPhoto ? (
 								<img
-									src={bioData.passportPhoto}
+									src={displayedPhoto}
 									alt="Passport preview"
 									className="size-full rounded-2xl object-cover"
 								/>
@@ -975,12 +1035,370 @@ function DeclarationStep({ errors }: { errors: AdmissionErrors }) {
 	);
 }
 
+function escapePrintText(value: string) {
+	return value
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;")
+		.replaceAll('"', "&quot;")
+		.replaceAll("'", "&#039;");
+}
+
+function formatSlipDate(date = new Date()) {
+	return new Intl.DateTimeFormat("en-NG", {
+		day: "2-digit",
+		month: "short",
+		year: "numeric",
+		hour: "2-digit",
+		minute: "2-digit",
+	}).format(date);
+}
+
+function printAdmissionConfirmationSlip(input: {
+	studentName: string;
+	email: string;
+	collegeName: string;
+	referenceNumber: string;
+}) {
+	const printedAt = formatSlipDate();
+	const popup = window.open("", "_blank", "width=980,height=760");
+
+	if (!popup) {
+		toast.error({
+			title: "Print blocked",
+			description: "Please allow popups to print the confirmation slip.",
+		});
+		return;
+	}
+
+	popup.document.write(`
+		<html>
+			<head>
+				<title>Admission Confirmation - ${escapePrintText(input.referenceNumber)}</title>
+				<style>
+					@page {
+						size: A4;
+						margin: 14mm;
+					}
+
+					* {
+						box-sizing: border-box;
+					}
+
+					body {
+						margin: 0;
+						background: #eef4fb;
+						color: #0D2B55;
+						font-family: Arial, Helvetica, sans-serif;
+					}
+
+					.print-page {
+						width: 100%;
+						padding: 24px;
+					}
+
+					.slip {
+						width: 100%;
+						max-width: 820px;
+						margin: 0 auto;
+						background: #ffffff;
+						border: 1px solid #dbe5f1;
+						border-radius: 24px;
+						overflow: hidden;
+						box-shadow: 0 24px 60px rgba(13, 43, 85, 0.14);
+					}
+
+					.header {
+						position: relative;
+						display: grid;
+						grid-template-columns: 88px 1fr auto;
+						gap: 22px;
+						align-items: center;
+						background: #0D2B55;
+						color: #ffffff;
+						padding: 28px 32px;
+						border-bottom: 7px solid #B7770D;
+					}
+
+					.seal {
+						width: 78px;
+						height: 78px;
+						border: 2px solid #E4A11B;
+						border-radius: 999px;
+					}
+
+					.eyebrow,
+					.label {
+						margin: 0;
+						color: #E4A11B;
+						font-size: 10px;
+						font-weight: 800;
+						letter-spacing: 0.22em;
+						text-transform: uppercase;
+					}
+
+					h1 {
+						margin: 8px 0 4px;
+						font-size: 28px;
+						line-height: 1.12;
+					}
+
+					.subtitle {
+						margin: 0;
+						color: #c5d4e8;
+						font-size: 13px;
+						line-height: 1.55;
+					}
+
+					.session {
+						min-width: 128px;
+						border: 1px solid #E4A11B;
+						border-radius: 999px;
+						padding: 12px 16px;
+						text-align: center;
+						color: #E4A11B;
+						font-size: 12px;
+						font-weight: 800;
+						letter-spacing: 0.12em;
+						text-transform: uppercase;
+					}
+
+					.body {
+						padding: 30px 32px 34px;
+					}
+
+					.status {
+						display: grid;
+						grid-template-columns: 70px 1fr;
+						gap: 18px;
+						align-items: center;
+						border: 1px solid #dbe5f1;
+						border-radius: 22px;
+						background: linear-gradient(135deg, #fbfdff, #ffffff);
+						padding: 20px;
+					}
+
+					.check {
+						display: flex;
+						width: 58px;
+						height: 58px;
+						align-items: center;
+						justify-content: center;
+						border: 1px solid #b7ebc8;
+						border-radius: 999px;
+						background: #edf8f1;
+						color: #167a3e;
+						font-size: 30px;
+						font-weight: 900;
+					}
+
+					.status h2 {
+						margin: 0;
+						font-size: 23px;
+						line-height: 1.2;
+					}
+
+					.status p {
+						margin: 8px 0 0;
+						color: #60728f;
+						font-size: 13px;
+						line-height: 1.65;
+					}
+
+					.reference {
+						margin-top: 22px;
+						border: 1px solid #E4A11B;
+						border-radius: 22px;
+						background: #fffaf0;
+						padding: 18px 20px;
+					}
+
+					.reference strong {
+						display: block;
+						margin-top: 8px;
+						color: #0D2B55;
+						font-size: 24px;
+						letter-spacing: 0.02em;
+						word-break: break-word;
+					}
+
+					.grid {
+						display: grid;
+						grid-template-columns: repeat(2, 1fr);
+						gap: 14px;
+						margin-top: 18px;
+					}
+
+					.field {
+						min-height: 74px;
+						border: 1px solid #dbe5f1;
+						border-radius: 18px;
+						background: #fbfdff;
+						padding: 14px 16px;
+					}
+
+					.field strong {
+						display: block;
+						margin-top: 7px;
+						color: #0D2B55;
+						font-size: 14px;
+						line-height: 1.5;
+						word-break: break-word;
+					}
+
+					.notice {
+						display: grid;
+						grid-template-columns: 1fr 1fr;
+						gap: 14px;
+						margin-top: 22px;
+					}
+
+					.notice-card {
+						border: 1px solid #dbe5f1;
+						border-radius: 20px;
+						background: #ffffff;
+						padding: 16px;
+					}
+
+					.notice-card p {
+						margin: 8px 0 0;
+						color: #60728f;
+						font-size: 12px;
+						line-height: 1.65;
+					}
+
+					.footer {
+						display: flex;
+						justify-content: space-between;
+						gap: 18px;
+						margin-top: 28px;
+						border-top: 1px solid #dbe5f1;
+						padding-top: 16px;
+						color: #60728f;
+						font-size: 11px;
+						line-height: 1.55;
+					}
+
+					.signature {
+						min-width: 220px;
+						text-align: center;
+					}
+
+					.signature-line {
+						height: 1px;
+						margin: 22px 0 8px;
+						background: #0D2B55;
+					}
+
+					@media print {
+						body {
+							background: #ffffff;
+						}
+
+						.print-page {
+							padding: 0;
+						}
+
+						.slip {
+							max-width: none;
+							border-radius: 0;
+							box-shadow: none;
+						}
+					}
+				</style>
+			</head>
+			<body>
+				<div class="print-page">
+				<main class="slip">
+					<header class="header">
+						<div class="seal"></div>
+						<div>
+							<p class="eyebrow">Registration</p>
+							<h1>Admission Confirmation Slip</h1>
+							<p class="subtitle">${escapePrintText(input.collegeName)} - Undergraduate Admission Portal</p>
+						</div>
+						<div class="session">2026 / 2027<br />Session</div>
+					</header>
+
+					<section class="body">
+						<div class="status">
+							<div class="check">&#10003;</div>
+							<div>
+								<h2>Application submitted successfully</h2>
+								<p>Your student admission application has been received for review. Keep this confirmation slip and reference number for future tracking.</p>
+							</div>
+						</div>
+
+						<div class="reference">
+							<p class="label">Reference Number</p>
+							<strong>${escapePrintText(input.referenceNumber)}</strong>
+						</div>
+
+						<div class="grid">
+							<div class="field">
+								<p class="label">Applicant</p>
+								<strong>${escapePrintText(input.studentName)}</strong>
+							</div>
+							<div class="field">
+								<p class="label">Email Address</p>
+								<strong>${escapePrintText(input.email)}</strong>
+							</div>
+							<div class="field">
+								<p class="label">Institution</p>
+								<strong>${escapePrintText(input.collegeName)}</strong>
+							</div>
+							<div class="field">
+								<p class="label">Printed At</p>
+								<strong>${escapePrintText(printedAt)}</strong>
+							</div>
+						</div>
+
+						<div class="notice">
+							<div class="notice-card">
+								<p class="label">Next Step</p>
+								<p>The admissions team will review your submitted profile, O-Level details, programme selection, and declaration.</p>
+							</div>
+							<div class="notice-card">
+								<p class="label">Important</p>
+								<p>Use the reference number above whenever you contact admissions or check your application status.</p>
+							</div>
+						</div>
+
+						<footer class="footer">
+							<div>
+								<strong>School Portal</strong><br />
+								This slip is system-generated after successful student admission submission.
+							</div>
+							<div class="signature">
+								<div class="signature-line"></div>
+								Admissions Office
+							</div>
+						</footer>
+					</section>
+				</main>
+				</div>
+				<script>
+					window.onload = () => {
+						window.focus();
+						window.print();
+					};
+				</script>
+			</body>
+		</html>
+	`);
+	popup.document.close();
+}
+
 function SuccessScreen({
 	collegeName,
 	referenceNumber,
+	studentName,
+	email,
 }: {
 	collegeName: string;
 	referenceNumber: string;
+	studentName: string;
+	email: string;
 }) {
 	return (
 		<div className="rounded-3xl border border-[#dbe5f1] bg-white p-6 text-center shadow-sm sm:p-10">
@@ -1004,7 +1422,14 @@ function SuccessScreen({
 			</div>
 			<button
 				type="button"
-				onClick={() => window.print()}
+				onClick={() =>
+					printAdmissionConfirmationSlip({
+						studentName,
+						email,
+						collegeName,
+						referenceNumber,
+					})
+				}
 				className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl border border-[#0D2B55] px-5 py-3 text-sm font-bold text-[#0D2B55] transition hover:bg-[#0D2B55] hover:text-white"
 			>
 				<Printer className="size-4" />
@@ -1281,6 +1706,8 @@ export default function StudentAdmissionForm({
 				<SuccessScreen
 					collegeName={collegeName}
 					referenceNumber={referenceNumber}
+					studentName={studentName}
+					email={email}
 				/>
 			) : (
 				<div className="overflow-hidden rounded-3xl border border-[#dbe5f1] bg-white shadow-[0_18px_45px_rgba(13,43,85,0.08)]">
@@ -1303,7 +1730,7 @@ export default function StudentAdmissionForm({
 								</div>
 								{application ? (
 									<div className="rounded-full border border-[#dbe5f1] bg-[#f8fbff] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-[#60728f]">
-										{application.applicationNumber} · {application.currentStep ?? application.status}
+										{application.applicationNumber} - {application.currentStep ?? application.status}
 									</div>
 								) : null}
 							</div>
@@ -1311,7 +1738,9 @@ export default function StudentAdmissionForm({
 					</div>
 
 					<div className="p-5 sm:p-7">
-						{currentStep === 1 ? <BioDataStep errors={errors} /> : null}
+						{currentStep === 1 ? (
+							<BioDataStep errors={errors} collegeSlug={collegeSlug} />
+						) : null}
 						{currentStep === 2 ? <ContactStep errors={errors} /> : null}
 						{currentStep === 3 ? <OLevelStep errors={errors} /> : null}
 						{currentStep === 4 ? <ProgrammeStep errors={errors} /> : null}

@@ -21,11 +21,33 @@ type StudentAdmissionProfileResult = {
 	error?: string;
 };
 
+type StudentAdmissionPhotoResult = {
+	file: {
+		id?: number;
+		name?: string;
+		mime?: string;
+		size?: number;
+		url: string;
+		path?: string;
+	};
+	error?: string;
+};
+
 async function readResult(response: Response) {
 	const result = (await response.json()) as StudentAdmissionProfileResult;
 
 	if (!response.ok) {
 		throw new Error(result?.error ?? "Admission profile request failed.");
+	}
+
+	return result;
+}
+
+async function readPhotoResult(response: Response) {
+	const result = (await response.json()) as StudentAdmissionPhotoResult;
+
+	if (!response.ok) {
+		throw new Error(result?.error ?? "Passport photograph upload failed.");
 	}
 
 	return result;
@@ -57,6 +79,22 @@ export async function saveAdmissionProfileStep<
 	});
 
 	return readResult(response);
+}
+
+export async function uploadAdmissionPassportPhoto(input: {
+	collegeSlug: string;
+	file: File;
+}) {
+	const formData = new FormData();
+	formData.append("collegeSlug", input.collegeSlug);
+	formData.append("file", input.file);
+
+	const response = await fetch("/api/student/admission-profile/photo", {
+		method: "POST",
+		body: formData,
+	});
+
+	return readPhotoResult(response);
 }
 
 export async function submitAdmissionProfile(collegeSlug: string) {
