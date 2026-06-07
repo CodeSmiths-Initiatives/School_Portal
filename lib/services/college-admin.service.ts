@@ -44,6 +44,7 @@ export type CollegeAdminStudentRecord = {
 	};
 	createdAt?: string;
 	updatedAt?: string;
+	hasApplicationRecord: boolean;
 	hasAdmissionData: boolean;
 	application: AdmissionApplicationSummary | null;
 };
@@ -58,6 +59,7 @@ export type CollegeAdminStudentPayload = {
 	};
 	students: CollegeAdminStudentRecord[];
 	count: number;
+	withApplicationRecord?: number;
 	withAdmissionData: number;
 	generatedAt: string;
 };

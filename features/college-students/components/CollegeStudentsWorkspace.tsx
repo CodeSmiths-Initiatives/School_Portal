@@ -82,6 +82,17 @@ function getFormData(application: AdmissionApplicationSummary) {
 	return asRecord(application.metadata?.formData);
 }
 
+function hasSubmittedAdmissionData(application?: AdmissionApplicationSummary | null) {
+	if (!application) {
+		return false;
+	}
+
+	return (
+		Object.keys(getFormData(application)).length > 0 &&
+		["submitted", "under_review", "approved"].includes(application.status)
+	);
+}
+
 function getProgrammeData(application: AdmissionApplicationSummary) {
 	return asRecord(application.metadata?.programmeSelection);
 }
@@ -301,12 +312,19 @@ export default function CollegeStudentsWorkspace({
 		filteredStudents[0] ??
 		null;
 	const selectedApplication = selectedStudent?.application ?? null;
+	const selectedHasAdmissionData = Boolean(
+		selectedStudent?.hasAdmissionData ||
+			hasSubmittedAdmissionData(selectedApplication),
+	);
 	const stats = useMemo(
 		() => ({
 			total: students.length,
-			withAdmission: students.filter((item) => item.hasAdmissionData).length,
-			submitted: applications.filter((item) => item.status === "submitted").length,
-			drafts: applications.filter((item) => item.status === "draft").length,
+			withApplicationRecord: students.filter(
+				(item) => item.hasApplicationRecord || Boolean(item.application),
+			).length,
+			withAdmission: students.filter(
+				(item) => item.hasAdmissionData || hasSubmittedAdmissionData(item.application),
+			).length,
 			paid: applications.filter((item) => item.paymentStatus === "paid").length,
 		}),
 		[applications, students],
@@ -319,7 +337,12 @@ export default function CollegeStudentsWorkspace({
 				username: student.username,
 				email: student.email,
 				accountStatus: student.blocked ? "Blocked" : "Active",
-				hasAdmissionData: student.hasAdmissionData ? "Yes" : "No",
+				applicationRecord:
+					student.hasApplicationRecord || student.application ? "Yes" : "No",
+				admissionFormSubmitted:
+					student.hasAdmissionData || hasSubmittedAdmissionData(student.application)
+						? "Yes"
+						: "No",
 				applicationNumber: student.application?.applicationNumber ?? "",
 				name: student.application ? getStudentName(student.application) : "",
 				programme: student.application ? getProgrammeLabel(student.application) : "",
@@ -366,8 +389,8 @@ export default function CollegeStudentsWorkspace({
 				<div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
 					{[
 						["Student Accounts", stats.total],
-						["With Admission Data", stats.withAdmission],
-						["Submitted", stats.submitted],
+						["Application Records", stats.withApplicationRecord],
+						["Forms Submitted", stats.withAdmission],
 						["Paid Students", stats.paid],
 					].map(([label, value]) => (
 						<div
@@ -446,6 +469,9 @@ export default function CollegeStudentsWorkspace({
 						filteredStudents.map((student) => {
 							const application = student.application;
 							const title = application ? getStudentName(application) : student.username;
+							const hasAdmissionData =
+								student.hasAdmissionData ||
+								hasSubmittedAdmissionData(application);
 
 							return (
 								<button
@@ -488,17 +514,17 @@ export default function CollegeStudentsWorkspace({
 											</p>
 										</div>
 										<div>
+											<p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8395AF]">Admission Form</p>
+											<p className="mt-1 font-black text-[#0D2B55]">
+												{hasAdmissionData ? "Submitted" : "Not submitted"}
+											</p>
+										</div>
+										<div>
 											<p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8395AF]">Payment</p>
 											<p className="mt-1 font-black text-[#0D2B55]">
 												{application
 													? PAYMENT_LABELS[application.paymentStatus]
 													: "Not available"}
-											</p>
-										</div>
-										<div>
-											<p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8395AF]">Saved</p>
-											<p className="mt-1 font-black text-[#0D2B55]">
-												{application ? formatDate(application.lastSavedAt) : "Not saved"}
 											</p>
 										</div>
 									</div>
@@ -522,8 +548,9 @@ export default function CollegeStudentsWorkspace({
 											: selectedStudent.username}
 									</h3>
 									<p className="mt-1 text-sm font-semibold text-[#60728f]">
-										{selectedApplication?.applicationNumber ??
-											"Admission data has not been saved yet."}
+										{selectedHasAdmissionData
+											? selectedApplication?.applicationNumber
+											: "Admission form has not been submitted yet."}
 									</p>
 								</div>
 								<div className="flex size-12 items-center justify-center rounded-2xl bg-[#eef4fb] text-[#2E86C1]">
@@ -534,11 +561,11 @@ export default function CollegeStudentsWorkspace({
 								<button
 									type="button"
 									onClick={() =>
-										selectedApplication
+										selectedApplication && selectedHasAdmissionData
 											? printApplication(selectedApplication, collegeName)
 											: null
 									}
-									disabled={!selectedApplication}
+									disabled={!selectedApplication || !selectedHasAdmissionData}
 									className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-[#d3dfed] bg-white text-sm font-black text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D] disabled:cursor-not-allowed disabled:opacity-50"
 								>
 									<Printer className="size-4" />
@@ -547,13 +574,13 @@ export default function CollegeStudentsWorkspace({
 								<button
 									type="button"
 									onClick={() =>
-										selectedApplication
+										selectedApplication && selectedHasAdmissionData
 											? downloadCsv(`${selectedApplication.applicationNumber}.csv`, [
 													Object.fromEntries(detailRows(selectedApplication)),
 												])
 											: null
 									}
-									disabled={!selectedApplication}
+									disabled={!selectedApplication || !selectedHasAdmissionData}
 									className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] text-sm font-black text-white transition hover:bg-[#113765] disabled:cursor-not-allowed disabled:opacity-50"
 								>
 									<Download className="size-4" />
@@ -561,13 +588,15 @@ export default function CollegeStudentsWorkspace({
 								</button>
 							</div>
 							<div className="mt-5 space-y-2">
-								{(selectedApplication
+								{(selectedApplication && selectedHasAdmissionData
 									? detailRows(selectedApplication)
 									: ([
 											["Username", selectedStudent.username],
 											["Email", selectedStudent.email],
 											["Account Status", selectedStudent.blocked ? "Blocked" : "Active"],
-											["Admission Data", "Not saved yet"],
+											["Application Record", selectedStudent.hasApplicationRecord || selectedApplication ? "Created" : "Not created"],
+											["Admission Form", "Not submitted yet"],
+											["Payment Status", selectedApplication ? PAYMENT_LABELS[selectedApplication.paymentStatus] : "Not available"],
 										] as Array<[string, unknown]>)
 								).map(([label, value]) => (
 									<div

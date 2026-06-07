@@ -190,11 +190,30 @@ function mapApplication(application: Record<string, unknown>, collegeSlug: strin
 	};
 }
 
+function hasSubmittedAdmissionData(application: Record<string, unknown> | null) {
+	if (!application) {
+		return false;
+	}
+
+	const metadata = asRecord(application.metadata);
+	const formData = asRecord(metadata.formData);
+	const status = asString(application.status);
+
+	return (
+		Object.keys(formData).length > 0 &&
+		["submitted", "under_review", "approved"].includes(status)
+	);
+}
+
 function mapStudent(assignment: Record<string, unknown>, applicationByEmail: Map<string, unknown>) {
 	const user = asRecord(assignment.user);
 	const role = asRecord(assignment.role);
 	const email = normalizeEmail(user.email);
-	const application = email ? applicationByEmail.get(email) : null;
+	const application = (email ? applicationByEmail.get(email) : null) as
+		| Record<string, unknown>
+		| null;
+	const hasApplicationRecord = Boolean(application);
+	const hasAdmissionData = hasSubmittedAdmissionData(application);
 
 	return {
 		id: String(user.id ?? assignment.id ?? ""),
@@ -214,7 +233,8 @@ function mapStudent(assignment: Record<string, unknown>, applicationByEmail: Map
 		},
 		createdAt: asString(user.createdAt),
 		updatedAt: asString(user.updatedAt),
-		hasAdmissionData: Boolean(application),
+		hasApplicationRecord,
+		hasAdmissionData,
 		application: application ?? null,
 	};
 }
@@ -360,6 +380,7 @@ export default {
 			},
 			students,
 			count: students.length,
+			withApplicationRecord: students.filter((student) => student.hasApplicationRecord).length,
 			withAdmissionData: students.filter((student) => student.hasAdmissionData).length,
 			generatedAt: new Date().toISOString(),
 		};
