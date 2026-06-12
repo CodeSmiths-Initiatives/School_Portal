@@ -2,13 +2,14 @@
 
 import {
 	Download,
-	FileText,
+	Eye,
 	Filter,
 	Printer,
 	Search,
 	UserRound,
+	X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { AdmissionApplicationSummary } from "@/lib/services/admission-application.service";
 import type { CollegeAdminStudentRecord } from "@/lib/services/college-admin.service";
 
@@ -21,6 +22,8 @@ type CollegeStudentsWorkspaceProps = {
 	collegeName: string;
 	collegeSlug: string;
 };
+
+const PAGE_SIZE = 20;
 
 const STATUS_LABELS: Record<AdmissionApplicationSummary["status"], string> = {
 	draft: "Draft",
@@ -144,6 +147,19 @@ function downloadCsv(filename: string, rows: Array<Record<string, unknown>>) {
 	URL.revokeObjectURL(url);
 }
 
+function DetailItem({ label, value }: { label: string; value: unknown }) {
+	return (
+		<div className="rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] p-3">
+			<p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8395AF]">
+				{label}
+			</p>
+			<p className="mt-1 break-words text-sm font-black text-[#0D2B55]">
+				{asText(value)}
+			</p>
+		</div>
+	);
+}
+
 function detailRows(application: AdmissionApplicationSummary) {
 	const formData = getFormData(application);
 	const programmeData = getProgrammeData(application);
@@ -240,6 +256,93 @@ function statusPill(status: AdmissionApplicationSummary["status"]) {
 	return `rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${tone}`;
 }
 
+function FullRecordModal({
+	application,
+	collegeName,
+	onClose,
+}: {
+	application: AdmissionApplicationSummary | null;
+	collegeName: string;
+	onClose: () => void;
+}) {
+	if (!application) {
+		return null;
+	}
+
+	const rows = detailRows(application);
+
+	return (
+		<div className="fixed inset-0 z-50 flex items-center justify-center bg-[#06172f]/60 p-4 backdrop-blur-sm">
+			<div className="max-h-[90vh] w-full max-w-6xl overflow-hidden rounded-3xl border border-[#dbe5f1] bg-white shadow-[0_30px_80px_rgba(6,23,47,0.35)]">
+				<div className="flex items-start justify-between gap-4 border-b border-[#dbe5f1] bg-[#0D2B55] px-5 py-5 text-white sm:px-6">
+					<div>
+						<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#E4A11B]">
+							Full Admission Details
+						</p>
+						<h2 className="mt-2 text-xl font-black sm:text-2xl">
+							{getStudentName(application)}
+						</h2>
+						<p className="mt-1 text-sm font-semibold text-[#c5d4e8]">
+							{collegeName} - {application.applicantEmail}
+						</p>
+					</div>
+					<button
+						type="button"
+						onClick={onClose}
+						className="flex size-10 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition hover:bg-white hover:text-[#0D2B55]"
+						aria-label="Close admission details"
+					>
+						<X className="size-5" />
+					</button>
+				</div>
+
+				<div className="max-h-[calc(90vh-8rem)] overflow-y-auto p-5 sm:p-6">
+					<div className="grid gap-3 md:grid-cols-3">
+						<DetailItem label="Reference" value={application.applicationNumber} />
+						<DetailItem label="Status" value={STATUS_LABELS[application.status]} />
+						<DetailItem label="Last Saved" value={formatDate(application.lastSavedAt)} />
+					</div>
+
+					<div className="mt-5 rounded-3xl border border-[#dbe5f1] bg-white">
+						<div className="border-b border-[#dbe5f1] bg-[#fbfdff] px-5 py-4">
+							<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#B7770D]">
+								Saved Student Record
+							</p>
+							<p className="mt-1 text-sm font-semibold text-[#60728f]">
+								Admission, bio data, contact, O-Level, programme, declaration,
+								and payment status.
+							</p>
+						</div>
+						<div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
+							{rows.map(([label, value]) => (
+								<DetailItem key={label} label={label} value={value} />
+							))}
+						</div>
+					</div>
+
+					<div className="sticky bottom-0 mt-5 flex flex-col gap-3 border-t border-[#dbe5f1] bg-white/95 pt-4 backdrop-blur sm:flex-row sm:justify-end">
+						<button
+							type="button"
+							onClick={onClose}
+							className="inline-flex items-center justify-center rounded-2xl border border-[#dbe5f1] px-5 py-3 text-sm font-black text-[#0D2B55] transition hover:border-[#0D2B55]"
+						>
+							Close
+						</button>
+						<button
+							type="button"
+							onClick={() => printApplication(application, collegeName)}
+							className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] px-5 py-3 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.18)] transition hover:-translate-y-0.5 hover:bg-[#123866]"
+						>
+							<Printer className="size-4" />
+							Print full record
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
+	);
+}
+
 export default function CollegeStudentsWorkspace({
 	students,
 	collegeName,
@@ -262,7 +365,9 @@ export default function CollegeStudentsWorkspace({
 	const [programme, setProgramme] = useState("all");
 	const [from, setFrom] = useState("");
 	const [to, setTo] = useState("");
-	const [selectedId, setSelectedId] = useState(students[0]?.id ?? "");
+	const [currentPage, setCurrentPage] = useState(1);
+	const [viewApplication, setViewApplication] =
+		useState<AdmissionApplicationSummary | null>(null);
 
 	const programmeOptions = useMemo(
 		() =>
@@ -307,14 +412,15 @@ export default function CollegeStudentsWorkspace({
 		});
 	}, [from, paymentStatus, programme, search, status, step, students, to]);
 
-	const selectedStudent =
-		filteredStudents.find((student) => student.id === selectedId) ??
-		filteredStudents[0] ??
-		null;
-	const selectedApplication = selectedStudent?.application ?? null;
-	const selectedHasAdmissionData = Boolean(
-		selectedStudent?.hasAdmissionData ||
-			hasSubmittedAdmissionData(selectedApplication),
+	useEffect(() => {
+		setCurrentPage(1);
+	}, [from, paymentStatus, programme, search, status, step, to]);
+
+	const pageCount = Math.max(1, Math.ceil(filteredStudents.length / PAGE_SIZE));
+	const safePage = Math.min(currentPage, pageCount);
+	const paginatedStudents = filteredStudents.slice(
+		(safePage - 1) * PAGE_SIZE,
+		safePage * PAGE_SIZE,
 	);
 	const stats = useMemo(
 		() => ({
@@ -329,6 +435,16 @@ export default function CollegeStudentsWorkspace({
 		}),
 		[applications, students],
 	);
+
+	function clearFilters() {
+		setSearch("");
+		setStatus("all");
+		setPaymentStatus("all");
+		setStep("all");
+		setProgramme("all");
+		setFrom("");
+		setTo("");
+	}
 
 	function exportFiltered() {
 		downloadCsv(
@@ -356,6 +472,12 @@ export default function CollegeStudentsWorkspace({
 				lastSavedAt: student.application?.lastSavedAt ?? "",
 			})),
 		);
+	}
+
+	function exportApplication(application: AdmissionApplicationSummary) {
+		downloadCsv(`${application.applicationNumber}.csv`, [
+			Object.fromEntries(detailRows(application)),
+		]);
 	}
 
 	return (
@@ -407,9 +529,18 @@ export default function CollegeStudentsWorkspace({
 			</div>
 
 			<div className="rounded-3xl border border-[#d7e2f0] bg-white p-4 shadow-[0_18px_45px_rgba(13,43,85,0.08)] sm:p-5">
-				<div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.24em] text-[#B7770D]">
-					<Filter className="size-4" />
-					Filters
+				<div className="flex flex-wrap items-center justify-between gap-3">
+					<div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.24em] text-[#B7770D]">
+						<Filter className="size-4" />
+						Filters
+					</div>
+					<button
+						type="button"
+						onClick={clearFilters}
+						className="inline-flex h-10 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white px-4 text-xs font-black uppercase tracking-[0.12em] text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+					>
+						Reset filters
+					</button>
 				</div>
 				<div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
 					<label className="relative xl:col-span-2">
@@ -450,178 +581,191 @@ export default function CollegeStudentsWorkspace({
 				</div>
 			</div>
 
-			<div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_26rem]">
-				<div className="space-y-3">
-					{filteredStudents.length === 0 ? (
-						<div className="rounded-3xl border border-dashed border-[#cbd9ec] bg-white p-8 text-center">
-							<div className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#eef4fb] text-[#2E86C1]">
-								<UserRound className="size-6" />
-							</div>
-							<h3 className="mt-4 text-lg font-black text-[#06183A]">
-								No students found
-							</h3>
-							<p className="mt-2 text-sm text-[#60728f]">
-								Student accounts will appear here after they are created under
-								this college. Full details unlock when admission data is saved.
-							</p>
-						</div>
-					) : (
-						filteredStudents.map((student) => {
-							const application = student.application;
-							const title = application ? getStudentName(application) : student.username;
-							const hasAdmissionData =
-								student.hasAdmissionData ||
-								hasSubmittedAdmissionData(application);
-
-							return (
-								<button
-									key={student.id}
-									type="button"
-									onClick={() => setSelectedId(student.id)}
-									className={`w-full rounded-3xl border bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(13,43,85,0.09)] ${
-										selectedStudent?.id === student.id
-											? "border-[#B7770D] ring-2 ring-[#B7770D]/10"
-											: "border-[#d7e2f0]"
-									}`}
-								>
-									<div className="flex flex-wrap items-start justify-between gap-3">
-										<div>
-											<p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#8395AF]">
-												{application?.applicationNumber ?? "No admission record yet"}
-											</p>
-											<h3 className="mt-2 text-lg font-black text-[#06183A]">
-												{title}
-											</h3>
-											<p className="mt-1 text-sm font-semibold text-[#60728f]">
-												{student.email}
-											</p>
-										</div>
-										{application ? (
-											<span className={statusPill(application.status)}>
-												{STATUS_LABELS[application.status]}
-											</span>
-										) : (
-											<span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-slate-600">
-												No admission data
-											</span>
-										)}
-									</div>
-									<div className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
-										<div>
-											<p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8395AF]">Programme</p>
-											<p className="mt-1 font-black text-[#0D2B55]">
-												{application ? getProgrammeLabel(application) : "Not started"}
-											</p>
-										</div>
-										<div>
-											<p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8395AF]">Admission Form</p>
-											<p className="mt-1 font-black text-[#0D2B55]">
-												{hasAdmissionData ? "Submitted" : "Not submitted"}
-											</p>
-										</div>
-										<div>
-											<p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8395AF]">Payment</p>
-											<p className="mt-1 font-black text-[#0D2B55]">
-												{application
-													? PAYMENT_LABELS[application.paymentStatus]
-													: "Not available"}
-											</p>
-										</div>
-									</div>
-								</button>
-							);
-						})
-					)}
+			<div className="overflow-hidden rounded-3xl border border-[#d7e2f0] bg-white shadow-[0_18px_45px_rgba(13,43,85,0.08)]">
+				<div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#dbe5f1] px-4 py-4 sm:px-5">
+					<div>
+						<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#B7770D]">
+							Student Table
+						</p>
+						<p className="mt-1 text-sm font-semibold text-[#60728f]">
+							Showing {paginatedStudents.length} of {filteredStudents.length} records
+						</p>
+					</div>
+					<div className="flex items-center gap-2 rounded-full border border-[#dbe5f1] bg-[#f8fbff] px-4 py-2 text-xs font-black text-[#0D2B55]">
+						Page {safePage} of {pageCount}
+					</div>
 				</div>
 
-				<aside className="rounded-3xl border border-[#d7e2f0] bg-white p-5 shadow-[0_18px_45px_rgba(13,43,85,0.08)] xl:sticky xl:top-6 xl:self-start">
-					{selectedStudent ? (
-						<>
-							<div className="flex items-start justify-between gap-3">
-								<div>
-									<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#B7770D]">
-										Student Detail
-									</p>
-									<h3 className="mt-2 text-xl font-black text-[#06183A]">
-										{selectedApplication
-											? getStudentName(selectedApplication)
-											: selectedStudent.username}
-									</h3>
-									<p className="mt-1 text-sm font-semibold text-[#60728f]">
-										{selectedHasAdmissionData
-											? selectedApplication?.applicationNumber
-											: "Admission form has not been submitted yet."}
-									</p>
-								</div>
-								<div className="flex size-12 items-center justify-center rounded-2xl bg-[#eef4fb] text-[#2E86C1]">
-									<FileText className="size-5" />
-								</div>
-							</div>
-							<div className="mt-5 flex gap-2">
-								<button
-									type="button"
-									onClick={() =>
-										selectedApplication && selectedHasAdmissionData
-											? printApplication(selectedApplication, collegeName)
-											: null
-									}
-									disabled={!selectedApplication || !selectedHasAdmissionData}
-									className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-[#d3dfed] bg-white text-sm font-black text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D] disabled:cursor-not-allowed disabled:opacity-50"
-								>
-									<Printer className="size-4" />
-									Print
-								</button>
-								<button
-									type="button"
-									onClick={() =>
-										selectedApplication && selectedHasAdmissionData
-											? downloadCsv(`${selectedApplication.applicationNumber}.csv`, [
-													Object.fromEntries(detailRows(selectedApplication)),
-												])
-											: null
-									}
-									disabled={!selectedApplication || !selectedHasAdmissionData}
-									className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] text-sm font-black text-white transition hover:bg-[#113765] disabled:cursor-not-allowed disabled:opacity-50"
-								>
-									<Download className="size-4" />
-									Export
-								</button>
-							</div>
-							<div className="mt-5 space-y-2">
-								{(selectedApplication && selectedHasAdmissionData
-									? detailRows(selectedApplication)
-									: ([
-											["Username", selectedStudent.username],
-											["Email", selectedStudent.email],
-											["Account Status", selectedStudent.blocked ? "Blocked" : "Active"],
-											["Application Record", selectedStudent.hasApplicationRecord || selectedApplication ? "Created" : "Not created"],
-											["Admission Form", "Not submitted yet"],
-											["Payment Status", selectedApplication ? PAYMENT_LABELS[selectedApplication.paymentStatus] : "Not available"],
-										] as Array<[string, unknown]>)
-								).map(([label, value]) => (
-									<div
-										key={label}
-										className="rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] p-3"
-									>
-										<p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8395AF]">
-											{label}
-										</p>
-										<p className="mt-1 break-words text-sm font-black text-[#0D2B55]">
-											{asText(value)}
-										</p>
-									</div>
-								))}
-							</div>
-						</>
-					) : (
-						<div className="py-10 text-center">
-							<p className="text-sm font-semibold text-[#60728f]">
-								Select a student to view details.
-							</p>
+				{filteredStudents.length === 0 ? (
+					<div className="p-8 text-center">
+						<div className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#eef4fb] text-[#2E86C1]">
+							<UserRound className="size-6" />
 						</div>
-					)}
-				</aside>
+						<h3 className="mt-4 text-lg font-black text-[#06183A]">
+							No students found
+						</h3>
+						<p className="mt-2 text-sm text-[#60728f]">
+							Adjust the filters or wait for student accounts to be created under
+							this college.
+						</p>
+					</div>
+				) : (
+					<>
+						<div className="overflow-x-auto">
+							<table className="min-w-[980px] w-full border-collapse text-left">
+								<thead className="bg-[#f8fbff]">
+									<tr className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8395AF]">
+										<th className="px-5 py-4">Student</th>
+										<th className="px-5 py-4">Admission ID</th>
+										<th className="px-5 py-4">Programme</th>
+										<th className="px-5 py-4">Application</th>
+										<th className="px-5 py-4">Payment</th>
+										<th className="px-5 py-4">Last Saved</th>
+										<th className="px-5 py-4 text-right">Actions</th>
+									</tr>
+								</thead>
+								<tbody className="divide-y divide-[#dbe5f1]">
+									{paginatedStudents.map((student) => {
+										const application = student.application;
+										const hasAdmissionData = Boolean(
+											student.hasAdmissionData ||
+												hasSubmittedAdmissionData(application),
+										);
+										const studentName = application
+											? getStudentName(application)
+											: student.username;
+
+										return (
+											<tr
+												key={student.id}
+												className="bg-white transition hover:bg-[#f8fbff]"
+											>
+												<td className="px-5 py-4">
+													<p className="font-black text-[#06183A]">{studentName}</p>
+													<p className="mt-1 text-sm font-semibold text-[#60728f]">
+														{student.email}
+													</p>
+												</td>
+												<td className="px-5 py-4">
+													<p className="max-w-[14rem] break-words text-sm font-black text-[#0D2B55]">
+														{application?.applicationNumber ?? "No admission data"}
+													</p>
+												</td>
+												<td className="px-5 py-4">
+													<p className="max-w-[14rem] text-sm font-black text-[#0D2B55]">
+														{application ? getProgrammeLabel(application) : "Not started"}
+													</p>
+												</td>
+												<td className="px-5 py-4">
+													{application ? (
+														<span className={statusPill(application.status)}>
+															{STATUS_LABELS[application.status]}
+														</span>
+													) : (
+														<span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-slate-600">
+															Not submitted
+														</span>
+													)}
+												</td>
+												<td className="px-5 py-4">
+													<p className="text-sm font-black text-[#0D2B55]">
+														{application
+															? PAYMENT_LABELS[application.paymentStatus]
+															: "Not available"}
+													</p>
+												</td>
+												<td className="px-5 py-4">
+													<p className="text-sm font-bold text-[#60728f]">
+														{formatDate(application?.lastSavedAt)}
+													</p>
+												</td>
+												<td className="px-5 py-4">
+													<div className="flex justify-end gap-2">
+														<button
+															type="button"
+															onClick={() =>
+																application && hasAdmissionData
+																	? setViewApplication(application)
+																	: null
+															}
+															disabled={!application || !hasAdmissionData}
+															className="inline-flex size-10 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D] disabled:cursor-not-allowed disabled:opacity-40"
+															aria-label={`View ${studentName}`}
+															title="View"
+														>
+															<Eye className="size-4" />
+														</button>
+														<button
+															type="button"
+															onClick={() =>
+																application && hasAdmissionData
+																	? printApplication(application, collegeName)
+																	: null
+															}
+															disabled={!application || !hasAdmissionData}
+															className="inline-flex size-10 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D] disabled:cursor-not-allowed disabled:opacity-40"
+															aria-label={`Print ${studentName}`}
+															title="Print"
+														>
+															<Printer className="size-4" />
+														</button>
+														<button
+															type="button"
+															onClick={() =>
+																application && hasAdmissionData
+																	? exportApplication(application)
+																	: null
+															}
+															disabled={!application || !hasAdmissionData}
+															className="inline-flex size-10 items-center justify-center rounded-2xl bg-[#0D2B55] text-white transition hover:bg-[#123866] disabled:cursor-not-allowed disabled:opacity-40"
+															aria-label={`Export ${studentName}`}
+															title="Export"
+														>
+															<Download className="size-4" />
+														</button>
+													</div>
+												</td>
+											</tr>
+										);
+									})}
+								</tbody>
+							</table>
+						</div>
+
+						<div className="flex flex-col gap-3 border-t border-[#dbe5f1] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+							<p className="text-sm font-semibold text-[#60728f]">
+								Rows per page: {PAGE_SIZE}
+							</p>
+							<div className="flex items-center gap-2">
+								<button
+									type="button"
+									onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+									disabled={safePage === 1}
+									className="h-10 rounded-2xl border border-[#d3dfed] bg-white px-4 text-sm font-black text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D] disabled:cursor-not-allowed disabled:opacity-40"
+								>
+									Previous
+								</button>
+								<button
+									type="button"
+									onClick={() =>
+										setCurrentPage((page) => Math.min(pageCount, page + 1))
+									}
+									disabled={safePage === pageCount}
+									className="h-10 rounded-2xl bg-[#0D2B55] px-4 text-sm font-black text-white transition hover:bg-[#123866] disabled:cursor-not-allowed disabled:opacity-40"
+								>
+									Next
+								</button>
+							</div>
+						</div>
+					</>
+				)}
 			</div>
+
+			<FullRecordModal
+				application={viewApplication}
+				collegeName={collegeName}
+				onClose={() => setViewApplication(null)}
+			/>
 		</section>
 	);
 }
