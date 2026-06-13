@@ -3,24 +3,18 @@
 import {
 	ArrowRight,
 	BadgeCheck,
-	Banknote,
 	CalendarDays,
 	CircleAlert,
 	Download,
 	Eye,
-	FileText,
 	Filter,
 	LoaderCircle,
-	PanelLeftClose,
-	PanelLeftOpen,
 	Printer,
 	ReceiptText,
 	Search,
-	ShieldCheck,
-	WalletCards,
 	X,
 } from "lucide-react";
-import { useEffect, useMemo, useState, type ElementType } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { RowActionMenu } from "@/components/ui/row-action-menu";
 import { fetchPaymentLedger } from "@/features/payments/services/payment-ledger.client";
 import type {
@@ -43,50 +37,11 @@ type PaymentModuleWorkspaceProps = {
 	collegeSlug: string;
 };
 
-type PaymentView = "overview" | "invoices" | "transactions" | "ledger" | "audit";
-
-type PaymentMenuItem = {
-	label: string;
-	view: PaymentView;
-	icon: ElementType;
-	requiredPermissions: PermissionKey[];
-	permissionMode?: "all" | "any";
-};
-
-const PAYMENT_MENU: PaymentMenuItem[] = [
-	{
-		label: "Payment Overview",
-		view: "overview",
-		icon: WalletCards,
-		requiredPermissions: ["payments.view"],
-	},
-	{
-		label: "Invoices",
-		view: "invoices",
-		icon: ReceiptText,
-		requiredPermissions: ["payments.view"],
-	},
-	{
-		label: "Transactions",
-		view: "transactions",
-		icon: Banknote,
-		requiredPermissions: ["payments.view"],
-	},
-	{
-		label: "Ledger Entries",
-		view: "ledger",
-		icon: FileText,
-		requiredPermissions: ["payments.verify", "payments.export"],
-		permissionMode: "any",
-	},
-	{
-		label: "Audit Trail",
-		view: "audit",
-		icon: ShieldCheck,
-		requiredPermissions: ["payments.verify", "payments.export"],
-		permissionMode: "any",
-	},
-];
+/*
+const PAYMENT_MENU = [...]
+Payment menu is intentionally hidden so the ledger workspace can use the full
+dashboard width while keeping payment data, filters, and invoice actions visible.
+*/
 
 const STATUS_STYLES: Record<PaymentInvoiceStatus, string> = {
 	pending: "border-[#f0d9ad] bg-[#fff8e9] text-[#94691a]",
@@ -285,8 +240,6 @@ export default function PaymentModuleWorkspace({
 	collegeName,
 	collegeSlug,
 }: PaymentModuleWorkspaceProps) {
-	const [activeView, setActiveView] = useState<PaymentView>("overview");
-	const [isCollapsed, setIsCollapsed] = useState(false);
 	const [ledger, setLedger] = useState<PaymentLedgerResponse | null>(null);
 	const [detailInvoice, setDetailInvoice] = useState<PaymentInvoice | null>(null);
 	const [query, setQuery] = useState("");
@@ -300,14 +253,8 @@ export default function PaymentModuleWorkspace({
 	const [openActionsId, setOpenActionsId] = useState<string | number | null>(null);
 	const [error, setError] = useState("");
 	const [isLoading, setIsLoading] = useState(true);
+	const searchInputRef = useRef<HTMLInputElement>(null);
 
-	const visibleMenu = useMemo(
-		() =>
-			PAYMENT_MENU.filter((item) =>
-				can(permissions, item.requiredPermissions, item.permissionMode),
-			),
-		[permissions],
-	);
 	const canPrint = can(permissions, ["payments.print"], "any");
 	const canExport = can(permissions, ["payments.export"], "any");
 
@@ -408,71 +355,17 @@ export default function PaymentModuleWorkspace({
 		setOpenActionsId(null);
 	}
 
+	function focusReferenceSearch() {
+		searchInputRef.current?.focus();
+	}
+
 	return (
 		<div className="rounded-[1.5rem] border border-[#dbe5f1] bg-white p-3 shadow-sm sm:p-4 xl:p-5">
-			<div className="grid items-start gap-5 lg:grid-cols-[auto_minmax(0,1fr)]">
-				<aside
-					className={`h-fit shrink-0 overflow-hidden rounded-2xl border border-[#dbe5f1] bg-white shadow-sm transition-all duration-300 lg:sticky lg:top-0 ${
-						isCollapsed ? "lg:w-[4.75rem]" : "lg:w-64"
-					}`}
-				>
-					<div className="flex items-center justify-between gap-3 bg-[#0D2B55] px-4 py-4 text-white">
-						<div className={isCollapsed ? "lg:hidden" : ""}>
-							<p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#E4A11B]">
-								Payment Menu
-							</p>
-							<p className="mt-1 text-sm font-semibold text-white/90">
-								Invoices and ledger
-							</p>
-						</div>
-						<button
-							type="button"
-							onClick={() => setIsCollapsed((current) => !current)}
-							className="flex size-9 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white transition hover:bg-white/15"
-							aria-label={isCollapsed ? "Expand payment menu" : "Collapse payment menu"}
-						>
-							{isCollapsed ? (
-								<PanelLeftOpen className="size-4" />
-							) : (
-								<PanelLeftClose className="size-4" />
-							)}
-						</button>
-					</div>
-
-					<nav className="space-y-2 p-3">
-						{visibleMenu.map((item) => {
-							const Icon = item.icon;
-							const isActive = activeView === item.view;
-
-							return (
-								<button
-									key={item.view}
-									type="button"
-									onClick={() => setActiveView(item.view)}
-									className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-bold transition ${
-										isActive
-											? "border border-[#E4A11B]/50 bg-[#fff7e8] text-[#0D2B55]"
-											: "text-[#354762] hover:bg-[#f6f9fd]"
-									}`}
-								>
-									<span
-										className={`flex size-9 shrink-0 items-center justify-center rounded-xl ${
-											isActive
-												? "bg-[#E4A11B]/15 text-[#B7770D]"
-												: "bg-[#eef4fb] text-[#557090]"
-										}`}
-									>
-										<Icon className="size-4.5" />
-									</span>
-									<span className={isCollapsed ? "lg:hidden" : ""}>
-										{item.label}
-									</span>
-								</button>
-							);
-						})}
-					</nav>
-				</aside>
-
+			<div className="grid items-start gap-5">
+				{/*
+				Payment menu commented out per current scope. The ledger content below now
+				uses the full available width.
+				*/}
 				<div className="min-w-0 space-y-5">
 					<section className="overflow-hidden rounded-2xl border border-[#dbe5f1] bg-[#fbfdff] p-5">
 						<div className="flex flex-wrap items-start justify-between gap-4">
@@ -506,7 +399,7 @@ export default function PaymentModuleWorkspace({
 								) : null}
 								<button
 									type="button"
-									onClick={() => setActiveView("transactions")}
+									onClick={focusReferenceSearch}
 									className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#0D2B55] px-4 text-sm font-bold text-white shadow-sm transition hover:bg-[#092244]"
 								>
 									<Search className="size-4" />
@@ -583,6 +476,7 @@ export default function PaymentModuleWorkspace({
 									<label className="relative">
 										<Search className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[#7d90aa]" />
 										<input
+											ref={searchInputRef}
 											value={query}
 											onChange={(event) => updateFilter(setQuery, event.target.value)}
 											placeholder="Search invoice, payer, email, or reference"
@@ -793,15 +687,13 @@ export default function PaymentModuleWorkspace({
 						</section>
 					)}
 
-					{activeView === "audit" ? (
-						<div className="rounded-2xl border border-[#dbe5f1] bg-white p-5 text-sm text-[#60728f] shadow-sm">
-							<BadgeCheck className="mr-2 inline size-4 text-[#16803c]" />
-							Audit events will be written from payment initialize, verification,
-							refund, print, and export actions when the live Strapi persistence
-							service is connected.
-							<ArrowRight className="ml-2 inline size-4 text-[#B7770D]" />
-						</div>
-					) : null}
+					<div className="rounded-2xl border border-[#dbe5f1] bg-white p-5 text-sm text-[#60728f] shadow-sm">
+						<BadgeCheck className="mr-2 inline size-4 text-[#16803c]" />
+						Audit events will be written from payment initialize, verification,
+						refund, print, and export actions when the live Strapi persistence
+						service is connected.
+						<ArrowRight className="ml-2 inline size-4 text-[#B7770D]" />
+					</div>
 				</div>
 			</div>
 			{detailInvoice ? (

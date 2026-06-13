@@ -15,6 +15,13 @@ import type {
 	PaymentModuleKey,
 	PaymentTransaction,
 } from "@/features/payments/types/payment-ledger.types";
+import {
+	APPLICATION_PAYMENT_TOTAL,
+} from "@/lib/services/paystack.service";
+import {
+	listAdmissionApplicationRecords,
+	type AdmissionApplicationSummary,
+} from "@/lib/services/admission-application.service";
 
 type PaymentLedgerScope = "student" | "college";
 
@@ -66,6 +73,8 @@ type StrapiPaymentLedgerEntry = Record<string, unknown> & {
 	reference?: unknown;
 	postedAt?: unknown;
 };
+
+const ADMISSION_PAYMENT_DESCRIPTION = "Undergraduate admission application fee";
 
 function hasPersistenceToken() {
 	return Boolean(process.env.STRAPI_API_TOKEN?.trim());
@@ -249,6 +258,198 @@ function summarize(invoices: PaymentInvoice[]): PaymentLedgerSummary {
 	);
 }
 
+function invoiceStatusFromApplication(
+	status: AdmissionApplicationSummary["paymentStatus"],
+): PaymentInvoiceStatus {
+	if (status === "paid") return "paid";
+	if (status === "failed") return "failed";
+	if (status === "cancelled") return "cancelled";
+	if (status === "refunded") return "refunded";
+	return "pending";
+}
+
+function getMetadataRecord(value: unknown) {
+	return value && typeof value === "object" && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: {};
+}
+
+function getApplicationAccount(application: AdmissionApplicationSummary) {
+	const metadata = getMetadataRecord(application.metadata);
+	const account = getMetadataRecord(metadata.account);
+
+	return {
+		username:
+			application.applicantUsername ??
+			asString(account.username, application.applicantEmail ?? "Student"),
+		email: application.applicantEmail ?? asString(account.email),
+	};
+}
+
+function getApplicationReference(application: AdmissionApplicationSummary) {
+	const metadata = getMetadataRecord(application.metadata);
+	const payment = getMetadataRecord(metadata.payment);
+
+	return (
+		asString(payment.reference) ||
+		asString(payment.paymentReference) ||
+		application.applicationNumber
+	);
+}
+
+function getApplicationPaymentDate(application: AdmissionApplicationSummary) {
+	const metadata = getMetadataRecord(application.metadata);
+	const payment = getMetadataRecord(metadata.payment);
+
+	return (
+		asString(payment.paidAt) ||
+		asString(payment.verifiedAt) ||
+		application.lastSavedAt ||
+		new Date().toISOString()
+	);
+}
+
+function syntheticInvoiceFromApplication(
+	application: AdmissionApplicationSummary,
+	collegeSlug: string,
+	collegeName: string,
+): PaymentInvoice {
+	const account = getApplicationAccount(application);
+	const status = invoiceStatusFromApplication(application.paymentStatus);
+	const reference = getApplicationReference(application);
+	const createdAt = application.lastSavedAt ?? new Date().toISOString();
+	const paidAt = status === "paid" ? getApplicationPaymentDate(application) : undefined;
+	const invoiceNumber = `INV-ADM-${application.applicationNumber}`;
+	const transactionStatus: PaymentTransaction["status"] =
+		status === "paid" ? "success" : status === "failed" ? "failed" : "pending";
+	const transaction: PaymentTransaction = {
+		id: `txn-${application.id}`,
+		reference,
+		gateway: "paystack",
+		channel: "card",
+		amount: APPLICATION_PAYMENT_TOTAL,
+		currency: "NGN",
+		status: transactionStatus,
+		gatewayStatus: transactionStatus,
+		gatewayMessage:
+			status === "paid"
+				? "Admission payment marked paid from student application"
+				: "Admission payment state from student application",
+		paidAt,
+		verifiedAt: paidAt,
+	};
+	const ledgerEntries: PaymentLedgerEntry[] = [
+		{
+			id: `led-charge-${application.id}`,
+			entryNumber: `LED-ADM-${application.applicationNumber}`,
+			entryType: "charge",
+			direction: "debit",
+			amount: APPLICATION_PAYMENT_TOTAL,
+			currency: "NGN",
+			module: "admission",
+			description: "Admission invoice raised",
+			reference: invoiceNumber,
+			postedAt: createdAt,
+		},
+		...(status === "paid"
+			? [
+					{
+						id: `led-payment-${application.id}`,
+						entryNumber: `LED-PAY-${application.applicationNumber}`,
+						entryType: "payment" as const,
+						direction: "credit" as const,
+						amount: APPLICATION_PAYMENT_TOTAL,
+						currency: "NGN",
+						module: "admission" as const,
+						description: "Admission payment verified",
+						reference,
+						postedAt: paidAt ?? createdAt,
+					},
+				]
+			: []),
+	];
+
+	return {
+		id: `application-${application.id}`,
+		invoiceNumber,
+		collegeSlug,
+		collegeName,
+		studentId: application.applicationNumber,
+		payerName: account.username,
+		payerEmail: account.email,
+		module: "admission",
+		description: ADMISSION_PAYMENT_DESCRIPTION,
+		amount: APPLICATION_PAYMENT_TOTAL,
+		currency: "NGN",
+		status,
+		paidAt,
+		createdAt,
+		transactions: [transaction],
+		ledgerEntries,
+	};
+}
+
+function invoiceApplicationKey(invoice: PaymentInvoice) {
+	if (invoice.module === "admission") {
+		return [invoice.payerEmail.trim().toLowerCase(), invoice.module]
+			.filter(Boolean)
+			.join("|");
+	}
+
+	return [
+		invoice.payerEmail.trim().toLowerCase(),
+		invoice.module,
+		invoice.studentId.trim().toLowerCase(),
+	]
+		.filter(Boolean)
+		.join("|");
+}
+
+async function getAdmissionBackedInvoices(input: PaymentLedgerInput) {
+	if (!input.collegeSlug) {
+		return [];
+	}
+
+	const applications = await listAdmissionApplicationRecords({
+		collegeSlug: input.collegeSlug,
+		email: input.scope === "student" ? input.payerEmail : undefined,
+		limit: input.scope === "student" ? 10 : 1000,
+	});
+
+	return applications
+		.filter((application) => application.applicantEmail)
+		.map((application) =>
+			syntheticInvoiceFromApplication(
+				application,
+				input.collegeSlug ?? application.collegeSlug,
+				input.collegeSlug ?? "College payments",
+			),
+		);
+}
+
+async function mergeAdmissionBackedInvoices(
+	invoices: PaymentInvoice[],
+	input: PaymentLedgerInput,
+) {
+	const admissionInvoices = await getAdmissionBackedInvoices(input).catch(() => []);
+	const existingKeys = new Set(invoices.map(invoiceApplicationKey));
+	const merged = [...invoices];
+
+	for (const invoice of admissionInvoices) {
+		const key = invoiceApplicationKey(invoice);
+
+		if (!existingKeys.has(key)) {
+			merged.push(invoice);
+			existingKeys.add(key);
+		}
+	}
+
+	return merged.sort(
+		(left, right) =>
+			new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+	);
+}
+
 function mapInvoice(
 	invoice: ReturnType<typeof unwrapStrapiCollection<StrapiPaymentInvoice>>[number],
 	fallbackCollegeSlug?: string,
@@ -324,15 +525,16 @@ async function getInternalPaymentLedgerRecords(
 	const invoices = payload.invoices
 		.map(normalizeInternalInvoice)
 		.map((invoice) => mapInvoice(invoice, input.collegeSlug));
+	const mergedInvoices = await mergeAdmissionBackedInvoices(invoices, input);
 
 	return {
 		scope: input.scope,
 		collegeName:
-			invoices[0]?.collegeName ??
+			mergedInvoices[0]?.collegeName ??
 			input.collegeSlug ??
 			(input.scope === "student" ? "Student payments" : "College payments"),
-		invoices,
-		summary: summarize(invoices),
+		invoices: mergedInvoices,
+		summary: summarize(mergedInvoices),
 	};
 }
 
@@ -372,14 +574,15 @@ export async function getPaymentLedgerRecords(
 	const invoices = unwrapStrapiCollection(response.data).map((invoice) =>
 		mapInvoice(invoice, input.collegeSlug),
 	);
+	const mergedInvoices = await mergeAdmissionBackedInvoices(invoices, input);
 
 	return {
 		scope: input.scope,
 		collegeName:
-			invoices[0]?.collegeName ??
+			mergedInvoices[0]?.collegeName ??
 			input.collegeSlug ??
 			(input.scope === "student" ? "Student payments" : "College payments"),
-		invoices,
-		summary: summarize(invoices),
+		invoices: mergedInvoices,
+		summary: summarize(mergedInvoices),
 	};
 }

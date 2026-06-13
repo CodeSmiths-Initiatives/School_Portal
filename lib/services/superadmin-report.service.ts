@@ -1,3 +1,6 @@
+import { listAdmissionApplicationRecords } from "@/lib/services/admission-application.service";
+import { APPLICATION_PAYMENT_TOTAL } from "@/lib/services/paystack.service";
+
 const DEV_INTERNAL_SECRET =
 	"iums-local-registration-secret-change-before-production";
 
@@ -55,6 +58,49 @@ async function parseError(response: Response, fallback: string) {
 	return payload?.error?.message ?? payload?.message ?? fallback;
 }
 
+async function applyAdmissionPaymentFloor(
+	reportData: SuperadminReportData,
+	input?: {
+		from?: string;
+		to?: string;
+	},
+): Promise<SuperadminReportData> {
+	const rows = await Promise.all(
+		reportData.rows.map(async (row) => {
+			const applications = await listAdmissionApplicationRecords({
+				collegeSlug: row.collegeSlug,
+				from: input?.from,
+				to: input?.to,
+				limit: 1000,
+			}).catch(() => []);
+			const admissionPaid = applications.filter(
+				(application) => application.paymentStatus === "paid",
+			).length;
+			const admissionUnpaid = applications.filter(
+				(application) =>
+					application.paymentStatus !== "paid" &&
+					application.status !== "cancelled" &&
+					application.status !== "rejected",
+			).length;
+			const paymentPaid = Math.max(row.paymentPaid, admissionPaid);
+			const paymentUnpaid = Math.max(row.paymentUnpaid, admissionUnpaid);
+			const revenue = Math.max(row.revenue, admissionPaid * APPLICATION_PAYMENT_TOTAL);
+
+			return {
+				...row,
+				paymentPaid,
+				paymentUnpaid,
+				revenue,
+			};
+		}),
+	);
+
+	return {
+		...reportData,
+		rows,
+	};
+}
+
 export async function getSuperadminReportData(input?: {
 	collegeSlug?: string;
 	from?: string;
@@ -90,5 +136,7 @@ export async function getSuperadminReportData(input?: {
 		);
 	}
 
-	return response.json() as Promise<SuperadminReportData>;
+	const reportData = (await response.json()) as SuperadminReportData;
+
+	return applyAdmissionPaymentFloor(reportData, input);
 }
