@@ -144,17 +144,24 @@ export default function RoleDashboardShell({
 	const headerTitle = tenantContext?.name ?? title;
 
 	return (
-		<div className="min-h-dvh bg-[#eef3fb] lg:flex lg:h-dvh lg:flex-col lg:overflow-hidden">
-			<header className="border-b-[10px] border-[#B7770D] bg-[#0D2B55] lg:flex-none">
-				<div className="flex w-full flex-wrap items-center justify-between gap-6 px-4 py-4 sm:px-6 lg:px-8 lg:py-5 xl:px-10 2xl:px-12">
-					<div className="flex items-center gap-3 sm:gap-5 lg:gap-6">
+		<div className="min-h-dvh bg-[linear-gradient(135deg,#eef3fb_0%,#f8fbff_46%,#eef7f2_100%)] lg:flex lg:h-dvh lg:flex-col lg:overflow-hidden">
+			<header className="relative overflow-hidden border-b-[10px] border-[#B7770D] bg-[#0D2B55] lg:flex-none">
+				<div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(46,134,193,0.28),transparent_34%),linear-gradient(120deg,transparent_0%,rgba(255,255,255,0.08)_48%,transparent_66%)]" />
+				<div className="relative flex w-full flex-wrap items-center justify-between gap-6 px-4 py-4 sm:px-6 lg:px-8 lg:py-5 xl:px-10 2xl:px-12">
+					<div className="relative flex items-center gap-3 sm:gap-5 lg:gap-6">
 						<div className="flex size-14 shrink-0 items-center justify-center rounded-full border-2 border-[#B7770D] bg-linear-to-br from-[#1a3a6b] to-[#0d1b3e] text-[#E4A11B] sm:size-[4.5rem] lg:size-[5.5rem]">
 							<DomainIcon className="size-6 sm:size-7 lg:size-8" />
 						</div>
 						<div>
-							<p className="text-[11px] font-bold uppercase tracking-[0.24em] text-[#E4A11B]">
-								{badge}
-							</p>
+							<div className="flex flex-wrap items-center gap-3">
+								<p className="text-[11px] font-bold uppercase tracking-[0.24em] text-[#E4A11B]">
+									{badge}
+								</p>
+								<span className="inline-flex items-center gap-2 rounded-full border border-emerald-300/30 bg-emerald-400/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-100">
+									<span className="size-1.5 rounded-full bg-emerald-300 shadow-[0_0_16px_rgba(110,231,183,0.9)] animate-pulse" />
+									Live data
+								</span>
+							</div>
 							<h1 className="mt-1 text-xl font-bold text-white sm:text-3xl">
 								{headerTitle}
 							</h1>
@@ -164,7 +171,7 @@ export default function RoleDashboardShell({
 						</div>
 					</div>
 
-					<div className="flex items-center gap-3 rounded-[1.75rem] border border-white/10 bg-white/6 p-2 pl-4 shadow-[0_10px_30px_rgba(7,23,52,0.16)] backdrop-blur-sm">
+					<div className="relative flex items-center gap-3 rounded-[1.75rem] border border-white/10 bg-white/6 p-2 pl-4 shadow-[0_10px_30px_rgba(7,23,52,0.16)] backdrop-blur-sm">
 						<div className="min-w-[11rem] rounded-[1.1rem] border border-[#B7770D]/60 bg-[#B7770D]/12 px-4 py-2.5 text-right">
 							<p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#E4A11B]">
 								Role
@@ -224,7 +231,8 @@ export default function RoleDashboardShell({
 									return (
 										<div
 											key={stat.label}
-											className="rounded-2xl border border-[#dbe5f1] bg-white p-5 shadow-sm"
+											className="group rounded-2xl border border-[#dbe5f1] bg-white p-5 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-[#bfd2e9] hover:shadow-[0_18px_45px_rgba(13,43,85,0.1)] animate-in fade-in slide-in-from-bottom-2"
+											style={{ animationDelay: `${index * 70}ms` }}
 										>
 											<div className="flex items-center justify-between gap-3">
 												<div>
@@ -235,7 +243,7 @@ export default function RoleDashboardShell({
 														{stat.value}
 													</p>
 												</div>
-												<div className="flex size-11 items-center justify-center rounded-full bg-[#eef4fb] text-[#2E86C1]">
+												<div className="flex size-11 items-center justify-center rounded-full bg-[#eef4fb] text-[#2E86C1] transition group-hover:scale-110 group-hover:bg-[#e5f4ee] group-hover:text-emerald-700">
 													<Icon className="size-5" />
 												</div>
 											</div>
@@ -248,7 +256,7 @@ export default function RoleDashboardShell({
 							</section>
 
 							{reportPanel ? (
-								<section className="rounded-2xl border border-[#dbe5f1] bg-white p-5 shadow-sm">
+								<section className="rounded-2xl border border-[#dbe5f1] bg-white p-5 shadow-sm animate-in fade-in slide-in-from-bottom-3">
 							<div className="flex flex-wrap items-start justify-between gap-4">
 								<div>
 									<p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#B7770D]">
@@ -356,7 +364,7 @@ export default function RoleDashboardShell({
 												<div key={`${point.label}-${index}-bar`} className="flex min-w-0 flex-1 flex-col items-center gap-3">
 													<div className="flex h-40 w-full items-end">
 														<div
-															className="w-full rounded-t-2xl bg-[linear-gradient(180deg,#2E86C1_0%,#0D2B55_100%)] shadow-[0_12px_24px_rgba(46,134,193,0.18)]"
+															className="w-full rounded-t-2xl bg-[linear-gradient(180deg,#2E86C1_0%,#0D2B55_100%)] shadow-[0_12px_24px_rgba(46,134,193,0.18)] transition-all duration-700"
 															style={{ height: `${point.value}%` }}
 														/>
 													</div>
@@ -394,7 +402,7 @@ export default function RoleDashboardShell({
 							) : null}
 
 							<section className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_23rem] 2xl:grid-cols-[minmax(0,1.7fr)_24rem]">
-						<div className="rounded-2xl border border-[#dbe5f1] bg-white p-5 shadow-sm">
+						<div className="rounded-2xl border border-[#dbe5f1] bg-white p-5 shadow-sm animate-in fade-in slide-in-from-left-2">
 							<div className="flex flex-wrap items-start justify-between gap-4">
 								<div>
 									<p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#B7770D]">
@@ -419,7 +427,7 @@ export default function RoleDashboardShell({
 									return (
 										<div
 											key={highlight.title}
-											className="rounded-2xl border border-[#e2eaf4] bg-[#fbfdff] p-4"
+											className="rounded-2xl border border-[#e2eaf4] bg-[#fbfdff] p-4 transition duration-300 hover:-translate-y-0.5 hover:border-[#c6d7eb] hover:bg-white"
 										>
 											<div className="flex items-center gap-3">
 												<div className="flex size-10 items-center justify-center rounded-full bg-[#edf4fb] text-[#2E86C1]">
@@ -444,7 +452,7 @@ export default function RoleDashboardShell({
 						</div>
 
 						<div className="space-y-4">
-							<div className="rounded-2xl border border-[#dbe5f1] bg-white p-5 shadow-sm">
+							<div className="rounded-2xl border border-[#dbe5f1] bg-white p-5 shadow-sm animate-in fade-in slide-in-from-right-2">
 								<p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#B7770D]">
 									Quick Links
 								</p>
@@ -453,7 +461,7 @@ export default function RoleDashboardShell({
 										<Link
 											key={link.label}
 											href={link.href}
-											className="block rounded-xl border border-[#e3eaf4] bg-[#fbfdff] px-4 py-3 transition hover:border-[#c7d5e8] hover:bg-white"
+											className="block rounded-xl border border-[#e3eaf4] bg-[#fbfdff] px-4 py-3 transition duration-200 hover:-translate-y-0.5 hover:border-[#c7d5e8] hover:bg-white"
 										>
 											<div className="flex items-center justify-between gap-3">
 												<p className="text-sm font-semibold text-[#17305f]">
@@ -469,7 +477,7 @@ export default function RoleDashboardShell({
 								</div>
 							</div>
 
-							<div className="rounded-2xl border border-[#dbe5f1] bg-white p-5 shadow-sm">
+							<div className="rounded-2xl border border-[#dbe5f1] bg-white p-5 shadow-sm animate-in fade-in slide-in-from-right-3">
 								<p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#B7770D]">
 									Activity Focus
 								</p>

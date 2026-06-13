@@ -6,7 +6,12 @@ import type {
 	DashboardStat,
 	DashboardTenantContext,
 } from "@/features/dashboard/components/RoleDashboardShell";
-import { DEFAULT_MVP_COLLEGE_SLUG } from "@/lib/auth";
+import type { CollegeAdminReportPayload } from "@/lib/services/college-admin.service";
+import type { ProvisionedCollege } from "@/lib/services/superadmin-college.service";
+import type {
+	SuperadminReportData,
+	SuperadminReportRow,
+} from "@/lib/services/superadmin-report.service";
 
 type DashboardContentBundle = {
 	badge: string;
@@ -21,8 +26,65 @@ type DashboardContentBundle = {
 	tenantContext?: DashboardTenantContext;
 };
 
-const DEFAULT_STUDENT_DASHBOARD_PATH = `/college/${DEFAULT_MVP_COLLEGE_SLUG}/student/dashboard`;
-const DEFAULT_STAFF_DASHBOARD_PATH = `/college/${DEFAULT_MVP_COLLEGE_SLUG}/staff/dashboard`;
+function formatNumber(value: number) {
+	return new Intl.NumberFormat("en-NG").format(value);
+}
+
+function formatCurrency(value: number) {
+	return new Intl.NumberFormat("en-NG", {
+		style: "currency",
+		currency: "NGN",
+		maximumFractionDigits: 0,
+	}).format(value);
+}
+
+function percent(value: number, total: number) {
+	return total > 0 ? Math.round((value / total) * 100) : 0;
+}
+
+function sumSuperadminRows(rows: SuperadminReportRow[]): SuperadminReportRow {
+	return rows.reduce<SuperadminReportRow>(
+		(total, row) => ({
+			collegeSlug: "all",
+			collegeCode: "ALL",
+			collegeName: "All Colleges",
+			onboardedStudents: total.onboardedStudents + row.onboardedStudents,
+			staffAccounts: total.staffAccounts + row.staffAccounts,
+			adminAccounts: total.adminAccounts + row.adminAccounts,
+			admissionDone: total.admissionDone + row.admissionDone,
+			admissionDraft: total.admissionDraft + row.admissionDraft,
+			admissionPending: total.admissionPending + row.admissionPending,
+			paymentPaid: total.paymentPaid + row.paymentPaid,
+			paymentUnpaid: total.paymentUnpaid + row.paymentUnpaid,
+			revenue: total.revenue + row.revenue,
+			trend: total.trend.map((value, index) => value + (row.trend[index] ?? 0)),
+		}),
+		{
+			collegeSlug: "all",
+			collegeCode: "ALL",
+			collegeName: "All Colleges",
+			onboardedStudents: 0,
+			staffAccounts: 0,
+			adminAccounts: 0,
+			admissionDone: 0,
+			admissionDraft: 0,
+			admissionPending: 0,
+			paymentPaid: 0,
+			paymentUnpaid: 0,
+			revenue: 0,
+			trend: [0, 0, 0, 0, 0, 0],
+		},
+	);
+}
+
+function scalePoints<T extends { value: number }>(points: T[]) {
+	const max = Math.max(1, ...points.map((point) => point.value));
+
+	return points.map((point) => ({
+		...point,
+		value: Math.max(8, Math.round((point.value / max) * 100)),
+	}));
+}
 
 export function formatCollegeName(collegeSlug: string) {
 	return collegeSlug
@@ -265,9 +327,28 @@ export function createStaffDashboardContent(
 
 export function createCollegeAdminDashboardContent(
 	collegeSlug: string,
+	report?: CollegeAdminReportPayload | null,
 ): DashboardContentBundle {
 	const staffDashboardPath = `/college/${collegeSlug}/staff/dashboard`;
-	const studentDashboardPath = `/college/${collegeSlug}/student/dashboard`;
+	const summary = report?.summary;
+	const totalPaid = summary?.totalPaid ?? 0;
+	const totalPending = summary?.totalPending ?? 0;
+	const paymentTotal = totalPaid + totalPending;
+	const paidPercent = percent(totalPaid, paymentTotal);
+	const submittedPercent = percent(
+		summary?.submittedApplications ?? 0,
+		summary?.totalApplications ?? 0,
+	);
+	const monthlyPayments = report?.charts.monthlyPayments ?? [];
+	const monthlyPaymentPoints = scalePoints(monthlyPayments.slice(-4)).map(
+		(point) => ({
+			label: point.label,
+			value: point.value,
+			amount: formatCurrency(
+				monthlyPayments.find((source) => source.label === point.label)?.value ?? 0,
+			),
+		}),
+	);
 
 	return {
 		badge: "College Admin Dashboard",
@@ -282,210 +363,240 @@ export function createCollegeAdminDashboardContent(
 		stats: [
 			{
 				label: "Active Students",
-				value: "3.2k",
-				change: "Current college enrollment",
+				value: formatNumber(summary?.totalStudents ?? 0),
+				change: `${formatNumber(summary?.totalApplications ?? 0)} admission application records`,
 			},
 			{
-				label: "Staff Members",
-				value: "124",
-				change: "Across academic and admin teams",
+				label: "Payment Paid",
+				value: formatCurrency(totalPaid),
+				change: `${paidPercent}% of tracked payment value collected`,
 			},
 			{
-				label: "Open Issues",
-				value: "17",
-				change: "Student and staff items awaiting action",
+				label: "Payment Pending",
+				value: formatCurrency(totalPending),
+				change: `${formatNumber(summary?.totalInvoices ?? 0)} invoices in the college ledger view`,
 			},
 			{
-				label: "Notice Reach",
-				value: "94%",
-				change: "Recent internal notices delivered",
+				label: "Active Staff",
+				value: formatNumber(summary?.activeStaff ?? 0),
+				change: "College-scoped staff and admin accounts",
 			},
 		],
 		highlights: [
 			{
-				title: "College user management",
-				meta: "Students and staff",
+				title: "Student population",
+				meta: `${formatNumber(summary?.totalStudents ?? 0)} records`,
 				description:
-					"Manage student records, staff accounts, and college-specific operational access from one control space.",
+					"Monitor the college's student base alongside application and admission movement without crossing tenant scope.",
 			},
 			{
-				title: "College operations",
-				meta: "Approvals and oversight",
+				title: "Application movement",
+				meta: `${submittedPercent}% submitted`,
 				description:
-					"Review pending actions, notices, escalations, and day-to-day administrative operations within the college.",
+					`${formatNumber(summary?.submittedApplications ?? 0)} submitted and ${formatNumber(summary?.draftApplications ?? 0)} draft applications need clear admin oversight.`,
 			},
 			{
-				title: "Internal reporting",
-				meta: "College-only analytics",
+				title: "Payment position",
+				meta: `${paidPercent}% paid`,
 				description:
-					"Track admissions movement, payment activity, and staff performance for this college only.",
+					"Track collected and pending payment value with college-only invoice totals and month-by-month activity.",
 			},
 			{
-				title: "Governance controls",
-				meta: "Scoped administration",
+				title: "Staff coverage",
+				meta: `${formatNumber(summary?.activeStaff ?? 0)} active`,
 				description:
-					"Maintain college settings, local announcements, and role assignments without crossing tenant boundaries.",
+					"Keep operational staffing visible beside admissions, reports, and student support workload.",
 			},
 		],
 		activity: [
 			{
-				label: "Top concern",
-				value: "Staff coverage",
-				note: "Two departments currently have open staff assignment requests awaiting approval.",
+				label: "Application queue",
+				value: formatNumber(summary?.totalApplications ?? 0),
+				note: `${formatNumber(summary?.submittedApplications ?? 0)} submitted and ${formatNumber(summary?.draftApplications ?? 0)} still in draft.`,
 			},
 			{
-				label: "Daily focus",
-				value: "Student onboarding",
-				note: "College-level onboarding completion remains the main operational priority today.",
+				label: "Payment completion",
+				value: `${paidPercent}%`,
+				note: `${formatCurrency(totalPaid)} collected against ${formatCurrency(totalPending)} pending.`,
 			},
 			{
-				label: "Admin health",
-				value: "Stable",
-				note: "No unresolved college-wide escalation is currently blocking operational flow.",
+				label: "Report freshness",
+				value: report?.generatedAt
+					? new Intl.DateTimeFormat("en-NG", {
+							month: "short",
+							day: "numeric",
+						}).format(new Date(report.generatedAt))
+					: "Live",
+				note: "Overview is generated from the same college-scoped reporting service used by reports.",
 			},
 		],
 		quickLinks: [
 			{
-				label: "Review college staff",
+				label: "Open student records",
+				href: `/college/${collegeSlug}/admin/students`,
+				description:
+					"Review students, admission details, print views, and export-ready records.",
+			},
+			{
+				label: "Open college reports",
+				href: `/college/${collegeSlug}/admin/reports`,
+				description:
+					"Inspect payment, student, application, and staff analytics for this college.",
+			},
+			{
+				label: "Review staff workspace",
 				href: staffDashboardPath,
 				description:
 					"Inspect the shared staff workspace and operational queues under the same college scope.",
 			},
-			{
-				label: "Review college student portal",
-				href: studentDashboardPath,
-				description:
-					"Compare the student-facing experience against the college admin perspective.",
-			},
-			{
-				label: "Platform overview",
-				href: "/superadmin/dashboard",
-				description:
-					"Return to the superadmin view when reviewing multi-college oversight.",
-			},
 		],
 		reportPanel: {
-			badge: "College Operations",
-			title: "Department readiness snapshot",
+			badge: "College Payments",
+			title: "Monthly collections trend",
 			description:
-				"Operational view of department-level onboarding, staff coverage, and student support readiness for this college.",
-			summary: "Department view",
+				"Live month-by-month collection movement for this college, paired with pending payment value and invoice volume.",
+			summary: `${formatNumber(summary?.totalInvoices ?? 0)} invoices`,
 			variant: "line",
-			points: [
-				{ label: "Science", value: 72, amount: "84% ready" },
-				{ label: "Business", value: 58, amount: "71% ready" },
-				{ label: "Arts", value: 46, amount: "63% ready" },
-				{ label: "Engineering", value: 82, amount: "91% ready" },
-			],
+			points:
+				monthlyPaymentPoints.length > 0
+					? monthlyPaymentPoints
+					: [{ label: "Current", value: 8, amount: formatCurrency(totalPaid) }],
 		},
 	};
 }
 
-export function createSuperadminDashboardContent(): DashboardContentBundle {
+export function createSuperadminDashboardContent(input?: {
+	reportData?: SuperadminReportData | null;
+	colleges?: ProvisionedCollege[];
+}): DashboardContentBundle {
+	const rows = input?.reportData?.rows ?? [];
+	const totals = sumSuperadminRows(rows);
+	const collegeCount = input?.colleges?.length ?? rows.length;
+	const activeCollegeCount =
+		input?.colleges?.filter((college) => college.status === "active").length ??
+		rows.filter((row) => row.collegeStatus === "active").length;
+	const paymentCount = totals.paymentPaid + totals.paymentUnpaid;
+	const paidPercent = percent(totals.paymentPaid, paymentCount);
+	const admissionCount =
+		totals.admissionDone + totals.admissionDraft + totals.admissionPending;
+	const topRevenueRows = [...rows]
+		.sort((left, right) => right.revenue - left.revenue)
+		.slice(0, 4);
+	const revenuePoints = scalePoints(
+		topRevenueRows.map((row) => ({ ...row, value: row.revenue })),
+	).map((row) => ({
+		label: row.collegeCode || row.collegeName,
+		value: row.value,
+		amount: formatCurrency(row.revenue),
+	}));
+
 	return {
 		badge: "Superadmin Dashboard",
 		title: "Superadmin dashboard",
 		subtitle:
-			"Executive reporting, staff governance, role controls, and institution-wide oversight for principal and superadmin access.",
+			"Executive reporting, college health, payment movement, student growth, staff governance, and institution-wide oversight.",
 		roleLabel: "Principal / Superadmin",
 		stats: [
 			{
-				label: "Active Students",
-				value: "12.4k",
-				change: "Admissions trend up 8%",
+				label: "Active Colleges",
+				value: formatNumber(activeCollegeCount),
+				change: `${formatNumber(collegeCount)} total college workspace${collegeCount === 1 ? "" : "s"}`,
 			},
 			{
-				label: "Staff Accounts",
-				value: "486",
-				change: "12 new assignments this term",
+				label: "Students",
+				value: formatNumber(totals.onboardedStudents),
+				change: `${formatNumber(admissionCount)} admission records across colleges`,
 			},
 			{
 				label: "Total Revenue",
-				value: "NGN 84.6M",
-				change: "Collections updated today",
+				value: formatCurrency(totals.revenue),
+				change: `${paidPercent}% payment completion from live reports`,
 			},
 			{
-				label: "Audit Events",
-				value: "1.2k",
-				change: "System activity fully tracked",
+				label: "Staff/Admins",
+				value: formatNumber(totals.staffAccounts + totals.adminAccounts),
+				change: `${formatNumber(totals.adminAccounts)} college admin account${totals.adminAccounts === 1 ? "" : "s"}`,
 			},
 		],
 		highlights: [
 			{
-				title: "Executive reporting",
-				meta: "Institution-wide view",
+				title: "College coverage",
+				meta: `${formatNumber(activeCollegeCount)} active`,
 				description:
-					"Review admissions, payments, staff usage, and operational performance from one institutional dashboard.",
+					"Track every provisioned college from one platform view with status, student, payment, and staff signals together.",
 			},
 			{
-				title: "Role and permission control",
-				meta: "Governance",
+				title: "Admission movement",
+				meta: `${formatNumber(totals.admissionDone)} completed`,
 				description:
-					"Create staff roles, assign permissions, and manage access across internal operational modules.",
+					`${formatNumber(totals.admissionDraft)} draft and ${formatNumber(totals.admissionPending)} pending applications remain visible for leadership attention.`,
 			},
 			{
-				title: "Staff creation and oversight",
-				meta: "Provisioning",
+				title: "Payment oversight",
+				meta: `${paidPercent}% paid`,
 				description:
-					"Provision new internal users, assign their role path, and manage dashboard access centrally.",
+					`${formatNumber(totals.paymentPaid)} paid records and ${formatNumber(totals.paymentUnpaid)} unpaid records shape the platform payment picture.`,
 			},
 			{
-				title: "Audit and compliance",
-				meta: "Accountability",
+				title: "Staff governance",
+				meta: `${formatNumber(totals.staffAccounts)} staff`,
 				description:
-					"Track critical system actions and maintain institution-level accountability across workflows.",
+					"Keep staff and college admin account coverage close to the executive metrics that drive platform decisions.",
 			},
 		],
 		activity: [
 			{
-				label: "Priority watch",
-				value: "Admissions revenue",
-				note: "Executive revenue reporting is driving this week's operational decisions.",
+				label: "Platform scope",
+				value: formatNumber(collegeCount),
+				note: `${formatNumber(activeCollegeCount)} active college workspaces are included in this overview.`,
 			},
 			{
-				label: "Provisioning requests",
-				value: "07",
-				note: "Seven staff role assignment requests are pending approval by superadmin.",
+				label: "Payment completion",
+				value: `${paidPercent}%`,
+				note: `${formatCurrency(totals.revenue)} confirmed from live college report rows.`,
 			},
 			{
-				label: "Audit health",
-				value: "Stable",
-				note: "No unresolved compliance alerts are open in the current reporting window.",
+				label: "Report freshness",
+				value: input?.reportData?.generatedAt
+					? new Intl.DateTimeFormat("en-NG", {
+							month: "short",
+							day: "numeric",
+						}).format(new Date(input.reportData.generatedAt))
+					: "Live",
+				note: "Overview is generated from the live superadmin report service.",
 			},
 		],
 		quickLinks: [
 			{
-				label: "Superadmin entry",
-				href: "/staff/signin",
+				label: "Manage colleges",
+				href: "/superadmin/colleges",
 				description:
-					"Use the internal sign-in path and role redirect to reach the admin domain.",
+					"Open college provisioning, status, and tenant setup controls.",
 			},
 			{
-				label: "Review staff portal",
-				href: DEFAULT_STAFF_DASHBOARD_PATH,
+				label: "Open reports",
+				href: "/superadmin/reports",
 				description:
-					"Check the staff operating workspace and role-driven internal modules.",
+					"Review college-wise admissions, payments, students, and revenue analytics.",
 			},
 			{
-				label: "Review student portal",
-				href: DEFAULT_STUDENT_DASHBOARD_PATH,
+				label: "Role governance",
+				href: "/superadmin/roles",
 				description:
-					"Compare the student-facing journey against the operational admin view.",
+					"Manage platform roles, college admin access, and permission templates.",
 			},
 		],
 		reportPanel: {
 			badge: "Executive Report",
-			title: "Collections and enrollment trend",
+			title: "Top revenue colleges",
 			description:
-				"Quick monthly view of admissions-related collections and enrollment movement for executive review.",
-			summary: "Last 4 months",
+				"Live college comparison for revenue concentration, student payment activity, and executive follow-up.",
+			summary: `${formatNumber(rows.length)} college row${rows.length === 1 ? "" : "s"}`,
 			variant: "bar",
-			points: [
-				{ label: "Jan", value: 48, amount: "NGN 14.2M" },
-				{ label: "Feb", value: 62, amount: "NGN 18.6M" },
-				{ label: "Mar", value: 74, amount: "NGN 22.1M" },
-				{ label: "Apr", value: 88, amount: "NGN 26.4M" },
-			],
+			points:
+				revenuePoints.length > 0
+					? revenuePoints
+					: [{ label: "Live", value: 8, amount: formatCurrency(totals.revenue) }],
 		},
 	};
 }
