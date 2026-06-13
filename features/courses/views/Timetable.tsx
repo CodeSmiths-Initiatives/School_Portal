@@ -102,23 +102,63 @@ function AddSlotModal({
 				}
 			: {}),
 	});
+	const [formError, setFormError] = useState("");
+	const [isSubmitting, setIsSubmitting] = useState(false);
 
 	const inputClass =
 		"h-12 w-full rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none transition focus:border-[#2E86C1]";
+	const canSubmit = Boolean(
+		form.courseId &&
+			form.code.trim() &&
+			form.course.trim() &&
+			form.day.trim() &&
+			form.time.trim() &&
+			form.room.trim() &&
+			form.level.trim(),
+	);
 
 	function update<K extends keyof SlotForm>(key: K, value: SlotForm[K]) {
+		setFormError("");
 		setForm((current) => ({ ...current, [key]: value }));
 	}
 
 	function updateCourse(courseId: string) {
 		const selected = selectableCourses.find((course) => course.id === courseId);
 
+		setFormError("");
 		setForm((current) => ({
 			...current,
 			courseId,
 			code: selected?.code ?? current.code,
 			course: selected?.title ?? current.course,
 		}));
+	}
+
+	async function submit() {
+		if (!canSubmit) {
+			setFormError("Select a course and provide day, time, level, mode, and venue.");
+			return;
+		}
+
+		setIsSubmitting(true);
+		setFormError("");
+
+		try {
+			await onSubmit({
+				...form,
+				code: form.code.trim(),
+				course: form.course.trim(),
+				time: normaliseTime(form.time),
+				room: form.room.trim(),
+			});
+			onClose();
+		} catch (error) {
+			setFormError(
+				error instanceof Error ? error.message : "Unable to save timetable slot.",
+			);
+		} finally {
+			setIsSubmitting(false);
+		}
 	}
 
 	return (
@@ -226,26 +266,27 @@ function AddSlotModal({
 					</div>
 
 					<div className="mt-6 flex flex-col-reverse gap-3 border-t border-[#dbe5f1] pt-5 sm:flex-row sm:justify-end">
+						{formError ? (
+							<p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700 sm:mr-auto">
+								{formError}
+							</p>
+						) : null}
 						<button
 							type="button"
 							onClick={onClose}
+							disabled={isSubmitting}
 							className="h-12 rounded-2xl border border-[#d3dfed] bg-white px-5 text-sm font-black text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
 						>
 							Cancel
 						</button>
 						<button
 							type="button"
-							disabled={
-								!form.courseId || !form.code.trim() || !form.course.trim()
-							}
-							onClick={async () => {
-								await onSubmit(form);
-								onClose();
-							}}
+							disabled={!canSubmit || isSubmitting}
+							onClick={submit}
 							className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] px-5 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.18)] transition hover:-translate-y-0.5 hover:bg-[#123866] disabled:cursor-not-allowed disabled:opacity-40"
 						>
 							<Plus className="size-4" />
-							{initialSlot ? "Save Slot" : "Add Slot"}
+							{isSubmitting ? "Saving..." : initialSlot ? "Save Slot" : "Add Slot"}
 						</button>
 					</div>
 				</div>
