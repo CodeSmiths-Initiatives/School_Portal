@@ -30,6 +30,8 @@ const COURSE_TYPES: CourseType[] = [
 ];
 const COURSE_STATUSES: CourseStatus[] = ["Pending", "Approved", "Rejected"];
 const COURSE_MODES: CourseMode[] = ["On-Site", "Online", "Hybrid"];
+const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"] as const;
+type TimetableDay = (typeof DAYS)[number];
 
 function getInternalSecret() {
 	const configured =
@@ -165,6 +167,33 @@ function mapCourse(course: Record<string, unknown>) {
 	};
 }
 
+function normalizeDay(value: unknown): TimetableDay | null {
+	const text = asString(value);
+	return DAYS.includes(text as TimetableDay) ? (text as TimetableDay) : null;
+}
+
+function normalizeTime(value: unknown) {
+	return asString(value).replace(/\s/g, "").replace(/â€“|â€”/g, "-");
+}
+
+function mapTimetableSlot(slot: Record<string, unknown>) {
+	const course = asRecord(slot.course);
+
+	return {
+		id: getCourseId(slot),
+		documentId: asString(slot.documentId) || undefined,
+		numericId: typeof slot.id === "number" ? slot.id : undefined,
+		code: normalizeCode(course.code),
+		course: asString(course.title),
+		courseId: getCourseId(course) || undefined,
+		day: normalizeDay(slot.day) ?? "Monday",
+		time: normalizeTime(slot.time),
+		room: asString(slot.room),
+		mode: normalizeEnum(slot.mode, COURSE_MODES, "On-Site"),
+		level: normalizeLevel(slot.level) ?? "100L",
+	};
+}
+
 async function findCollegeBySlug(collegeSlug: string) {
 	return strapi.db.query("api::college.college").findOne({
 		where: { slug: collegeSlug },
@@ -178,6 +207,40 @@ async function findCourseForCollege(courseId: string, collegeId: number) {
 			college: collegeId,
 		},
 		populate: { department: true, college: true },
+	});
+}
+
+async function findCourseForTimetable(
+	input: { courseId?: string; code?: string },
+	collegeId: number,
+) {
+	const courseId = asString(input.courseId);
+	const code = normalizeCode(input.code);
+	const identifiers = [
+		...(courseId ? [{ documentId: courseId }, { id: asNumber(courseId) }] : []),
+		...(code ? [{ code }] : []),
+	];
+
+	if (identifiers.length === 0) return null;
+
+	return strapi.db.query("api::course.course").findOne({
+		where: {
+			$or: identifiers,
+			college: collegeId,
+			status: { $ne: "archived" },
+		},
+		populate: { department: true, college: true },
+	});
+}
+
+async function findTimetableSlotForCollege(slotId: string, collegeId: number) {
+	return strapi.db.query("api::course-timetable-slot.course-timetable-slot").findOne({
+		where: {
+			$or: [{ documentId: slotId }, { id: asNumber(slotId) }],
+			college: collegeId,
+			status: { $ne: "archived" },
+		},
+		populate: { course: true, college: true },
 	});
 }
 
@@ -217,6 +280,7 @@ async function resolveDepartment(collegeId: number, departmentName: string) {
 
 async function createAuditLog(input: {
 	collegeId?: number;
+	entityType?: string;
 	action: string;
 	entityId?: string;
 	summary: string;
@@ -226,7 +290,7 @@ async function createAuditLog(input: {
 		await strapi.db.query("api::audit-log.audit-log").create({
 			data: {
 				action: input.action,
-				entityType: "course",
+				entityType: input.entityType ?? "course",
 				entityId: input.entityId,
 				summary: input.summary,
 				metadata: input.metadata ?? {},
@@ -276,6 +340,20 @@ function parseAllocationPayload(body: unknown) {
 		level,
 		nextCourseId: asString(payload.nextCourseId),
 		nextLevel,
+	};
+}
+
+function parseTimetablePayload(body: unknown) {
+	const payload = asRecord(body);
+
+	return {
+		courseId: asString(payload.courseId),
+		code: normalizeCode(payload.code),
+		day: normalizeDay(payload.day),
+		time: normalizeTime(payload.time),
+		room: asString(payload.room),
+		mode: normalizeEnum(payload.mode, COURSE_MODES, "On-Site"),
+		level: normalizeLevel(payload.level),
 	};
 }
 
@@ -498,6 +576,216 @@ export default {
 			entityId: String(existing.id),
 			summary: `Deleted course ${asString(existing.code)}`,
 			metadata: { collegeSlug, code: asString(existing.code) },
+		});
+
+		ctx.status = 204;
+		ctx.body = null;
+	},
+
+	async listTimetable(ctx: StrapiContext) {
+		if (!authorize(ctx)) {
+			return ctx.unauthorized("Course timetable access is not authorized.");
+		}
+
+		const collegeSlug = asString(ctx.request.query?.collegeSlug);
+		const college = await findCollegeBySlug(collegeSlug);
+
+		if (!college?.id) {
+			return ctx.notFound?.("College could not be found.") ?? ctx.badRequest("College could not be found.");
+		}
+
+		const slots = await strapi.db.query("api::course-timetable-slot.course-timetable-slot").findMany({
+			where: { college: college.id, status: { $ne: "archived" } },
+			populate: { course: true, college: true },
+			orderBy: [{ day: "asc" }, { time: "asc" }, { level: "asc" }],
+			limit: 1000,
+		});
+		const mappedSlots = (slots as Record<string, unknown>[]).map(mapTimetableSlot);
+
+		ctx.body = {
+			college: {
+				id: college.id,
+				name: college.name,
+				slug: college.slug,
+				code: college.code,
+			},
+			slots: mappedSlots,
+			count: mappedSlots.length,
+			generatedAt: new Date().toISOString(),
+		};
+	},
+
+	async createTimetableSlot(ctx: StrapiContext) {
+		if (!authorize(ctx)) {
+			return ctx.unauthorized("Course timetable access is not authorized.");
+		}
+
+		const collegeSlug = asString(ctx.request.query?.collegeSlug);
+		const college = await findCollegeBySlug(collegeSlug);
+		const payload = parseTimetablePayload(ctx.request.body);
+
+		if (!college?.id || !payload.day || !payload.time || !payload.room || !payload.level) {
+			return ctx.badRequest("College, course, day, time, room, and level are required.");
+		}
+
+		const course = (await findCourseForTimetable(
+			{ courseId: payload.courseId, code: payload.code },
+			college.id,
+		)) as Record<string, unknown> | null;
+
+		if (!course?.id) {
+			return ctx.notFound?.("Course could not be found for this college.") ??
+				ctx.badRequest("Course could not be found for this college.");
+		}
+
+		const duplicate = await strapi.db.query("api::course-timetable-slot.course-timetable-slot").findOne({
+			where: {
+				college: college.id,
+				course: course.id,
+				day: payload.day,
+				time: payload.time,
+				level: payload.level,
+				status: { $ne: "archived" },
+			},
+		});
+
+		if (duplicate?.id) {
+			return ctx.conflict?.("This course already has a matching timetable slot.") ??
+				ctx.badRequest("This course already has a matching timetable slot.");
+		}
+
+		const slot = await strapi.db.query("api::course-timetable-slot.course-timetable-slot").create({
+			data: {
+				day: payload.day,
+				time: payload.time,
+				room: payload.room,
+				mode: payload.mode,
+				level: payload.level,
+				status: "active",
+				college: college.id,
+				course: course.id,
+			},
+			populate: { course: true, college: true },
+		});
+
+		await createAuditLog({
+			collegeId: college.id,
+			entityType: "course-timetable-slot",
+			action: "course-timetable.created",
+			entityId: String(slot.id),
+			summary: `Created timetable slot for ${asString(course.code)}`,
+			metadata: { collegeSlug, courseId: getCourseId(course), day: payload.day, time: payload.time, level: payload.level },
+		});
+
+		ctx.status = 201;
+		ctx.body = { slot: mapTimetableSlot(slot as Record<string, unknown>) };
+	},
+
+	async updateTimetableSlot(ctx: StrapiContext) {
+		if (!authorize(ctx)) {
+			return ctx.unauthorized("Course timetable access is not authorized.");
+		}
+
+		const collegeSlug = asString(ctx.request.query?.collegeSlug);
+		const slotId = asString(ctx.params?.id);
+		const college = await findCollegeBySlug(collegeSlug);
+		const payload = parseTimetablePayload(ctx.request.body);
+
+		if (!college?.id || !slotId || !payload.day || !payload.time || !payload.room || !payload.level) {
+			return ctx.badRequest("College, timetable slot, course, day, time, room, and level are required.");
+		}
+
+		const existing = await findTimetableSlotForCollege(slotId, college.id);
+
+		if (!existing?.id) {
+			return ctx.notFound?.("Timetable slot could not be found for this college.") ??
+				ctx.badRequest("Timetable slot could not be found for this college.");
+		}
+
+		const course = (await findCourseForTimetable(
+			{ courseId: payload.courseId, code: payload.code },
+			college.id,
+		)) as Record<string, unknown> | null;
+
+		if (!course?.id) {
+			return ctx.notFound?.("Course could not be found for this college.") ??
+				ctx.badRequest("Course could not be found for this college.");
+		}
+
+		const duplicate = await strapi.db.query("api::course-timetable-slot.course-timetable-slot").findOne({
+			where: {
+				college: college.id,
+				course: course.id,
+				day: payload.day,
+				time: payload.time,
+				level: payload.level,
+				status: { $ne: "archived" },
+				id: { $ne: existing.id },
+			},
+		});
+
+		if (duplicate?.id) {
+			return ctx.conflict?.("This course already has a matching timetable slot.") ??
+				ctx.badRequest("This course already has a matching timetable slot.");
+		}
+
+		const slot = await strapi.db.query("api::course-timetable-slot.course-timetable-slot").update({
+			where: { id: existing.id },
+			data: {
+				day: payload.day,
+				time: payload.time,
+				room: payload.room,
+				mode: payload.mode,
+				level: payload.level,
+				course: course.id,
+			},
+			populate: { course: true, college: true },
+		});
+
+		await createAuditLog({
+			collegeId: college.id,
+			entityType: "course-timetable-slot",
+			action: "course-timetable.updated",
+			entityId: String(existing.id),
+			summary: `Updated timetable slot for ${asString(course.code)}`,
+			metadata: { collegeSlug, courseId: getCourseId(course), day: payload.day, time: payload.time, level: payload.level },
+		});
+
+		ctx.body = { slot: mapTimetableSlot(slot as Record<string, unknown>) };
+	},
+
+	async deleteTimetableSlot(ctx: StrapiContext) {
+		if (!authorize(ctx)) {
+			return ctx.unauthorized("Course timetable access is not authorized.");
+		}
+
+		const collegeSlug = asString(ctx.request.query?.collegeSlug);
+		const slotId = asString(ctx.params?.id);
+		const college = await findCollegeBySlug(collegeSlug);
+
+		if (!college?.id || !slotId) {
+			return ctx.badRequest("College slug and timetable slot id are required.");
+		}
+
+		const existing = await findTimetableSlotForCollege(slotId, college.id);
+
+		if (!existing?.id) {
+			return ctx.notFound?.("Timetable slot could not be found for this college.") ??
+				ctx.badRequest("Timetable slot could not be found for this college.");
+		}
+
+		await strapi.db.query("api::course-timetable-slot.course-timetable-slot").update({
+			where: { id: existing.id },
+			data: { status: "archived" },
+		});
+
+		await createAuditLog({
+			collegeId: college.id,
+			entityType: "course-timetable-slot",
+			action: "course-timetable.deleted",
+			entityId: String(existing.id),
+			summary: `Deleted timetable slot ${slotId}`,
+			metadata: { collegeSlug, slotId },
 		});
 
 		ctx.status = 204;

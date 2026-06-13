@@ -55,6 +55,12 @@
       "target": "api::course.course",
       "mappedBy": "college"
     },
+    "courseTimetableSlots": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::course-timetable-slot.course-timetable-slot",
+      "mappedBy": "college"
+    },
     "roles": {
       "type": "relation",
       "relation": "oneToMany",

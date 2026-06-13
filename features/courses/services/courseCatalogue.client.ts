@@ -3,6 +3,8 @@ import type {
 	CourseAllocationInput,
 	CourseAllocationUpdateInput,
 	CourseCataloguePayload,
+	CourseTimetableInput,
+	CourseTimetablePayload,
 } from "@/lib/services/course-catalogue.service";
 
 async function parseError(response: Response, fallback: string) {
@@ -72,6 +74,71 @@ export async function deleteCourse(collegeSlug: string, courseId: string) {
 
 	if (!response.ok) {
 		throw new Error(await parseError(response, "Unable to delete course."));
+	}
+}
+
+export async function loadCourseTimetable(collegeSlug: string) {
+	const params = new URLSearchParams({ collegeSlug });
+	const response = await fetch(`/api/courses/timetable?${params.toString()}`, {
+		cache: "no-store",
+	});
+
+	if (!response.ok) {
+		throw new Error(await parseError(response, "Unable to load timetable."));
+	}
+
+	return response.json() as Promise<CourseTimetablePayload>;
+}
+
+export async function createTimetableSlot(
+	collegeSlug: string,
+	slot: CourseTimetableInput,
+) {
+	const params = new URLSearchParams({ collegeSlug });
+	const response = await fetch(`/api/courses/timetable?${params.toString()}`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(slot),
+	});
+
+	if (!response.ok) {
+		throw new Error(await parseError(response, "Unable to create timetable slot."));
+	}
+
+	return response.json() as Promise<{ slot: CourseTimetablePayload["slots"][number] }>;
+}
+
+export async function updateTimetableSlot(
+	collegeSlug: string,
+	slotId: string,
+	slot: CourseTimetableInput,
+) {
+	const params = new URLSearchParams({ collegeSlug });
+	const response = await fetch(
+		`/api/courses/timetable/${encodeURIComponent(slotId)}?${params.toString()}`,
+		{
+			method: "PATCH",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(slot),
+		},
+	);
+
+	if (!response.ok) {
+		throw new Error(await parseError(response, "Unable to update timetable slot."));
+	}
+
+	return response.json() as Promise<{ slot: CourseTimetablePayload["slots"][number] }>;
+}
+
+export async function deleteTimetableSlot(collegeSlug: string, slotId: string) {
+	const params = new URLSearchParams({ collegeSlug });
+	const response = await fetch(
+		`/api/courses/timetable/${encodeURIComponent(slotId)}?${params.toString()}`,
+		{ method: "DELETE" },
+	);
+
+	if (!response.ok) {
+		throw new Error(await parseError(response, "Unable to delete timetable slot."));
 	}
 }
 

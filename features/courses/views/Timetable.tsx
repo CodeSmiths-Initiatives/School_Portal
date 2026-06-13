@@ -2,32 +2,24 @@
 
 import {
 	CalendarClock,
+	Eye,
 	Filter,
 	Layers3,
 	MapPin,
 	MonitorPlay,
+	Pencil,
 	Plus,
 	Search,
+	Trash2,
 	Users,
 	X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import type { Level, Mode } from "../types/course.types";
-import { DAYS, TIMETABLE } from "../utils/data";
+import type { Course, Level, Mode, TimelineSlot } from "../types/course.types";
+import { DAYS } from "../utils/data";
 
 const LEVELS: Level[] = ["100L", "200L", "300L", "400L"];
 const MODES: Array<Mode | "All Modes"> = ["All Modes", "On-Site", "Online", "Hybrid"];
-
-type TimelineSlot = {
-	id: string;
-	code: string;
-	course: string;
-	day: string;
-	time: string;
-	room: string;
-	mode: Mode;
-	level: Level;
-};
 
 type SlotForm = Omit<TimelineSlot, "id">;
 
@@ -78,20 +70,37 @@ function Field({
 }
 
 function AddSlotModal({
-	onAdd,
+	courses,
+	initialSlot,
+	onSubmit,
 	onClose,
 }: {
-	onAdd: (slot: SlotForm) => void;
+	courses: Course[];
+	initialSlot?: TimelineSlot | null;
+	onSubmit: (slot: SlotForm) => Promise<void> | void;
 	onClose: () => void;
 }) {
+	const selectableCourses = courses.filter((course) => course.status !== "Rejected");
+	const initialCourse = initialSlot
+		? selectableCourses.find((course) => course.id === initialSlot.courseId) ??
+			selectableCourses.find((course) => course.code === initialSlot.code)
+		: selectableCourses[0];
 	const [form, setForm] = useState<SlotForm>({
-		code: "",
-		course: "",
+		code: initialSlot?.code ?? initialCourse?.code ?? "",
+		course: initialSlot?.course ?? initialCourse?.title ?? "",
+		courseId: initialSlot?.courseId ?? initialCourse?.id,
 		day: "Monday",
 		time: "08:00-10:00",
-		room: "",
+		room: initialSlot?.room ?? "",
 		mode: "On-Site",
-		level: "200L",
+		level: initialSlot?.level ?? "200L",
+		...(initialSlot
+			? {
+					day: initialSlot.day,
+					time: initialSlot.time,
+					mode: initialSlot.mode,
+				}
+			: {}),
 	});
 
 	const inputClass =
@@ -99,6 +108,17 @@ function AddSlotModal({
 
 	function update<K extends keyof SlotForm>(key: K, value: SlotForm[K]) {
 		setForm((current) => ({ ...current, [key]: value }));
+	}
+
+	function updateCourse(courseId: string) {
+		const selected = selectableCourses.find((course) => course.id === courseId);
+
+		setForm((current) => ({
+			...current,
+			courseId,
+			code: selected?.code ?? current.code,
+			course: selected?.title ?? current.course,
+		}));
 	}
 
 	return (
@@ -110,10 +130,12 @@ function AddSlotModal({
 							Course Timeline
 						</p>
 						<h2 className="mt-2 text-xl font-black sm:text-2xl">
-							Add timetable slot
+							{initialSlot ? "Edit timetable slot" : "Add timetable slot"}
 						</h2>
 						<p className="mt-1 text-sm font-semibold text-[#c5d4e8]">
-							Create a local preview slot for the weekly teaching calendar.
+							{initialSlot
+								? "Update the teaching period saved in the live timetable."
+								: "Create a teaching period in the live weekly calendar."}
 						</p>
 					</div>
 					<button
@@ -128,22 +150,22 @@ function AddSlotModal({
 
 				<div className="max-h-[calc(90vh-8rem)] overflow-y-auto p-5 sm:p-6">
 					<div className="grid gap-4 md:grid-cols-2">
-						<Field label="Course code">
-							<input
-								value={form.code}
-								onChange={(event) => update("code", event.target.value)}
-								placeholder="CSC301"
-								className={inputClass}
-							/>
-						</Field>
-						<Field label="Course title">
-							<input
-								value={form.course}
-								onChange={(event) => update("course", event.target.value)}
-								placeholder="Software Engineering"
-								className={inputClass}
-							/>
-						</Field>
+						<div className="md:col-span-2">
+							<Field label="Course">
+								<select
+									value={form.courseId ?? ""}
+									onChange={(event) => updateCourse(event.target.value)}
+									className={inputClass}
+								>
+									<option value="">Select a course</option>
+									{selectableCourses.map((course) => (
+										<option key={course.id} value={course.id}>
+											{course.code} - {course.title}
+										</option>
+									))}
+								</select>
+							</Field>
+						</div>
 						<Field label="Day">
 							<select
 								value={form.day}
@@ -213,15 +235,17 @@ function AddSlotModal({
 						</button>
 						<button
 							type="button"
-							disabled={!form.code.trim() || !form.course.trim()}
-							onClick={() => {
-								onAdd(form);
+							disabled={
+								!form.courseId || !form.code.trim() || !form.course.trim()
+							}
+							onClick={async () => {
+								await onSubmit(form);
 								onClose();
 							}}
 							className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] px-5 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.18)] transition hover:-translate-y-0.5 hover:bg-[#123866] disabled:cursor-not-allowed disabled:opacity-40"
 						>
 							<Plus className="size-4" />
-							Add Slot
+							{initialSlot ? "Save Slot" : "Add Slot"}
 						</button>
 					</div>
 				</div>
@@ -231,22 +255,25 @@ function AddSlotModal({
 }
 
 export default function Timetable({
+	courses,
+	slots,
 	canManageTimetable = true,
+	onAddSlot,
+	onUpdateSlot,
+	onDeleteSlot,
 }: {
+	courses: Course[];
+	slots: TimelineSlot[];
 	canManageTimetable?: boolean;
+	onAddSlot?: (slot: SlotForm) => Promise<void> | void;
+	onUpdateSlot?: (id: string, slot: SlotForm) => Promise<void> | void;
+	onDeleteSlot?: (id: string) => Promise<void> | void;
 }) {
-	const [slots, setSlots] = useState<TimelineSlot[]>(() =>
-		TIMETABLE.map((slot, index) => ({
-			...slot,
-			id: `slot-${index + 1}`,
-			time: normaliseTime(slot.time),
-			mode: slot.room.toLowerCase() === "online" ? "Online" : "On-Site",
-		})),
-	);
 	const [levelFilter, setLevelFilter] = useState<Level | "All Levels">("All Levels");
 	const [modeFilter, setModeFilter] = useState<Mode | "All Modes">("All Modes");
 	const [searchQuery, setSearchQuery] = useState("");
-	const [showModal, setShowModal] = useState(false);
+	const [showModal, setShowModal] = useState<"add" | "edit" | null>(null);
+	const [selectedSlot, setSelectedSlot] = useState<TimelineSlot | null>(null);
 
 	const timeSlots = useMemo(
 		() =>
@@ -303,21 +330,32 @@ export default function Timetable({
 		[slots],
 	);
 
-	function addSlot(form: SlotForm) {
-		setSlots((current) => [
-			...current,
-			{
-				...form,
-				id: `slot-${Date.now()}`,
-				time: normaliseTime(form.time),
-			},
-		]);
-	}
-
 	function clearFilters() {
 		setLevelFilter("All Levels");
 		setModeFilter("All Modes");
 		setSearchQuery("");
+	}
+
+	async function submitSlot(form: SlotForm) {
+		const payload = {
+			...form,
+			time: normaliseTime(form.time),
+		};
+
+		if (showModal === "edit" && selectedSlot) {
+			await onUpdateSlot?.(selectedSlot.id, payload);
+			return;
+		}
+
+		await onAddSlot?.(payload);
+	}
+
+	async function removeSlot(slot: TimelineSlot) {
+		const confirmed = window.confirm(`Delete ${slot.code} from the timetable?`);
+
+		if (!confirmed) return;
+
+		await onDeleteSlot?.(slot.id);
 	}
 
 	function getCellSlots(day: string, time: string) {
@@ -343,7 +381,10 @@ export default function Timetable({
 					{canManageTimetable ? (
 						<button
 							type="button"
-							onClick={() => setShowModal(true)}
+							onClick={() => {
+								setSelectedSlot(null);
+								setShowModal("add");
+							}}
 							className="inline-flex h-12 items-center gap-2 rounded-2xl bg-[#0D2B55] px-5 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.18)] transition hover:-translate-y-0.5 hover:bg-[#123866]"
 						>
 							<Plus className="size-4" />
@@ -508,15 +549,41 @@ export default function Timetable({
 																		{entry.course}
 																	</p>
 																</div>
-																<span
-																	className={`flex size-8 shrink-0 items-center justify-center rounded-xl ${tone.icon}`}
-																>
-																	{entry.mode === "Online" ? (
-																		<MonitorPlay className="size-4" />
-																	) : (
-																		<MapPin className="size-4" />
-																	)}
-																</span>
+																<div className="flex shrink-0 items-center gap-1">
+																	<button
+																		type="button"
+																		onClick={() => setSelectedSlot(entry)}
+																		className={`flex size-8 items-center justify-center rounded-xl ${tone.icon}`}
+																		aria-label={`View ${entry.code} timetable slot`}
+																	>
+																		<Eye className="size-4" />
+																	</button>
+																	{canManageTimetable ? (
+																		<>
+																			<button
+																				type="button"
+																				onClick={() => {
+																					setSelectedSlot(entry);
+																					setShowModal("edit");
+																				}}
+																				className={`flex size-8 items-center justify-center rounded-xl ${tone.icon}`}
+																				aria-label={`Edit ${entry.code} timetable slot`}
+																			>
+																				<Pencil className="size-4" />
+																			</button>
+																			<button
+																				type="button"
+																				onClick={() => {
+																					removeSlot(entry);
+																				}}
+																				className="flex size-8 items-center justify-center rounded-xl bg-white/75 text-red-700"
+																				aria-label={`Delete ${entry.code} timetable slot`}
+																			>
+																				<Trash2 className="size-4" />
+																			</button>
+																		</>
+																	) : null}
+																</div>
 															</div>
 															<div className="mt-3 flex flex-wrap gap-2 text-[11px] font-black">
 																<span className="rounded-full bg-white/75 px-2.5 py-1">
@@ -542,8 +609,57 @@ export default function Timetable({
 				</div>
 			</div>
 
+			{selectedSlot && !showModal ? (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-[#06172f]/60 p-4 backdrop-blur-sm">
+					<div className="w-full max-w-lg rounded-3xl border border-[#dbe5f1] bg-white p-6 shadow-[0_30px_80px_rgba(6,23,47,0.35)]">
+						<div className="flex items-start justify-between gap-4">
+							<div>
+								<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#B7770D]">
+									Timetable Slot
+								</p>
+								<h2 className="mt-2 text-xl font-black text-[#06183A]">
+									{selectedSlot.code} - {selectedSlot.course}
+								</h2>
+							</div>
+							<button
+								type="button"
+								onClick={() => setSelectedSlot(null)}
+								className="flex size-10 shrink-0 items-center justify-center rounded-full border border-[#d3dfed] bg-white text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+								aria-label="Close timetable slot details"
+							>
+								<X className="size-5" />
+							</button>
+						</div>
+						<div className="mt-5 grid gap-3 text-sm font-bold text-[#0D2B55] sm:grid-cols-2">
+							{[
+								["Day", selectedSlot.day],
+								["Time", formatTime(selectedSlot.time)],
+								["Level", selectedSlot.level],
+								["Mode", selectedSlot.mode],
+								["Venue", selectedSlot.room || "Venue TBD"],
+							].map(([label, value]) => (
+								<div key={label} className="rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] p-4">
+									<p className="text-[10px] uppercase tracking-[0.18em] text-[#8395AF]">
+										{label}
+									</p>
+									<p className="mt-2">{value}</p>
+								</div>
+							))}
+						</div>
+					</div>
+				</div>
+			) : null}
+
 			{showModal ? (
-				<AddSlotModal onAdd={addSlot} onClose={() => setShowModal(false)} />
+				<AddSlotModal
+					courses={courses}
+					initialSlot={showModal === "edit" ? selectedSlot : null}
+					onSubmit={submitSlot}
+					onClose={() => {
+						setShowModal(null);
+						setSelectedSlot(null);
+					}}
+				/>
 			) : null}
 		</section>
 	);

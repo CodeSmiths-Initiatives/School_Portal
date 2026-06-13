@@ -1,4 +1,8 @@
-import type { Course, CourseStatus } from "@/features/courses/types/course.types";
+import type {
+	Course,
+	CourseStatus,
+	TimelineSlot,
+} from "@/features/courses/types/course.types";
 
 const DEV_INTERNAL_SECRET =
 	"iums-local-registration-secret-change-before-production";
@@ -14,8 +18,15 @@ export type CourseCataloguePayload = {
 	count: number;
 	generatedAt: string;
 };
+export type CourseTimetablePayload = {
+	college: CourseCataloguePayload["college"];
+	slots: TimelineSlot[];
+	count: number;
+	generatedAt: string;
+};
 
 export type CourseMutationInput = Omit<Course, "id">;
+export type CourseTimetableInput = Omit<TimelineSlot, "id">;
 export type CourseAllocationInput = {
 	courseId: string;
 	level: Course["levels"][number];
@@ -150,6 +161,57 @@ export async function deleteCourseCatalogueItem(
 
 	return internalFetch<void>(
 		`/api/internal/course-catalogue/${courseId}?${params.toString()}`,
+		{ method: "DELETE" },
+	);
+}
+
+export async function getCourseTimetable(collegeSlug: string) {
+	const params = new URLSearchParams({ collegeSlug });
+
+	return internalFetch<CourseTimetablePayload>(
+		`/api/internal/course-timetable?${params.toString()}`,
+	);
+}
+
+export async function createCourseTimetableSlot(
+	collegeSlug: string,
+	input: CourseTimetableInput,
+) {
+	const params = new URLSearchParams({ collegeSlug });
+
+	return internalFetch<{ slot: TimelineSlot }>(
+		`/api/internal/course-timetable?${params.toString()}`,
+		{
+			method: "POST",
+			body: input,
+		},
+	);
+}
+
+export async function updateCourseTimetableSlot(
+	collegeSlug: string,
+	slotId: string | number,
+	input: CourseTimetableInput,
+) {
+	const params = new URLSearchParams({ collegeSlug });
+
+	return internalFetch<{ slot: TimelineSlot }>(
+		`/api/internal/course-timetable/${slotId}?${params.toString()}`,
+		{
+			method: "PATCH",
+			body: input,
+		},
+	);
+}
+
+export async function deleteCourseTimetableSlot(
+	collegeSlug: string,
+	slotId: string | number,
+) {
+	const params = new URLSearchParams({ collegeSlug });
+
+	return internalFetch<void>(
+		`/api/internal/course-timetable/${slotId}?${params.toString()}`,
 		{ method: "DELETE" },
 	);
 }

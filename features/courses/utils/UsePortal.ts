@@ -6,9 +6,13 @@ import {
 	createCourseAllocation,
 	deleteCourse as deleteCourseRequest,
 	deleteCourseAllocation,
+	deleteTimetableSlot as deleteTimetableSlotRequest,
 	loadCourseCatalogue,
+	loadCourseTimetable,
+	createTimetableSlot,
 	updateCourse as updateCourseRequest,
 	updateCourseAllocation,
+	updateTimetableSlot as updateTimetableSlotRequest,
 } from "@/features/courses/services/courseCatalogue.client";
 import type {
 	Course,
@@ -17,12 +21,14 @@ import type {
 	Level,
 	NavPage,
 	Role,
+	TimelineSlot,
 } from "../types/course.types";
 
 export function usePortal(collegeSlug: string) {
   const [activePage, setActivePage] = useState<NavPage>('courses-definitions');
   const [activeRole, setActiveRole] = useState<Role>('Lecturer');
   const [courses, setCourses] = useState<Course[]>([]);
+  const [timelineSlots, setTimelineSlots] = useState<TimelineSlot[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [isMutating, setIsMutating] = useState(false);
@@ -56,14 +62,15 @@ export function usePortal(collegeSlug: string) {
   useEffect(() => {
     let isMounted = true;
 
-    loadCourseCatalogue(collegeSlug)
-      .then((payload) => {
+    Promise.all([loadCourseCatalogue(collegeSlug), loadCourseTimetable(collegeSlug)])
+      .then(([payload, timetable]) => {
         if (!isMounted) return;
         setCourses(payload.courses);
+        setTimelineSlots(timetable.slots);
       })
       .catch((loadError) => {
         if (!isMounted) return;
-        setError(loadError instanceof Error ? loadError.message : "Unable to load courses.");
+        setError(loadError instanceof Error ? loadError.message : "Unable to load course data.");
       })
       .finally(() => {
         if (isMounted) setIsLoading(false);
@@ -119,6 +126,51 @@ export function usePortal(collegeSlug: string) {
       setCourses(prev => prev.filter(c => c.id !== id));
     } catch (mutationError) {
       setError(mutationError instanceof Error ? mutationError.message : "Unable to delete course.");
+    } finally {
+      setIsMutating(false);
+    }
+  }
+
+  async function addTimetableSlot(slot: Omit<TimelineSlot, "id">) {
+    setIsMutating(true);
+    setError("");
+
+    try {
+      const result = await createTimetableSlot(collegeSlug, slot);
+      setTimelineSlots(prev => [...prev, result.slot]);
+    } catch (mutationError) {
+      setError(mutationError instanceof Error ? mutationError.message : "Unable to create timetable slot.");
+      throw mutationError;
+    } finally {
+      setIsMutating(false);
+    }
+  }
+
+  async function updateTimetableSlot(id: string, slot: Omit<TimelineSlot, "id">) {
+    setIsMutating(true);
+    setError("");
+
+    try {
+      const result = await updateTimetableSlotRequest(collegeSlug, id, slot);
+      setTimelineSlots(prev => prev.map(item => item.id === id ? result.slot : item));
+    } catch (mutationError) {
+      setError(mutationError instanceof Error ? mutationError.message : "Unable to update timetable slot.");
+      throw mutationError;
+    } finally {
+      setIsMutating(false);
+    }
+  }
+
+  async function deleteTimetableSlot(id: string) {
+    setIsMutating(true);
+    setError("");
+
+    try {
+      await deleteTimetableSlotRequest(collegeSlug, id);
+      setTimelineSlots(prev => prev.filter(item => item.id !== id));
+    } catch (mutationError) {
+      setError(mutationError instanceof Error ? mutationError.message : "Unable to delete timetable slot.");
+      throw mutationError;
     } finally {
       setIsMutating(false);
     }
@@ -195,13 +247,14 @@ export function usePortal(collegeSlug: string) {
     activePage, setActivePage,
     activeRole, setActiveRole,
     isLoading, error, isMutating,
-    courses, filteredCourses, stats,
+    courses, filteredCourses, timelineSlots, stats,
     searchQuery, setSearchQuery,
     typeFilter, setTypeFilter,
     statusFilter, setStatusFilter,
     levelFilter, setLevelFilter,
     activeLevel, setActiveLevel,
     addCourse, updateCourse, updateCourseStatus, deleteCourse,
+    addTimetableSlot, updateTimetableSlot, deleteTimetableSlot,
     addAllocation, updateAllocation, removeAllocation,
   };
 }

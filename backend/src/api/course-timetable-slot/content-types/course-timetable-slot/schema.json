@@ -1,0 +1,67 @@
+{
+  "kind": "collectionType",
+  "collectionName": "course_timetable_slots",
+  "info": {
+    "singularName": "course-timetable-slot",
+    "pluralName": "course-timetable-slots",
+    "displayName": "Course Timetable Slot",
+    "description": "College-scoped teaching timetable slot."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "day": {
+      "type": "enumeration",
+      "enum": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+      "required": true
+    },
+    "time": {
+      "type": "string",
+      "required": true
+    },
+    "room": {
+      "type": "string",
+      "required": true
+    },
+    "mode": {
+      "type": "enumeration",
+      "enum": ["On-Site", "Online", "Hybrid"],
+      "default": "On-Site",
+      "required": true
+    },
+    "level": {
+      "type": "enumeration",
+      "enum": ["100L", "200L", "300L", "400L"],
+      "required": true
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": ["active", "archived"],
+      "default": "active",
+      "required": true
+    },
+    "course": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::course.course",
+      "inversedBy": "timetableSlots"
+    },
+    "college": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::college.college",
+      "inversedBy": "courseTimetableSlots"
+    }
+  },
+  "indexes": [
+    {
+      "name": "course_timetable_slot_college_status_idx",
+      "columns": ["college_id", "status"]
+    },
+    {
+      "name": "course_timetable_slot_lookup_idx",
+      "columns": ["college_id", "day", "time", "level"]
+    }
+  ]
+}

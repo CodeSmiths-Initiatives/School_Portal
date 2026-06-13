@@ -76,6 +76,12 @@
       "relation": "manyToOne",
       "target": "api::department.department",
       "inversedBy": "courses"
+    },
+    "timetableSlots": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::course-timetable-slot.course-timetable-slot",
+      "mappedBy": "course"
     }
   }
 }

@@ -25,6 +25,30 @@ export default {
 			config: { auth: false },
 		},
 		{
+			method: "GET",
+			path: "/internal/course-timetable",
+			handler: "internal-course-catalogue.listTimetable",
+			config: { auth: false },
+		},
+		{
+			method: "POST",
+			path: "/internal/course-timetable",
+			handler: "internal-course-catalogue.createTimetableSlot",
+			config: { auth: false },
+		},
+		{
+			method: "PATCH",
+			path: "/internal/course-timetable/:id",
+			handler: "internal-course-catalogue.updateTimetableSlot",
+			config: { auth: false },
+		},
+		{
+			method: "DELETE",
+			path: "/internal/course-timetable/:id",
+			handler: "internal-course-catalogue.deleteTimetableSlot",
+			config: { auth: false },
+		},
+		{
 			method: "POST",
 			path: "/internal/course-allocations",
 			handler: "internal-course-catalogue.createAllocation",

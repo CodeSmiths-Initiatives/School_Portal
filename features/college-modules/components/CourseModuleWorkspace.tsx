@@ -86,6 +86,7 @@ export default function CourseModuleWorkspace({
 		activePage,
 		setActivePage,
 		courses,
+		timelineSlots,
 		filteredCourses,
 		stats,
 		searchQuery,
@@ -103,6 +104,9 @@ export default function CourseModuleWorkspace({
 		updateCourse,
 		updateCourseStatus,
 		deleteCourse,
+		addTimetableSlot,
+		updateTimetableSlot,
+		deleteTimetableSlot,
 		addAllocation,
 		updateAllocation,
 		removeAllocation,
@@ -320,7 +324,14 @@ export default function CourseModuleWorkspace({
 						) : null}
 
 						{!isLoading && activePage === "timetable" ? (
-							<Timetable canManageTimetable={canManageTimetable} />
+							<Timetable
+								courses={courses}
+								slots={timelineSlots}
+								canManageTimetable={canManageTimetable}
+								onAddSlot={addTimetableSlot}
+								onUpdateSlot={updateTimetableSlot}
+								onDeleteSlot={deleteTimetableSlot}
+							/>
 						) : null}
 
 						{!isLoading && activePage === "hod-approval" && canReviewCourses ? (

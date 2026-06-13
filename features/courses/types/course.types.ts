@@ -22,10 +22,25 @@ export interface Course {
 }
 
 export interface TimetableEntry {
+  id?: string;
   day: string;
   time: string;
   course: string;
   code: string;
   room: string;
   level: Level;
+  mode?: Mode;
+  courseId?: string;
+}
+
+export interface TimelineSlot {
+  id: string;
+  code: string;
+  course: string;
+  day: string;
+  time: string;
+  room: string;
+  mode: Mode;
+  level: Level;
+  courseId?: string;
 }
