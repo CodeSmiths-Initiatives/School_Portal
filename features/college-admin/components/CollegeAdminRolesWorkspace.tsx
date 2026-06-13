@@ -194,6 +194,119 @@ function PermissionGrid({
 	);
 }
 
+function PermissionPicker({
+	permissionGroups,
+	selectedKeys,
+	onToggle,
+	readOnly,
+}: {
+	permissionGroups: Record<string, CollegeAdminPermission[]>;
+	selectedKeys: string[];
+	onToggle?: (key: string) => void;
+	readOnly?: boolean;
+}) {
+	const [permissionSearch, setPermissionSearch] = useState("");
+	const [moduleFilter, setModuleFilter] = useState("all");
+	const selectedSet = useMemo(() => new Set(selectedKeys), [selectedKeys]);
+	const moduleOptions = useMemo(
+		() => Object.keys(permissionGroups).sort((left, right) => left.localeCompare(right)),
+		[permissionGroups],
+	);
+	const filteredGroups = useMemo(() => {
+		const normalizedSearch = permissionSearch.trim().toLowerCase();
+
+		return Object.fromEntries(
+			Object.entries(permissionGroups)
+				.filter(([moduleName]) => moduleFilter === "all" || moduleName === moduleFilter)
+				.map(([moduleName, items]) => [
+					moduleName,
+					items.filter((permission) => {
+						if (readOnly && !selectedSet.has(permission.key)) {
+							return false;
+						}
+
+						const haystack = [
+							moduleName,
+							permission.key,
+							permission.label,
+							permission.module,
+							permission.action,
+							permission.description,
+						]
+							.join(" ")
+							.toLowerCase();
+
+						return !normalizedSearch || haystack.includes(normalizedSearch);
+					}),
+				])
+				.filter(([, items]) => items.length > 0),
+		) as Record<string, CollegeAdminPermission[]>;
+	}, [moduleFilter, permissionGroups, permissionSearch, readOnly, selectedSet]);
+	const filteredCount = useMemo(
+		() =>
+			Object.values(filteredGroups).reduce(
+				(total, items) => total + items.length,
+				0,
+			),
+		[filteredGroups],
+	);
+
+	function resetPermissionFilters() {
+		setPermissionSearch("");
+		setModuleFilter("all");
+	}
+
+	return (
+		<div className="space-y-4">
+			<div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_14rem_auto]">
+				<label className="relative">
+					<Search className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[#7b8faa]" />
+					<input
+						value={permissionSearch}
+						onChange={(event) => setPermissionSearch(event.target.value)}
+						placeholder="Search modules or permissions"
+						className="h-12 w-full rounded-2xl border border-[#d3dfed] bg-[#f8fbff] pl-11 pr-4 text-sm font-semibold text-[#0D2B55] outline-none transition focus:border-[#2E86C1]"
+					/>
+				</label>
+				<select
+					value={moduleFilter}
+					onChange={(event) => setModuleFilter(event.target.value)}
+					className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+				>
+					<option value="all">All modules</option>
+					{moduleOptions.map((option) => (
+						<option key={option} value={option}>
+							{option}
+						</option>
+					))}
+				</select>
+				<button
+					type="button"
+					onClick={resetPermissionFilters}
+					className="inline-flex h-12 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white px-4 text-xs font-black uppercase tracking-[0.12em] text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+				>
+					Reset
+				</button>
+			</div>
+			<p className="text-xs font-bold text-[#60728f]">
+				Showing {filteredCount} permission{filteredCount === 1 ? "" : "s"}.
+			</p>
+			{filteredCount === 0 ? (
+				<div className="rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] p-5 text-sm font-bold text-[#60728f]">
+					No permissions match this search.
+				</div>
+			) : (
+				<PermissionGrid
+					permissionGroups={filteredGroups}
+					selectedKeys={selectedKeys}
+					onToggle={onToggle}
+					readOnly={readOnly}
+				/>
+			)}
+		</div>
+	);
+}
+
 function RoleModal({
 	role,
 	mode,
@@ -331,7 +444,7 @@ function RoleModal({
 									No permissions assigned.
 								</div>
 							) : (
-								<PermissionGrid
+								<PermissionPicker
 									permissionGroups={permissionGroups}
 									selectedKeys={selectedKeys}
 									onToggle={onTogglePermission}
@@ -460,7 +573,7 @@ function CreateRoleModal({
 							</p>
 						</div>
 						<div className="p-4">
-							<PermissionGrid
+							<PermissionPicker
 								permissionGroups={permissionGroups}
 								selectedKeys={draft.permissionKeys}
 								onToggle={onTogglePermission}
