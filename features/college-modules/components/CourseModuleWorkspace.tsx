@@ -4,17 +4,14 @@ import {
 	BadgeCheck,
 	BookOpenCheck,
 	CalendarDays,
-	GraduationCap,
 	Layers3,
 	PanelLeftClose,
 	PanelLeftOpen,
-	PlusCircle,
 	ShieldCheck,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type ElementType } from "react";
 import AllocateToLevels from "@/features/courses/views/AllocateToLevels";
 import CourseDefinition from "@/features/courses/views/CourseDefinition";
-import DefineNewCourse from "@/features/courses/views/DefineNewCourse";
 import HodApproval from "@/features/courses/views/HodApproval";
 import Timetable from "@/features/courses/views/Timetable";
 import { usePortal } from "@/features/courses/utils/UsePortal";
@@ -46,13 +43,6 @@ const COURSE_MENU: CourseMenuItem[] = [
 		view: "courses-definitions",
 		icon: BookOpenCheck,
 		requiredPermissions: ["courses.view"],
-	},
-	{
-		label: "Define Course",
-		description: "Create course definitions for review",
-		view: "define-new-course",
-		icon: PlusCircle,
-		requiredPermissions: ["courses.create"],
 	},
 	{
 		label: "Level Allocation",
@@ -272,18 +262,8 @@ export default function CourseModuleWorkspace({
 								onStatusFilter={setStatusFilter}
 								activeLevel={activeLevel}
 								onLevelFilter={setActiveLevel}
-								onDefineNew={() => setActivePage("define-new-course")}
+								onDefineNew={addCourse}
 								canDefineCourse={canCreateCourse}
-							/>
-						) : null}
-
-						{activePage === "define-new-course" && canCreateCourse ? (
-							<DefineNewCourse
-								onSave={(course) => {
-									addCourse(course);
-									setActivePage("courses-definitions");
-								}}
-								onCancel={() => setActivePage("courses-definitions")}
 							/>
 						) : null}
 

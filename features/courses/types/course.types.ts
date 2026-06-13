@@ -1,5 +1,5 @@
 export type Role = 'Lecturer' | 'HOD' | 'Student';
-export type NavPage = 'courses-definitions' | 'define-new-course' | 'allocate-to-levels' | 'timetable' | 'hod-approval';
+export type NavPage = 'courses-definitions' | 'allocate-to-levels' | 'timetable' | 'hod-approval';
 export type CourseType = 'Core' | 'Elective' | 'Required' | 'Borrowed' | 'Carryover';
 export type CourseStatus = 'Pending' | 'Approved' | 'Rejected';
 export type Level = '100L' | '200L' | '300L' | '400L';

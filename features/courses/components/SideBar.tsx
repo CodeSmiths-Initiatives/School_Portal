@@ -16,7 +16,6 @@ const NAV_ITEMS = [
 		section: "MANAGEMENT",
 		items: [
 			{ key: "courses-definitions" as NavPage, label: "Courses Definitions" },
-			{ key: "define-new-course" as NavPage, label: "Define New Course" },
 			{ key: "allocate-to-levels" as NavPage, label: "Allocate to Levels" },
 			{ key: "timetable" as NavPage, label: "Timetable" },
 		],
