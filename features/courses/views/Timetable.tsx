@@ -1,63 +1,80 @@
 "use client";
 
-import { useState } from "react";
-import { TIMETABLE, DAYS } from "../utils/data";
-import { Level } from "../types/course.types";
-import { Button } from "@/components/ui/button";
-
-// ─── Time slots shown as row headers ─────────────────────────────────────────
-const TIME_SLOTS = [
-	"8:00-10:00",
-	"10:00-12:00",
-	"12:00-14:00",
-	"14:00-16:00",
-	"16:00-18:00",
-];
-
-// Display label with space before dash (matches screenshot "8:00 10:00")
-function formatTime(slot: string) {
-	return slot.replace("-", " ");
-}
-
-// ─── Card color per mode ──────────────────────────────────────────────────────
-const MODE_CARD: Record<
-	string,
-	{ bg: string; code: string; title: string; venue: string; dot: string }
-> = {
-	"On-Site": {
-		bg: "bg-[#e8f8f4] border border-[#b2e4d8]",
-		code: "text-[#0d7f63] font-bold text-xs",
-		title: "text-[#0d7f63] text-xs",
-		venue: "text-[#e05252]",
-		dot: "bg-[#e05252]",
-	},
-	Online: {
-		bg: "bg-[#e8eef8] border border-[#b2c4e8]",
-		code: "text-[#2d4e9e] font-bold text-xs",
-		title: "text-[#2d4e9e] text-xs",
-		venue: "text-[#2d7fd4]",
-		dot: "bg-[#2d7fd4]",
-	},
-	Hybrid: {
-		bg: "bg-[#f3eef8] border border-[#d0b8e8]",
-		code: "text-[#6b2da0] font-bold text-xs",
-		title: "text-[#6b2da0] text-xs",
-		venue: "text-[#8b4fc8]",
-		dot: "bg-[#8b4fc8]",
-	},
-};
+import {
+	CalendarClock,
+	Filter,
+	Layers3,
+	MapPin,
+	MonitorPlay,
+	Plus,
+	Search,
+	Users,
+	X,
+} from "lucide-react";
+import { useMemo, useState } from "react";
+import type { Level, Mode } from "../types/course.types";
+import { DAYS, TIMETABLE } from "../utils/data";
 
 const LEVELS: Level[] = ["100L", "200L", "300L", "400L"];
+const MODES: Array<Mode | "All Modes"> = ["All Modes", "On-Site", "Online", "Hybrid"];
 
-// ─── Add Slot modal ───────────────────────────────────────────────────────────
-interface SlotForm {
+type TimelineSlot = {
+	id: string;
 	code: string;
-	title: string;
+	course: string;
 	day: string;
 	time: string;
 	room: string;
-	mode: string;
+	mode: Mode;
 	level: Level;
+};
+
+type SlotForm = Omit<TimelineSlot, "id">;
+
+function normaliseTime(value: string) {
+	return value.replace(/\s/g, "").replace(/–|—/g, "-");
+}
+
+function formatTime(value: string) {
+	return value.replace("-", " - ");
+}
+
+function modeTone(mode: Mode) {
+	if (mode === "Online") {
+		return {
+			card: "border-sky-200 bg-sky-50 text-sky-800",
+			icon: "bg-sky-100 text-sky-700",
+		};
+	}
+
+	if (mode === "Hybrid") {
+		return {
+			card: "border-violet-200 bg-violet-50 text-violet-800",
+			icon: "bg-violet-100 text-violet-700",
+		};
+	}
+
+	return {
+		card: "border-emerald-200 bg-emerald-50 text-emerald-800",
+		icon: "bg-emerald-100 text-emerald-700",
+	};
+}
+
+function Field({
+	label,
+	children,
+}: {
+	label: string;
+	children: React.ReactNode;
+}) {
+	return (
+		<label className="space-y-2">
+			<span className="block text-[10px] font-black uppercase tracking-[0.2em] text-[#8395AF]">
+				{label}
+			</span>
+			{children}
+		</label>
+	);
 }
 
 function AddSlotModal({
@@ -69,184 +86,142 @@ function AddSlotModal({
 }) {
 	const [form, setForm] = useState<SlotForm>({
 		code: "",
-		title: "",
+		course: "",
 		day: "Monday",
-		time: "8:00-10:00",
+		time: "08:00-10:00",
 		room: "",
 		mode: "On-Site",
 		level: "200L",
 	});
 
-	const sel = `w-full border border-[#dce6f2] rounded-xl px-3 py-2.5 text-sm text-[#1a2b52]
-		bg-white outline-none focus:border-[#3d5a9e] appearance-none`;
-	const inp = `w-full border border-[#dce6f2] rounded-xl px-3 py-2.5 text-sm text-[#1a2b52]
-		bg-white placeholder:text-[#b0bcd4] outline-none focus:border-[#3d5a9e]`;
+	const inputClass =
+		"h-12 w-full rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none transition focus:border-[#2E86C1]";
 
-	function F({
-		label,
-		children,
-	}: {
-		label: string;
-		children: React.ReactNode;
-	}) {
-		return (
-			<div className="flex flex-col gap-1">
-				<label className="text-[10px] font-bold tracking-widest text-[#4a5a7a] uppercase">
-					{label}
-				</label>
-				{children}
-			</div>
-		);
+	function update<K extends keyof SlotForm>(key: K, value: SlotForm[K]) {
+		setForm((current) => ({ ...current, [key]: value }));
 	}
 
 	return (
-		<div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center px-4">
-			<div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-7">
-				<div className="flex items-center justify-between mb-5">
-					<h3 className="text-base font-bold text-[#1a2b52]">
-						Add Timetable Slot
-					</h3>
+		<div className="fixed inset-0 z-50 flex items-center justify-center bg-[#06172f]/60 p-4 backdrop-blur-sm">
+			<div className="max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-3xl border border-[#dbe5f1] bg-white shadow-[0_30px_80px_rgba(6,23,47,0.35)]">
+				<div className="flex items-start justify-between gap-4 border-b border-[#dbe5f1] bg-[#0D2B55] px-5 py-5 text-white sm:px-6">
+					<div>
+						<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#E4A11B]">
+							Course Timeline
+						</p>
+						<h2 className="mt-2 text-xl font-black sm:text-2xl">
+							Add timetable slot
+						</h2>
+						<p className="mt-1 text-sm font-semibold text-[#c5d4e8]">
+							Create a local preview slot for the weekly teaching calendar.
+						</p>
+					</div>
 					<button
+						type="button"
 						onClick={onClose}
-						className="w-8 h-8 rounded-lg border border-[#dce6f2] flex items-center justify-center text-[#8a9ab5] hover:text-[#1a2b52] text-sm"
+						className="flex size-10 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition hover:bg-white hover:text-[#0D2B55]"
+						aria-label="Close add slot form"
 					>
-						✕
+						<X className="size-5" />
 					</button>
 				</div>
 
-				<div className="flex flex-col gap-4">
-					<div className="grid grid-cols-2 gap-3">
-						<F label="Course Code">
+				<div className="max-h-[calc(90vh-8rem)] overflow-y-auto p-5 sm:p-6">
+					<div className="grid gap-4 md:grid-cols-2">
+						<Field label="Course code">
 							<input
-								className={inp}
-								placeholder="e.g. CSC301"
 								value={form.code}
-								onChange={(e) =>
-									setForm((p) => ({ ...p, code: e.target.value }))
-								}
+								onChange={(event) => update("code", event.target.value)}
+								placeholder="CSC301"
+								className={inputClass}
 							/>
-						</F>
-						<F label="Course Title">
+						</Field>
+						<Field label="Course title">
 							<input
-								className={inp}
-								placeholder="e.g. Software Eng."
-								value={form.title}
-								onChange={(e) =>
-									setForm((p) => ({ ...p, title: e.target.value }))
-								}
+								value={form.course}
+								onChange={(event) => update("course", event.target.value)}
+								placeholder="Software Engineering"
+								className={inputClass}
 							/>
-						</F>
+						</Field>
+						<Field label="Day">
+							<select
+								value={form.day}
+								onChange={(event) => update("day", event.target.value)}
+								className={inputClass}
+							>
+								{DAYS.map((day) => (
+									<option key={day} value={day}>
+										{day}
+									</option>
+								))}
+							</select>
+						</Field>
+						<Field label="Time">
+							<input
+								value={form.time}
+								onChange={(event) => update("time", normaliseTime(event.target.value))}
+								placeholder="10:00-12:00"
+								className={inputClass}
+							/>
+						</Field>
+						<Field label="Level">
+							<select
+								value={form.level}
+								onChange={(event) => update("level", event.target.value as Level)}
+								className={inputClass}
+							>
+								{LEVELS.map((level) => (
+									<option key={level} value={level}>
+										{level}
+									</option>
+								))}
+							</select>
+						</Field>
+						<Field label="Mode">
+							<select
+								value={form.mode}
+								onChange={(event) => update("mode", event.target.value as Mode)}
+								className={inputClass}
+							>
+								{MODES.filter((mode) => mode !== "All Modes").map((mode) => (
+									<option key={mode} value={mode}>
+										{mode}
+									</option>
+								))}
+							</select>
+						</Field>
+						<div className="md:col-span-2">
+							<Field label="Venue or link">
+								<input
+									value={form.room}
+									onChange={(event) => update("room", event.target.value)}
+									placeholder="LT 2, Block A, or Online"
+									className={inputClass}
+								/>
+							</Field>
+						</div>
 					</div>
-					<div className="grid grid-cols-2 gap-3">
-						<F label="Day">
-							<div className="relative">
-								<select
-									className={sel}
-									value={form.day}
-									onChange={(e) =>
-										setForm((p) => ({ ...p, day: e.target.value }))
-									}
-								>
-									{DAYS.map((d) => (
-										<option key={d} value={d}>
-											{d}
-										</option>
-									))}
-								</select>
-								<span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8a9ab5] pointer-events-none text-xs">
-									▾
-								</span>
-							</div>
-						</F>
-						<F label="Time Slot">
-							<div className="relative">
-								<select
-									className={sel}
-									value={form.time}
-									onChange={(e) =>
-										setForm((p) => ({ ...p, time: e.target.value }))
-									}
-								>
-									{TIME_SLOTS.map((t) => (
-										<option key={t} value={t}>
-											{t}
-										</option>
-									))}
-								</select>
-								<span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8a9ab5] pointer-events-none text-xs">
-									▾
-								</span>
-							</div>
-						</F>
-					</div>
-					<div className="grid grid-cols-2 gap-3">
-						<F label="Mode">
-							<div className="relative">
-								<select
-									className={sel}
-									value={form.mode}
-									onChange={(e) =>
-										setForm((p) => ({ ...p, mode: e.target.value }))
-									}
-								>
-									{["On-Site", "Online", "Hybrid"].map((m) => (
-										<option key={m} value={m}>
-											{m}
-										</option>
-									))}
-								</select>
-								<span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8a9ab5] pointer-events-none text-xs">
-									▾
-								</span>
-							</div>
-						</F>
-						<F label="Level">
-							<div className="relative">
-								<select
-									className={sel}
-									value={form.level}
-									onChange={(e) =>
-										setForm((p) => ({ ...p, level: e.target.value as Level }))
-									}
-								>
-									{LEVELS.map((l) => (
-										<option key={l} value={l}>
-											{l}
-										</option>
-									))}
-								</select>
-								<span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8a9ab5] pointer-events-none text-xs">
-									▾
-								</span>
-							</div>
-						</F>
-					</div>
-					<F label="Venue / Room">
-						<input
-							className={inp}
-							placeholder="e.g. LT2, Block A"
-							value={form.room}
-							onChange={(e) => setForm((p) => ({ ...p, room: e.target.value }))}
-						/>
-					</F>
 
-					<div className="flex gap-3 pt-1">
+					<div className="mt-6 flex flex-col-reverse gap-3 border-t border-[#dbe5f1] pt-5 sm:flex-row sm:justify-end">
 						<button
-							disabled={!form.code.trim() || !form.title.trim()}
+							type="button"
+							onClick={onClose}
+							className="h-12 rounded-2xl border border-[#d3dfed] bg-white px-5 text-sm font-black text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+						>
+							Cancel
+						</button>
+						<button
+							type="button"
+							disabled={!form.code.trim() || !form.course.trim()}
 							onClick={() => {
 								onAdd(form);
 								onClose();
 							}}
-							className="flex-1 py-3 rounded-xl bg-[#3d5a9e] hover:bg-[#2d4a8e]
-								disabled:opacity-40 text-white text-sm font-bold transition-all"
+							className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] px-5 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.18)] transition hover:-translate-y-0.5 hover:bg-[#123866] disabled:cursor-not-allowed disabled:opacity-40"
 						>
+							<Plus className="size-4" />
 							Add Slot
-						</button>
-						<button
-							onClick={onClose}
-							className="flex-1 py-3 rounded-xl border-2 border-[#dce6f2] text-[#4a5a7a] text-sm font-semibold hover:border-[#8a9ab5] transition-colors"
-						>
-							Cancel
 						</button>
 					</div>
 				</div>
@@ -255,240 +230,321 @@ function AddSlotModal({
 	);
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
 export default function Timetable({
 	canManageTimetable = true,
 }: {
 	canManageTimetable?: boolean;
 }) {
-	// Normalise TIMETABLE entries into a lookup: day → time → entries[]
-	type TEntry = {
-		code: string;
-		course: string;
-		room: string;
-		level: Level;
-		mode: string;
-		day: string;
-		time: string;
-	};
-
-	const [slots, setSlots] = useState<TEntry[]>(() =>
-		TIMETABLE.map((t) => ({
-			code: t.code,
-			course: t.course,
-			room: t.room,
-			level: t.level as Level,
-			mode: t.room.toLowerCase() === "online" ? "Online" : "On-Site",
-			day: t.day,
-			// normalise time format to match TIME_SLOTS keys
-			time: t.time.replace(/\s/g, "").replace("–", "-").replace("—", "-"),
+	const [slots, setSlots] = useState<TimelineSlot[]>(() =>
+		TIMETABLE.map((slot, index) => ({
+			...slot,
+			id: `slot-${index + 1}`,
+			time: normaliseTime(slot.time),
+			mode: slot.room.toLowerCase() === "online" ? "Online" : "On-Site",
 		})),
 	);
-
-	const [levelFilter, setLevelFilter] = useState<Level | "All Levels">(
-		"All Levels",
-	);
+	const [levelFilter, setLevelFilter] = useState<Level | "All Levels">("All Levels");
+	const [modeFilter, setModeFilter] = useState<Mode | "All Modes">("All Modes");
+	const [searchQuery, setSearchQuery] = useState("");
 	const [showModal, setShowModal] = useState(false);
 
-	function addSlot(form: {
-		code: string;
-		title: string;
-		day: string;
-		time: string;
-		room: string;
-		mode: string;
-		level: Level;
-	}) {
-		setSlots((prev) => [
-			...prev,
+	const timeSlots = useMemo(
+		() =>
+			Array.from(new Set(slots.map((slot) => slot.time))).sort((a, b) =>
+				a.localeCompare(b),
+			),
+		[slots],
+	);
+
+	const filteredSlots = useMemo(() => {
+		const query = searchQuery.trim().toLowerCase();
+
+		return slots.filter((slot) => {
+			const levelMatch = levelFilter === "All Levels" || slot.level === levelFilter;
+			const modeMatch = modeFilter === "All Modes" || slot.mode === modeFilter;
+			const queryMatch =
+				!query ||
+				[slot.code, slot.course, slot.room, slot.day, slot.level]
+					.join(" ")
+					.toLowerCase()
+					.includes(query);
+
+			return levelMatch && modeMatch && queryMatch;
+		});
+	}, [levelFilter, modeFilter, searchQuery, slots]);
+
+	const analytics = useMemo(
+		() => [
 			{
-				code: form.code,
-				course: form.title,
-				room: form.room,
-				level: form.level,
-				mode: form.mode,
-				day: form.day,
-				time: form.time,
+				label: "Weekly Slots",
+				value: slots.length,
+				note: "Scheduled teaching periods",
+				icon: CalendarClock,
+			},
+			{
+				label: "Active Levels",
+				value: new Set(slots.map((slot) => slot.level)).size,
+				note: "Levels with classes",
+				icon: Layers3,
+			},
+			{
+				label: "On-site Rooms",
+				value: slots.filter((slot) => slot.mode === "On-Site").length,
+				note: "Physical class periods",
+				icon: MapPin,
+			},
+			{
+				label: "Online Slots",
+				value: slots.filter((slot) => slot.mode === "Online").length,
+				note: "Virtual class periods",
+				icon: MonitorPlay,
+			},
+		],
+		[slots],
+	);
+
+	function addSlot(form: SlotForm) {
+		setSlots((current) => [
+			...current,
+			{
+				...form,
+				id: `slot-${Date.now()}`,
+				time: normaliseTime(form.time),
 			},
 		]);
 	}
 
-	// Get entries for a specific cell
-	function getCell(day: string, timeSlot: string): TEntry[] {
-		return slots.filter((s) => {
-			const dayMatch = s.day === day;
-			// loose time match — compare normalised
-			const norm = (v: string) => v.replace(/\s/g, "");
-			const timeMatch = norm(s.time) === norm(timeSlot);
-			const levelMatch =
-				levelFilter === "All Levels" || s.level === levelFilter;
-			return dayMatch && timeMatch && levelMatch;
-		});
+	function clearFilters() {
+		setLevelFilter("All Levels");
+		setModeFilter("All Modes");
+		setSearchQuery("");
+	}
+
+	function getCellSlots(day: string, time: string) {
+		return filteredSlots.filter((slot) => slot.day === day && slot.time === time);
 	}
 
 	return (
-		<div className="flex flex-col gap-5">
-			<div className="flex flex-wrap items-start justify-between gap-3">
-				<div>
-					<h2 className="text-2xl text-black font-semibold mb-1">
-						Weekly Timetable
-					</h2>
-					<p className="text-xs text-[#8a9ab5]">
-						Dept. of Computer Science · 2025/2026
-					</p>
-				</div>
-				<div>
-					<Button className="border border-[#dce6f2] rounded-full px-4 py-1.5 text-xs font-bold text-[#4a5a7a] bg-white mt-1">
-						2025/2026
-					</Button>
-				</div>
-			</div>
-			{/* Page heading */}
-			<div className="flex flex-wrap items-start justify-between gap-3">
-				<div>
-					<h1 className="text-2xl font-bold text-[#1a2b52] mt-1">
-						Weekly Timetable
-					</h1>
-					<p className="text-xs text-[#8a9ab5] mt-0.5">
-						Course schedule grid — Approved courses only
-					</p>
-				</div>
-			</div>
-
-			{/* Controls row: legend + level filter + add slot */}
-			<div className="flex items-center justify-between flex-wrap gap-3">
-				{/* Legend */}
-				<div className="flex items-center gap-3">
-					<span className="flex items-center gap-1.5 text-xs font-semibold text-[#0d7f63] bg-[#e8f8f4] border border-[#b2e4d8] px-3 py-1.5 rounded-full">
-						<span className="w-2 h-2 rounded-full bg-[#0d7f63]" />
-						On-Site Class
-					</span>
-					<span className="flex items-center gap-1.5 text-xs font-semibold text-[#2d4e9e] bg-[#e8eef8] border border-[#b2c4e8] px-3 py-1.5 rounded-full">
-						<span className="w-2 h-2 rounded-full bg-[#2d4e9e]" />
-						Online Class
-					</span>
-				</div>
-
-				{/* Right: filter + button */}
-				<div className="flex items-center gap-3">
-					<div className="relative">
-						<select
-							value={levelFilter}
-							onChange={(e) =>
-								setLevelFilter(e.target.value as Level | "All Levels")
-							}
-							className="border border-[#dce6f2] rounded-xl px-4 py-2.5 text-sm text-[#1a2b52]
-								bg-white outline-none focus:border-[#3d5a9e] appearance-none pr-8 cursor-pointer"
-						>
-							<option value="All Levels">All Levels</option>
-							{LEVELS.map((l) => (
-								<option key={l} value={l}>
-									{l}
-								</option>
-							))}
-						</select>
-						<span className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8a9ab5] pointer-events-none text-xs">
-							▾
-						</span>
+		<section className="space-y-5">
+			<div className="rounded-3xl border border-[#d7e2f0] bg-white p-5 shadow-[0_18px_45px_rgba(13,43,85,0.08)] sm:p-6">
+				<div className="flex flex-wrap items-start justify-between gap-4">
+					<div>
+						<p className="text-[11px] font-black uppercase tracking-[0.28em] text-[#B7770D]">
+							Course Timeline
+						</p>
+						<h2 className="mt-2 text-2xl font-black text-[#06183A]">
+							Weekly course calendar
+						</h2>
+						<p className="mt-2 max-w-3xl text-sm leading-7 text-[#556987]">
+							Track teaching slots across levels, delivery modes, rooms, and
+							weekday patterns before backend timetable publishing is connected.
+						</p>
 					</div>
 					{canManageTimetable ? (
 						<button
+							type="button"
 							onClick={() => setShowModal(true)}
-							className="flex items-center gap-1.5 bg-[#0D2B55] hover:bg-[#092244] text-white
-								text-xs font-bold px-5 py-2.5 rounded-xl transition-all shadow-sm shadow-[#0D2B55]/20"
+							className="inline-flex h-12 items-center gap-2 rounded-2xl bg-[#0D2B55] px-5 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.18)] transition hover:-translate-y-0.5 hover:bg-[#123866]"
 						>
-							+ Add Slot
+							<Plus className="size-4" />
+							Add Slot
 						</button>
-					) : null}
+					) : (
+						<span className="rounded-full border border-[#dce6f2] bg-white px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-[#6b7e9f]">
+							View-only timeline
+						</span>
+					)}
+				</div>
+
+				<div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+					{analytics.map((item) => {
+						const Icon = item.icon;
+
+						return (
+							<div
+								key={item.label}
+								className="group rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] p-4 transition duration-300 hover:-translate-y-1 hover:border-[#b9c9dc] hover:bg-white hover:shadow-[0_18px_35px_rgba(13,43,85,0.08)]"
+							>
+								<div className="flex items-center justify-between gap-3">
+									<p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8395AF]">
+										{item.label}
+									</p>
+									<span className="flex size-10 items-center justify-center rounded-2xl bg-white text-[#0D2B55] shadow-sm transition group-hover:bg-[#0D2B55] group-hover:text-white">
+										<Icon className="size-4" />
+									</span>
+								</div>
+								<p className="mt-3 text-3xl font-black text-[#0D2B55]">
+									{item.value}
+								</p>
+								<p className="mt-1 text-sm font-semibold text-[#60728f]">
+									{item.note}
+								</p>
+							</div>
+						);
+					})}
 				</div>
 			</div>
 
-			{/* ── Calendar grid ── */}
-			<div className="overflow-x-auto rounded-2xl border border-[#e4eaf4] bg-white shadow-sm">
-				{/* Column headers */}
-				<div className="grid min-w-[920px] grid-cols-[90px_1fr_1fr_1fr_1fr_1fr]">
-					{/* Time header */}
-					<div className="bg-[#0d1b3e] px-4 py-3.5 flex items-center justify-center border-r border-white/10">
-						<span className="text-xs font-bold text-white/70 uppercase tracking-widest">
-							Time
-						</span>
+			<div className="rounded-3xl border border-[#d7e2f0] bg-white p-4 shadow-[0_18px_45px_rgba(13,43,85,0.08)] sm:p-5">
+				<div className="flex flex-wrap items-center justify-between gap-3">
+					<div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.24em] text-[#B7770D]">
+						<Filter className="size-4" />
+						Filters
 					</div>
-					{/* Day headers */}
-					{DAYS.map((day) => (
-						<div
-							key={day}
-							className="bg-[#0d1b3e] px-4 py-3.5 text-center border-r border-white/10 last:border-0"
-						>
-							<span className="text-sm font-bold text-white">{day}</span>
-						</div>
-					))}
+					<button
+						type="button"
+						onClick={clearFilters}
+						className="inline-flex h-10 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white px-4 text-xs font-black uppercase tracking-[0.12em] text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+					>
+						Reset filters
+					</button>
 				</div>
 
-				{/* Time rows */}
-				{TIME_SLOTS.map((slot, rowIdx) => (
-					<div
-						key={slot}
-						className={`grid min-w-[920px] grid-cols-[90px_1fr_1fr_1fr_1fr_1fr] border-t border-[#eef3fb]
-							${rowIdx % 2 === 0 ? "bg-white" : "bg-[#fafbff]"}`}
-						style={{ minHeight: "80px" }}
+				<div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+					<label className="relative xl:col-span-2">
+						<Search className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[#7b8faa]" />
+						<input
+							value={searchQuery}
+							onChange={(event) => setSearchQuery(event.target.value)}
+							placeholder="Search course, code, room, level"
+							className="h-12 w-full rounded-2xl border border-[#d3dfed] bg-[#f8fbff] pl-11 pr-4 text-sm font-semibold text-[#0D2B55] outline-none transition focus:border-[#2E86C1]"
+						/>
+					</label>
+					<select
+						value={levelFilter}
+						onChange={(event) =>
+							setLevelFilter(event.target.value as Level | "All Levels")
+						}
+						className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
 					>
-						{/* Time label */}
-						<div className="px-3 py-3 flex items-start justify-center border-r border-[#eef3fb]">
-							<span className="text-xs font-semibold text-[#8a9ab5] text-center leading-tight">
-								{formatTime(slot)}
-							</span>
-						</div>
+						<option value="All Levels">All levels</option>
+						{LEVELS.map((level) => (
+							<option key={level} value={level}>
+								{level}
+							</option>
+						))}
+					</select>
+					<select
+						value={modeFilter}
+						onChange={(event) =>
+							setModeFilter(event.target.value as Mode | "All Modes")
+						}
+						className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+					>
+						{MODES.map((mode) => (
+							<option key={mode} value={mode}>
+								{mode}
+							</option>
+						))}
+					</select>
+				</div>
+			</div>
 
-						{/* Day cells */}
-						{DAYS.map((day) => {
-							const entries = getCell(day, slot);
-							return (
+			<div className="overflow-hidden rounded-3xl border border-[#d7e2f0] bg-white shadow-[0_18px_45px_rgba(13,43,85,0.08)]">
+				<div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#dbe5f1] px-4 py-4 sm:px-5">
+					<div>
+						<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#B7770D]">
+							Calendar
+						</p>
+						<p className="mt-1 text-sm font-semibold text-[#60728f]">
+							Showing {filteredSlots.length} of {slots.length} timeline slots
+						</p>
+					</div>
+					<div className="flex items-center gap-2 rounded-full border border-[#dbe5f1] bg-[#f8fbff] px-4 py-2 text-xs font-black text-[#0D2B55]">
+						<Users className="size-4" />
+						2025/2026 Session
+					</div>
+				</div>
+
+				<div className="overflow-x-auto">
+					<div className="min-w-[1040px]">
+						<div className="grid grid-cols-[8rem_repeat(5,minmax(11rem,1fr))] bg-[#0D2B55] text-white">
+							<div className="border-r border-white/10 px-4 py-4 text-[10px] font-black uppercase tracking-[0.22em] text-white/70">
+								Time
+							</div>
+							{DAYS.map((day) => (
 								<div
 									key={day}
-									className="px-2 py-2 border-r border-[#eef3fb] last:border-0 flex flex-col gap-1.5 min-h-[80px]"
+									className="border-r border-white/10 px-4 py-4 text-sm font-black last:border-r-0"
 								>
-									{entries.map((entry, i) => {
-										const style = MODE_CARD[entry.mode] ?? MODE_CARD["On-Site"];
-										const isOnline = entry.mode === "Online";
-										return (
-											<div
-												key={i}
-												className={`${style.bg} rounded-xl px-3 py-2.5 flex flex-col gap-1`}
-											>
-												<span className={style.code}>{entry.code}</span>
-												<span className={style.title}>{entry.course}</span>
-												<div className="flex items-center gap-1 mt-0.5">
-													{isOnline ? (
-														<span
-															className={`text-[10px] ${style.venue} flex items-center gap-1`}
-														>
-															<span>🌐</span> Online
-														</span>
-													) : (
-														<span
-															className={`text-[10px] ${style.venue} flex items-center gap-1`}
-														>
-															<span
-																className={`w-1.5 h-1.5 rounded-full ${style.dot} shrink-0`}
-															/>
-															{entry.room}
-														</span>
-													)}
-												</div>
-											</div>
-										);
-									})}
+									{day}
 								</div>
-							);
-						})}
+							))}
+						</div>
+
+						{timeSlots.map((time, index) => (
+							<div
+								key={time}
+								className={`grid grid-cols-[8rem_repeat(5,minmax(11rem,1fr))] border-t border-[#dbe5f1] ${
+									index % 2 === 0 ? "bg-white" : "bg-[#fbfdff]"
+								}`}
+							>
+								<div className="border-r border-[#dbe5f1] px-4 py-4">
+									<p className="text-xs font-black text-[#0D2B55]">
+										{formatTime(time)}
+									</p>
+								</div>
+								{DAYS.map((day) => {
+									const entries = getCellSlots(day, time);
+
+									return (
+										<div
+											key={`${day}-${time}`}
+											className="min-h-32 border-r border-[#dbe5f1] p-3 last:border-r-0"
+										>
+											<div className="space-y-2">
+												{entries.map((entry) => {
+													const tone = modeTone(entry.mode);
+
+													return (
+														<div
+															key={entry.id}
+															className={`rounded-2xl border p-3 shadow-sm transition duration-300 hover:-translate-y-0.5 hover:shadow-md ${tone.card}`}
+														>
+															<div className="flex items-start justify-between gap-2">
+																<div>
+																	<p className="text-xs font-black">{entry.code}</p>
+																	<p className="mt-1 text-sm font-black leading-5">
+																		{entry.course}
+																	</p>
+																</div>
+																<span
+																	className={`flex size-8 shrink-0 items-center justify-center rounded-xl ${tone.icon}`}
+																>
+																	{entry.mode === "Online" ? (
+																		<MonitorPlay className="size-4" />
+																	) : (
+																		<MapPin className="size-4" />
+																	)}
+																</span>
+															</div>
+															<div className="mt-3 flex flex-wrap gap-2 text-[11px] font-black">
+																<span className="rounded-full bg-white/75 px-2.5 py-1">
+																	{entry.level}
+																</span>
+																<span className="rounded-full bg-white/75 px-2.5 py-1">
+																	{entry.mode}
+																</span>
+																<span className="rounded-full bg-white/75 px-2.5 py-1">
+																	{entry.room || "Venue TBD"}
+																</span>
+															</div>
+														</div>
+													);
+												})}
+											</div>
+										</div>
+									);
+								})}
+							</div>
+						))}
 					</div>
-				))}
+				</div>
 			</div>
 
-			{/* Add Slot modal */}
-			{showModal && (
+			{showModal ? (
 				<AddSlotModal onAdd={addSlot} onClose={() => setShowModal(false)} />
-			)}
-		</div>
+			) : null}
+		</section>
 	);
 }

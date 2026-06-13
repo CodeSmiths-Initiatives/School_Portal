@@ -1,7 +1,18 @@
 "use client";
 
-import { useState } from "react";
-import { Course, CourseStatus } from "../types/course.types";
+import {
+	BadgeCheck,
+	CheckCircle2,
+	Eye,
+	Filter,
+	Search,
+	ShieldQuestion,
+	Timer,
+	X,
+	XCircle,
+} from "lucide-react";
+import { useMemo, useState } from "react";
+import type { Course, CourseStatus, CourseType } from "../types/course.types";
 
 interface Props {
 	courses: Course[];
@@ -9,442 +20,606 @@ interface Props {
 	canReviewCourses?: boolean;
 }
 
-// ─── Icon color per course type ───────────────────────────────────────────────
-const ICON_STYLE: Record<string, { bg: string; emoji: string }> = {
-	Core: { bg: "bg-blue-100", emoji: "📘" },
-	Elective: { bg: "bg-purple-100", emoji: "🎯" },
-	Required: { bg: "bg-green-100", emoji: "✅" },
-	Borrowed: { bg: "bg-orange-100", emoji: "📋" },
+type StatusFilter = CourseStatus | "All Status";
+type TypeFilter = CourseType | "All Types";
+type DecisionAction = "Approved" | "Rejected";
+type DecisionTarget = {
+	action: DecisionAction;
+	course: Course;
 };
 
-// ─── Pill colors ──────────────────────────────────────────────────────────────
-const TYPE_PILL: Record<string, string> = {
-	Core: "bg-teal-100 text-teal-700",
-	Elective: "bg-purple-100 text-purple-600",
-	Required: "bg-red-100 text-red-600",
-	Borrowed: "bg-orange-100 text-orange-600",
-};
+const STATUS_OPTIONS: StatusFilter[] = [
+	"All Status",
+	"Pending",
+	"Approved",
+	"Rejected",
+];
+const TYPE_OPTIONS: TypeFilter[] = [
+	"All Types",
+	"Core",
+	"Elective",
+	"Required",
+	"Borrowed",
+	"Carryover",
+];
 
-const MODE_PILL: Record<string, string> = {
-	"On-Site": "bg-[#e8f5e9] text-[#2e7d32]",
-	Online: "bg-[#e3f2fd] text-[#1565c0]",
-	Hybrid: "bg-[#f3e5f5] text-[#6a1b9a]",
-};
+function statusPill(status: CourseStatus) {
+	const tone =
+		status === "Approved"
+			? "border-emerald-200 bg-emerald-50 text-emerald-700"
+			: status === "Rejected"
+				? "border-red-200 bg-red-50 text-red-700"
+				: "border-amber-200 bg-amber-50 text-amber-700";
 
-const STATUS_PILL: Record<string, string> = {
-	Pending: "text-amber-600",
-	Approved: "text-emerald-600",
-	Rejected: "text-red-600",
-};
+	return `rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${tone}`;
+}
 
-type FilterTab = "Pending" | "Approved" | "Rejected";
+function typePill(type: CourseType) {
+	const tone =
+		type === "Core"
+			? "border-sky-200 bg-sky-50 text-sky-700"
+			: type === "Elective"
+				? "border-indigo-200 bg-indigo-50 text-indigo-700"
+				: type === "Required"
+					? "border-purple-200 bg-purple-50 text-purple-700"
+					: type === "Borrowed"
+						? "border-amber-200 bg-amber-50 text-amber-700"
+						: "border-slate-200 bg-slate-50 text-slate-700";
 
-// ─── View Details Modal ───────────────────────────────────────────────────────
-function DetailsModal({
+	return `rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${tone}`;
+}
+
+function DetailItem({ label, value }: { label: string; value: string }) {
+	return (
+		<div className="rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] p-3">
+			<p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8395AF]">
+				{label}
+			</p>
+			<p className="mt-1 break-words text-sm font-black text-[#0D2B55]">
+				{value || "Not provided"}
+			</p>
+		</div>
+	);
+}
+
+function CourseViewModal({
 	course,
 	onClose,
-	onApprove,
-	onReject,
+	onDecision,
 	canReviewCourses,
 }: {
-	course: Course;
+	course: Course | null;
 	onClose: () => void;
-	onApprove: () => void;
-	onReject: () => void;
+	onDecision: (action: DecisionAction, course: Course) => void;
 	canReviewCourses: boolean;
 }) {
+	if (!course) {
+		return null;
+	}
+
+	const rows = [
+		["Course Code", course.code],
+		["Department", course.department],
+		["Type", course.type],
+		["Credit Units", `${course.units} Units`],
+		["Levels", course.levels.join(", ")],
+		["Mode", course.mode],
+		["Schedule", course.schedule],
+		["Submitted By", course.lecturer],
+		["Status", course.status],
+	];
+
 	return (
-		<div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-4">
-			<div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
-				{/* Modal header */}
-				<div className="flex items-center justify-between px-6 py-5 border-b border-[#f0f5fb]">
-					<h3 className="text-base font-bold text-[#1a2b52]">
-						{course.code} — {course.title}
-					</h3>
+		<div className="fixed inset-0 z-50 flex items-center justify-center bg-[#06172f]/60 p-4 backdrop-blur-sm">
+			<div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-3xl border border-[#dbe5f1] bg-white shadow-[0_30px_80px_rgba(6,23,47,0.35)]">
+				<div className="flex items-start justify-between gap-4 border-b border-[#dbe5f1] bg-[#0D2B55] px-5 py-5 text-white sm:px-6">
+					<div>
+						<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#E4A11B]">
+							HOD Approval
+						</p>
+						<h2 className="mt-2 text-xl font-black sm:text-2xl">
+							{course.title}
+						</h2>
+						<p className="mt-1 text-sm font-semibold text-[#c5d4e8]">
+							{course.code} - {course.department}
+						</p>
+					</div>
 					<button
+						type="button"
 						onClick={onClose}
-						className="w-8 h-8 rounded-lg border border-[#dce6f2] flex items-center justify-center
-              text-[#8a9ab5] hover:text-[#1a2b52] text-sm transition-colors"
+						className="flex size-10 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition hover:bg-white hover:text-[#0D2B55]"
+						aria-label="Close course details"
 					>
-						×
+						<X className="size-5" />
 					</button>
 				</div>
 
-				<div className="px-6 py-5 flex flex-col gap-4">
-					{/* Tags */}
+				<div className="max-h-[calc(90vh-8rem)] overflow-y-auto p-5 sm:p-6">
 					<div className="flex flex-wrap gap-2">
-						<span
-							className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${TYPE_PILL[course.type]}`}
-						>
-							{course.type.toLowerCase()}
-						</span>
-						<span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-blue-50 text-blue-600">
-							{course.units} Units
-						</span>
-						{course.levels.map((l) => (
-							<span
-								key={l}
-								className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700"
-							>
-								{l}
-							</span>
-						))}
-						<span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-700">
-							{course.status.toLowerCase()}
-						</span>
-						<span
-							className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${MODE_PILL[course.mode] ?? MODE_PILL["On-Site"]}`}
-						>
-							{course.mode.toLowerCase()}
-						</span>
+						<span className={statusPill(course.status)}>{course.status}</span>
+						<span className={typePill(course.type)}>{course.type}</span>
 					</div>
-
-					{/* Description */}
-					<p className="text-sm text-[#6b7e9f] leading-relaxed">
-						{course.description}
+					<p className="mt-4 rounded-2xl border border-[#dbe5f1] bg-[#fbfdff] p-4 text-sm font-semibold leading-7 text-[#60728f]">
+						{course.description || "No description has been added for this course."}
 					</p>
-
-					{/* Details grid */}
-					<div className="grid grid-cols-2 gap-x-6 gap-y-2.5 text-sm">
-						{[
-							["Department", course.department],
-							["Semester", "2nd Semester"],
-							["Lecturer", course.lecturer],
-							["Max Students", "100"],
-							["Day / Time", course.schedule],
-							[
-								"Platform Link",
-								course.mode === "Online" ? "meet.google.com/abc-xyz" : "—",
-							],
-							["Submitted", "2025-02-10"],
-						].map(([label, value]) => (
-							<div key={label}>
-								<span className="font-bold text-[#1a2b52]">{label}: </span>
-								<span className="text-[#6b7e9f]">{value}</span>
-							</div>
+					<div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+						{rows.map(([label, value]) => (
+							<DetailItem key={label} label={label} value={value} />
 						))}
 					</div>
-				</div>
-
-				{/* Modal footer */}
-				<div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[#f0f5fb]">
-					<button
-						onClick={onClose}
-						className="px-5 py-2.5 rounded-xl border border-[#dce6f2] text-sm font-semibold
-              text-[#4a5a7a] hover:border-[#8a9ab5] transition-colors"
-					>
-						Close
-					</button>
-					{canReviewCourses && course.status === "Pending" && (
-						<>
-							<button
-								onClick={() => {
-									onReject();
-									onClose();
-								}}
-								className="px-5 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold
-                  transition-colors flex items-center gap-1.5"
-							>
-								✕ Reject
-							</button>
-							<button
-								onClick={() => {
-									onApprove();
-									onClose();
-								}}
-								className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold
-                  transition-colors flex items-center gap-1.5"
-							>
-								✓ Approve
-							</button>
-						</>
-					)}
+					<div className="sticky bottom-0 mt-5 flex flex-col gap-3 border-t border-[#dbe5f1] bg-white/95 pt-4 backdrop-blur sm:flex-row sm:justify-end">
+						<button
+							type="button"
+							onClick={onClose}
+							className="h-12 rounded-2xl border border-[#d3dfed] bg-white px-5 text-sm font-black text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+						>
+							Close
+						</button>
+						{canReviewCourses && course.status === "Pending" ? (
+							<>
+								<button
+									type="button"
+									onClick={() => onDecision("Rejected", course)}
+									className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-5 text-sm font-black text-red-700 transition hover:-translate-y-0.5 hover:bg-red-100"
+								>
+									<XCircle className="size-4" />
+									Reject
+								</button>
+								<button
+									type="button"
+									onClick={() => onDecision("Approved", course)}
+									className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 text-sm font-black text-white shadow-[0_12px_24px_rgba(22,128,60,0.18)] transition hover:-translate-y-0.5 hover:bg-emerald-700"
+								>
+									<CheckCircle2 className="size-4" />
+									Approve
+								</button>
+							</>
+						) : null}
+					</div>
 				</div>
 			</div>
 		</div>
 	);
 }
 
-// ─── Single course row ────────────────────────────────────────────────────────
-function CourseRow({
-	course,
-	onApprove,
-	onReject,
-	onView,
-	canReviewCourses,
+function ConfirmDecisionModal({
+	target,
+	onClose,
+	onConfirm,
 }: {
-	course: Course;
-	onApprove: () => void;
-	onReject: () => void;
-	onView: () => void;
-	canReviewCourses: boolean;
+	target: DecisionTarget | null;
+	onClose: () => void;
+	onConfirm: (target: DecisionTarget, note: string) => void;
 }) {
-	const icon = ICON_STYLE[course.type] ?? ICON_STYLE.Core;
-	const modeLabel = course.mode === "Online" ? "Online" : "onsite";
-	const modeIconColor =
-		course.mode === "Online" ? "text-blue-500" : "text-red-500";
+	const [note, setNote] = useState("");
 
-	// Derive display date/time from schedule
-	const scheduleDisplay = course.schedule || "—";
+	if (!target) {
+		return null;
+	}
+
+	const isApprove = target.action === "Approved";
 
 	return (
-		<div className="bg-white rounded-2xl border border-[#e8ecf4] shadow-sm px-5 py-5 flex items-start gap-4">
-			{/* Course icon */}
-			<div
-				className={`w-11 h-11 rounded-xl ${icon.bg} flex items-center justify-center text-xl flex-shrink-0 mt-0.5`}
-			>
-				{icon.emoji}
-			</div>
-
-			{/* Main content */}
-			<div className="flex-1 min-w-0 flex flex-col gap-2.5">
-				{/* Title row */}
-				<div className="flex items-start justify-between gap-3">
-					<div className="min-w-0">
-						<h3 className="font-bold text-[#1a2b52] text-sm leading-snug">
-							{course.code} — {course.title}
-						</h3>
-						<p className="text-xs text-[#8a9ab5] mt-0.5">
-							Submitted by{" "}
-							<span className="font-semibold text-[#4a5a7a]">
-								{course.lecturer}
-							</span>
-							{" · "}
-							{course.department}
-							{" · "}2nd Semester
-						</p>
-						<p className="text-xs text-[#8a9ab5] mt-0.5 flex items-center gap-1">
-							{scheduleDisplay}{" "}
-							<span className={`flex items-center gap-1 ${modeIconColor}`}>
-								{course.mode === "Online" ? "🌐" : "📍"}
-								{modeLabel === "onsite"
-									? course.schedule?.split(" ").slice(-2).join(" ") || "Campus"
-									: "Online"}
-							</span>
-						</p>
-					</div>
-
-					{/* Date + status */}
-					<div className="flex flex-col items-end gap-1 flex-shrink-0">
-						<span className="text-[10px] text-[#8a9ab5]">
-							Submitted 2025-02-10
-						</span>
-						<span
-							className={`text-[11px] font-bold ${STATUS_PILL[course.status]}`}
+		<div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#06172f]/70 p-4 backdrop-blur-sm">
+			<div className="w-full max-w-xl overflow-hidden rounded-3xl border border-[#dbe5f1] bg-white shadow-[0_30px_80px_rgba(6,23,47,0.35)]">
+				<div
+					className={`px-5 py-5 text-white sm:px-6 ${
+						isApprove ? "bg-emerald-700" : "bg-red-700"
+					}`}
+				>
+					<div className="flex items-start justify-between gap-4">
+						<div>
+							<p className="text-[11px] font-black uppercase tracking-[0.24em] text-white/70">
+								Double Check
+							</p>
+							<h2 className="mt-2 text-xl font-black sm:text-2xl">
+								{isApprove ? "Approve this course?" : "Reject this course?"}
+							</h2>
+							<p className="mt-1 text-sm font-semibold text-white/75">
+								{target.course.code} - {target.course.title}
+							</p>
+						</div>
+						<button
+							type="button"
+							onClick={onClose}
+							className="flex size-10 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white transition hover:bg-white hover:text-[#0D2B55]"
+							aria-label="Close confirmation"
 						>
-							{course.status}
-						</span>
+							<X className="size-5" />
+						</button>
 					</div>
 				</div>
 
-				{/* Tag pills */}
-				<div className="flex flex-wrap gap-1.5">
-					<span
-						className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${TYPE_PILL[course.type]}`}
-					>
-						{course.type.toLowerCase()}
-					</span>
-					<span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-600">
-						{course.units} Units
-					</span>
-					{course.levels.map((l) => (
-						<span
-							key={l}
-							className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-[#e8eef8] text-[#3d5a9e]"
-						>
-							{l}
+				<div className="p-5 sm:p-6">
+					<div className="rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] p-4">
+						<div className="flex gap-3">
+							<div
+								className={`flex size-11 shrink-0 items-center justify-center rounded-2xl ${
+									isApprove
+										? "bg-emerald-100 text-emerald-700"
+										: "bg-red-100 text-red-700"
+								}`}
+							>
+								<ShieldQuestion className="size-5" />
+							</div>
+							<div>
+								<p className="text-sm font-black text-[#0D2B55]">
+									Confirm before applying this action.
+								</p>
+								<p className="mt-1 text-sm leading-6 text-[#60728f]">
+									This updates the local UI state only. Backend approval workflows
+									can be connected later.
+								</p>
+							</div>
+						</div>
+					</div>
+
+					<label className="mt-4 block space-y-2">
+						<span className="block text-[10px] font-black uppercase tracking-[0.2em] text-[#8395AF]">
+							Review note
 						</span>
-					))}
-					<span
-						className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${MODE_PILL[course.mode] ?? MODE_PILL["On-Site"]}`}
-					>
-						{modeLabel}
-					</span>
+						<textarea
+							value={note}
+							onChange={(event) => setNote(event.target.value)}
+							placeholder={
+								isApprove
+									? "Optional note for approval"
+									: "Reason for rejection"
+							}
+							className="min-h-28 w-full resize-none rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 py-3 text-sm font-semibold text-[#0D2B55] outline-none transition focus:border-[#2E86C1]"
+						/>
+					</label>
+
+					<div className="mt-5 flex flex-col-reverse gap-3 border-t border-[#dbe5f1] pt-5 sm:flex-row sm:justify-end">
+						<button
+							type="button"
+							onClick={onClose}
+							className="h-12 rounded-2xl border border-[#d3dfed] bg-white px-5 text-sm font-black text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+						>
+							Cancel
+						</button>
+						<button
+							type="button"
+							onClick={() => onConfirm(target, note)}
+							className={`inline-flex h-12 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.16)] transition hover:-translate-y-0.5 ${
+								isApprove
+									? "bg-emerald-600 hover:bg-emerald-700"
+									: "bg-red-600 hover:bg-red-700"
+							}`}
+						>
+							{isApprove ? (
+								<CheckCircle2 className="size-4" />
+							) : (
+								<XCircle className="size-4" />
+							)}
+							Confirm {isApprove ? "Approval" : "Rejection"}
+						</button>
+					</div>
 				</div>
-
-				{/* Action buttons — only shown for Pending */}
-				{canReviewCourses && course.status === "Pending" && (
-					<div className="flex items-center gap-2 mt-0.5">
-						<button
-							onClick={onApprove}
-							className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600
-                text-white text-xs font-bold transition-colors"
-						>
-							✓ Approve
-						</button>
-						<button
-							onClick={onReject}
-							className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-red-500 hover:bg-red-600
-                text-white text-xs font-bold transition-colors"
-						>
-							✕ Reject
-						</button>
-						<button
-							onClick={onView}
-							className="px-4 py-2 rounded-xl border border-[#dce6f2] text-xs font-semibold
-                text-[#4a5a7a] hover:border-[#3d5a9e] hover:text-[#3d5a9e] transition-colors"
-						>
-							View Details
-						</button>
-					</div>
-				)}
-
-				{/* Approval note for reviewed courses */}
-				{course.status !== "Pending" && course.approvalNote && (
-					<div className="text-xs text-[#6b7e9f] bg-[#f7f9fd] rounded-xl px-3 py-2 border border-[#e4eaf4]">
-						<span className="font-bold">Note:</span> {course.approvalNote}
-					</div>
-				)}
 			</div>
 		</div>
 	);
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
 export default function HodApproval({
 	courses,
 	onUpdateStatus,
 	canReviewCourses = true,
 }: Props) {
-	const [activeTab, setActiveTab] = useState<FilterTab>("Pending");
+	const [statusFilter, setStatusFilter] = useState<StatusFilter>("All Status");
+	const [typeFilter, setTypeFilter] = useState<TypeFilter>("All Types");
+	const [searchQuery, setSearchQuery] = useState("");
 	const [viewCourse, setViewCourse] = useState<Course | null>(null);
-	const [noteMap, setNoteMap] = useState<Record<string, string>>({});
+	const [decisionTarget, setDecisionTarget] = useState<DecisionTarget | null>(null);
 
-	const pending = courses.filter((c) => c.status === "Pending");
-	const approved = courses.filter((c) => c.status === "Approved");
-	const rejected = courses.filter((c) => c.status === "Rejected");
+	const analytics = useMemo(
+		() => [
+			{
+				label: "Pending Review",
+				value: courses.filter((course) => course.status === "Pending").length,
+				note: "Needs HOD decision",
+				icon: Timer,
+			},
+			{
+				label: "Approved",
+				value: courses.filter((course) => course.status === "Approved").length,
+				note: "Ready for publishing",
+				icon: BadgeCheck,
+			},
+			{
+				label: "Rejected",
+				value: courses.filter((course) => course.status === "Rejected").length,
+				note: "Returned for revision",
+				icon: XCircle,
+			},
+			{
+				label: "Total Submitted",
+				value: courses.length,
+				note: "Current local queue",
+				icon: ShieldQuestion,
+			},
+		],
+		[courses],
+	);
 
-	const tabCounts: Record<FilterTab, number> = {
-		Pending: pending.length,
-		Approved: approved.length,
-		Rejected: rejected.length,
-	};
+	const filteredCourses = useMemo(() => {
+		const query = searchQuery.trim().toLowerCase();
 
-	const visibleCourses =
-		activeTab === "Pending"
-			? pending
-			: activeTab === "Approved"
-				? approved
-				: rejected;
+		return courses.filter((course) => {
+			const statusMatch =
+				statusFilter === "All Status" || course.status === statusFilter;
+			const typeMatch = typeFilter === "All Types" || course.type === typeFilter;
+			const queryMatch =
+				!query ||
+				[
+					course.code,
+					course.title,
+					course.department,
+					course.lecturer,
+					course.schedule,
+				]
+					.join(" ")
+					.toLowerCase()
+					.includes(query);
 
-	function handleApprove(id: string) {
-		onUpdateStatus(id, "Approved", noteMap[id]);
+			return statusMatch && typeMatch && queryMatch;
+		});
+	}, [courses, searchQuery, statusFilter, typeFilter]);
+
+	function clearFilters() {
+		setStatusFilter("All Status");
+		setTypeFilter("All Types");
+		setSearchQuery("");
 	}
 
-	function handleReject(id: string) {
-		onUpdateStatus(id, "Rejected", noteMap[id] || "Rejected by HOD");
+	function requestDecision(action: DecisionAction, course: Course) {
+		setDecisionTarget({ action, course });
 	}
 
-	const TABS: FilterTab[] = ["Pending", "Approved", "Rejected"];
+	function confirmDecision(target: DecisionTarget, note: string) {
+		onUpdateStatus(
+			target.course.id,
+			target.action,
+			note.trim() ||
+				(target.action === "Approved" ? "Approved by HOD" : "Rejected by HOD"),
+		);
+		setDecisionTarget(null);
+		setViewCourse(null);
+	}
 
 	return (
-		<div className="flex flex-col gap-5">
-			{/* Page heading */}
-			<div className="flex flex-wrap items-start justify-between gap-3">
-				<div>
-					<p className="text-xs text-[#8a9ab5]">
-						Dept. of Computer Science · 2025/2026
-					</p>
-					<h1 className="text-2xl font-bold text-[#1a2b52] mt-1">
-						HOD Approval Panel
-					</h1>
-				</div>
-				<span className="border border-[#dce6f2] rounded-full px-4 py-1.5 text-xs font-bold text-[#4a5a7a] bg-white mt-1">
-					2025/2026
-				</span>
-			</div>
-
-			{/* Navy banner */}
-			<div className="bg-[#0d1b3e] rounded-2xl px-6 py-5 flex items-center justify-between">
-				<div className="flex items-center gap-4">
-					<div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center text-2xl flex-shrink-0">
-						🏛️
-					</div>
+		<section className="space-y-5">
+			<div className="rounded-3xl border border-[#d7e2f0] bg-white p-5 shadow-[0_18px_45px_rgba(13,43,85,0.08)] sm:p-6">
+				<div className="flex flex-wrap items-start justify-between gap-4">
 					<div>
-						<h2 className="text-white font-bold text-base leading-tight">
-							Head of Department Review Panel
+						<p className="text-[11px] font-black uppercase tracking-[0.28em] text-[#B7770D]">
+							HOD Approval
+						</p>
+						<h2 className="mt-2 text-2xl font-black text-[#06183A]">
+							Course approval queue
 						</h2>
-						<p className="text-white/50 text-xs mt-0.5">
-							Courses submitted by lecturers await your approval before becoming
-							visible to students.
+						<p className="mt-2 max-w-3xl text-sm leading-7 text-[#556987]">
+							Review submitted course definitions, inspect each request, and
+							confirm approval or rejection before the local state changes.
 						</p>
 					</div>
+					<span className="rounded-full border border-[#dce6f2] bg-white px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-[#6b7e9f]">
+						2025/2026 Session
+					</span>
 				</div>
-				{pending.length > 0 && (
-					<div className="w-9 h-9 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
-						<span className="text-white font-bold text-sm">
-							{pending.length}
-						</span>
+
+				<div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+					{analytics.map((item) => {
+						const Icon = item.icon;
+
+						return (
+							<div
+								key={item.label}
+								className="group rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] p-4 transition duration-300 hover:-translate-y-1 hover:border-[#b9c9dc] hover:bg-white hover:shadow-[0_18px_35px_rgba(13,43,85,0.08)]"
+							>
+								<div className="flex items-center justify-between gap-3">
+									<p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8395AF]">
+										{item.label}
+									</p>
+									<span className="flex size-10 items-center justify-center rounded-2xl bg-white text-[#0D2B55] shadow-sm transition group-hover:bg-[#0D2B55] group-hover:text-white">
+										<Icon className="size-4" />
+									</span>
+								</div>
+								<p className="mt-3 text-3xl font-black text-[#0D2B55]">
+									{item.value}
+								</p>
+								<p className="mt-1 text-sm font-semibold text-[#60728f]">
+									{item.note}
+								</p>
+							</div>
+						);
+					})}
+				</div>
+			</div>
+
+			<div className="rounded-3xl border border-[#d7e2f0] bg-white p-4 shadow-[0_18px_45px_rgba(13,43,85,0.08)] sm:p-5">
+				<div className="flex flex-wrap items-center justify-between gap-3">
+					<div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.24em] text-[#B7770D]">
+						<Filter className="size-4" />
+						Filters
+					</div>
+					<button
+						type="button"
+						onClick={clearFilters}
+						className="inline-flex h-10 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white px-4 text-xs font-black uppercase tracking-[0.12em] text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+					>
+						Reset filters
+					</button>
+				</div>
+
+				<div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+					<label className="relative xl:col-span-2">
+						<Search className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[#7b8faa]" />
+						<input
+							value={searchQuery}
+							onChange={(event) => setSearchQuery(event.target.value)}
+							placeholder="Search course, code, lecturer"
+							className="h-12 w-full rounded-2xl border border-[#d3dfed] bg-[#f8fbff] pl-11 pr-4 text-sm font-semibold text-[#0D2B55] outline-none transition focus:border-[#2E86C1]"
+						/>
+					</label>
+					<select
+						value={statusFilter}
+						onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
+						className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+					>
+						{STATUS_OPTIONS.map((status) => (
+							<option key={status} value={status}>
+								{status}
+							</option>
+						))}
+					</select>
+					<select
+						value={typeFilter}
+						onChange={(event) => setTypeFilter(event.target.value as TypeFilter)}
+						className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+					>
+						{TYPE_OPTIONS.map((type) => (
+							<option key={type} value={type}>
+								{type}
+							</option>
+						))}
+					</select>
+				</div>
+			</div>
+
+			<div className="overflow-hidden rounded-3xl border border-[#d7e2f0] bg-white shadow-[0_18px_45px_rgba(13,43,85,0.08)]">
+				<div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#dbe5f1] px-4 py-4 sm:px-5">
+					<div>
+						<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#B7770D]">
+							Approval Table
+						</p>
+						<p className="mt-1 text-sm font-semibold text-[#60728f]">
+							Showing {filteredCourses.length} of {courses.length} submissions
+						</p>
+					</div>
+					<div className="rounded-full border border-[#dbe5f1] bg-[#f8fbff] px-4 py-2 text-xs font-black text-[#0D2B55]">
+						Actions require confirmation
+					</div>
+				</div>
+
+				{filteredCourses.length === 0 ? (
+					<div className="p-8 text-center">
+						<div className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#eef4fb] text-[#2E86C1]">
+							<BadgeCheck className="size-6" />
+						</div>
+						<h3 className="mt-4 text-lg font-black text-[#06183A]">
+							No courses found
+						</h3>
+						<p className="mt-2 text-sm text-[#60728f]">
+							Adjust the filters to inspect another part of the approval queue.
+						</p>
+					</div>
+				) : (
+					<div className="overflow-x-auto">
+						<table className="min-w-[1080px] w-full border-collapse text-left">
+							<thead className="bg-[#f8fbff]">
+								<tr className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8395AF]">
+									<th className="px-5 py-4">Course</th>
+									<th className="px-5 py-4">Department</th>
+									<th className="px-5 py-4">Submitted By</th>
+									<th className="px-5 py-4">Type</th>
+									<th className="px-5 py-4">Schedule</th>
+									<th className="px-5 py-4">Status</th>
+									<th className="px-5 py-4 text-right">Actions</th>
+								</tr>
+							</thead>
+							<tbody className="divide-y divide-[#dbe5f1]">
+								{filteredCourses.map((course) => (
+									<tr key={course.id} className="bg-white transition hover:bg-[#f8fbff]">
+										<td className="px-5 py-4">
+											<p className="font-black text-[#06183A]">{course.title}</p>
+											<p className="mt-1 text-sm font-semibold text-[#60728f]">
+												{course.code} - {course.units} Units
+											</p>
+										</td>
+										<td className="px-5 py-4">
+											<p className="text-sm font-black text-[#0D2B55]">
+												{course.department}
+											</p>
+											<p className="mt-1 text-xs font-bold text-[#60728f]">
+												{course.levels.join(", ")}
+											</p>
+										</td>
+										<td className="px-5 py-4">
+											<p className="text-sm font-black text-[#0D2B55]">
+												{course.lecturer}
+											</p>
+										</td>
+										<td className="px-5 py-4">
+											<span className={typePill(course.type)}>{course.type}</span>
+										</td>
+										<td className="px-5 py-4">
+											<p className="text-sm font-black text-[#0D2B55]">
+												{course.mode}
+											</p>
+											<p className="mt-1 text-xs font-bold text-[#60728f]">
+												{course.schedule}
+											</p>
+										</td>
+										<td className="px-5 py-4">
+											<span className={statusPill(course.status)}>
+												{course.status}
+											</span>
+										</td>
+										<td className="px-5 py-4">
+											<div className="flex justify-end gap-2">
+												<button
+													type="button"
+													onClick={() => setViewCourse(course)}
+													className="inline-flex size-10 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+													aria-label={`View ${course.title}`}
+													title="View"
+												>
+													<Eye className="size-4" />
+												</button>
+												{canReviewCourses && course.status === "Pending" ? (
+													<>
+														<button
+															type="button"
+															onClick={() => requestDecision("Approved", course)}
+															className="inline-flex size-10 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700 transition hover:-translate-y-0.5 hover:bg-emerald-100"
+															aria-label={`Approve ${course.title}`}
+															title="Approve"
+														>
+															<CheckCircle2 className="size-4" />
+														</button>
+														<button
+															type="button"
+															onClick={() => requestDecision("Rejected", course)}
+															className="inline-flex size-10 items-center justify-center rounded-2xl border border-red-200 bg-red-50 text-red-700 transition hover:-translate-y-0.5 hover:bg-red-100"
+															aria-label={`Reject ${course.title}`}
+															title="Reject"
+														>
+															<XCircle className="size-4" />
+														</button>
+													</>
+												) : null}
+											</div>
+										</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
 					</div>
 				)}
 			</div>
 
-			{/* Filter tabs */}
-			<div className="flex items-center gap-1.5 bg-[#f0f4fb] rounded-xl p-1.5 w-fit">
-				{TABS.map((tab) => (
-					<button
-						key={tab}
-						onClick={() => setActiveTab(tab)}
-						className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all
-              ${
-								activeTab === tab
-									? "bg-[#3d5a9e] text-white shadow-sm"
-									: "text-[#6b7e9f] hover:text-[#1a2b52]"
-							}`}
-					>
-						{tab}
-						{tabCounts[tab] > 0 ? ` (${tabCounts[tab]})` : ""}
-					</button>
-				))}
-			</div>
-
-			{/* Course list */}
-			{visibleCourses.length === 0 ? (
-				<div className="bg-white rounded-2xl border border-[#e4eaf4] p-12 text-center shadow-sm">
-					<p className="text-3xl mb-3">
-						{activeTab === "Pending"
-							? "✓"
-							: activeTab === "Approved"
-								? "🎉"
-								: "📋"}
-					</p>
-					<p className="text-sm font-bold text-[#4a5a7a]">
-						{activeTab === "Pending"
-							? "No pending courses — all reviewed!"
-							: `No ${activeTab.toLowerCase()} courses yet`}
-					</p>
-				</div>
-			) : (
-				<div className="flex flex-col gap-3">
-					{visibleCourses.map((course) => (
-						<CourseRow
-							key={course.id}
-							course={course}
-							onApprove={() => handleApprove(course.id)}
-							onReject={() => handleReject(course.id)}
-							onView={() => setViewCourse(course)}
-							canReviewCourses={canReviewCourses}
-						/>
-					))}
-				</div>
-			)}
-
-			{/* View Details modal */}
-			{viewCourse && (
-				<DetailsModal
-					course={viewCourse}
-					onClose={() => setViewCourse(null)}
-					onApprove={() => {
-						handleApprove(viewCourse.id);
-						setViewCourse(null);
-					}}
-					onReject={() => {
-						handleReject(viewCourse.id);
-						setViewCourse(null);
-					}}
-					canReviewCourses={canReviewCourses}
-				/>
-			)}
-		</div>
+			<CourseViewModal
+				course={viewCourse}
+				onClose={() => setViewCourse(null)}
+				onDecision={requestDecision}
+				canReviewCourses={canReviewCourses}
+			/>
+			<ConfirmDecisionModal
+				target={decisionTarget}
+				onClose={() => setDecisionTarget(null)}
+				onConfirm={confirmDecision}
+			/>
+		</section>
 	);
 }
