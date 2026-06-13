@@ -16,6 +16,10 @@
       "required": true,
       "unique": true
     },
+    "admissionReferenceNumber": {
+      "type": "string",
+      "unique": true
+    },
     "applicantUsername": {
       "type": "string"
     },

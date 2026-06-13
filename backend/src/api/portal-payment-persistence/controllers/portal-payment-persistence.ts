@@ -339,11 +339,9 @@ export default {
 			await strapi.db.query("api::admission-application.admission-application").update({
 				where: { id: applicationId },
 				data: {
-					status: "submitted",
 					paymentStatus: "paid",
-					currentStep: "submitted",
+					currentStep: "biodata",
 					completedSteps: ["programme", "payment"],
-					submittedAt: input.verifiedAt,
 				},
 			});
 		}

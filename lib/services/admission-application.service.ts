@@ -33,6 +33,7 @@ export type AdmissionApplicationSummary = {
 	documentId?: string;
 	numericId?: number;
 	applicationNumber: string;
+	admissionReferenceNumber?: string;
 	applicantUsername?: string;
 	applicantEmail?: string;
 	collegeId?: string | number;
@@ -60,6 +61,7 @@ export function isAdmissionApplicationDashboardReady(
 
 type StrapiAdmissionApplication = Record<string, unknown> & {
 	applicationNumber?: unknown;
+	admissionReferenceNumber?: unknown;
 	applicantUsername?: unknown;
 	applicantEmail?: unknown;
 	status?: unknown;
@@ -176,6 +178,10 @@ function toAdmissionApplicationSummary(
 			typeof application.applicationNumber === "string"
 				? application.applicationNumber
 				: application.id,
+		admissionReferenceNumber:
+			typeof application.admissionReferenceNumber === "string"
+				? application.admissionReferenceNumber
+				: undefined,
 		applicantUsername:
 			typeof application.applicantUsername === "string"
 				? application.applicantUsername

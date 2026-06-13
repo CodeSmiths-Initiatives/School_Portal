@@ -27,6 +27,13 @@ const STEP_TO_CURRENT_STEP: Record<AdmissionProfileStep, string> = {
 	programmeData: "programme_details",
 	declarationData: "declaration",
 };
+const REQUIRED_PROFILE_STEPS: AdmissionProfileStep[] = [
+	"bioData",
+	"contactData",
+	"oLevelData",
+	"programmeData",
+	"declarationData",
+];
 
 function getInternalSecret() {
 	const configured =
@@ -92,6 +99,12 @@ function createApplicationNumber(collegeCode?: string) {
 	return `APP-${code}-${Date.now()}-${randomPart}`;
 }
 
+function createAdmissionReferenceNumber(collegeCode?: string) {
+	const code = (collegeCode || "ADM").replace(/[^a-z0-9]/gi, "").toUpperCase();
+	const randomPart = Math.random().toString(36).slice(2, 8).toUpperCase();
+	return `ADM-${code}-${Date.now()}-${randomPart}`;
+}
+
 function normalizeStep(value: unknown): AdmissionProfileStep | null {
 	const step = asString(value);
 
@@ -122,6 +135,12 @@ function isPersistedPhotoSource(value: unknown) {
 
 function mergeUniqueSteps(existing: unknown, nextStep: string) {
 	return Array.from(new Set([...asArray(existing).map(String), nextStep]));
+}
+
+function hasCompleteAdmissionProfile(profile: Record<string, unknown>) {
+	return REQUIRED_PROFILE_STEPS.every(
+		(step) => Object.keys(asRecord(profile[step])).length > 0,
+	);
 }
 
 function flattenAdmissionProfile(profile: Record<string, unknown>) {
@@ -162,22 +181,38 @@ function getProgrammeType(value: unknown) {
 }
 
 function mapApplication(application: Record<string, unknown>, collegeSlug: string) {
+	const metadata = asRecord(application.metadata);
+	const admissionProfile = asRecord(metadata.admissionProfile);
+	const isComplete = hasCompleteAdmissionProfile(admissionProfile);
+	const currentStep = asString(application.currentStep, "account");
+	const admissionReferenceNumber =
+		asString(application.admissionReferenceNumber) ||
+		asString(metadata.admissionReferenceNumber) ||
+		undefined;
+	const effectiveCurrentStep =
+		currentStep === "submitted" && !isComplete
+			? "biodata"
+			: currentStep === "submitted" && !admissionReferenceNumber
+				? "declaration"
+				: currentStep;
+
 	return {
 		id: getApplicationId(application),
 		documentId: asString(application.documentId) || undefined,
 		numericId: asNumber(application.id) || undefined,
 		applicationNumber:
 			asString(application.applicationNumber) || getApplicationId(application),
+		admissionReferenceNumber,
 		applicantUsername: asString(application.applicantUsername) || undefined,
 		applicantEmail: asString(application.applicantEmail) || undefined,
 		collegeId: asNumber(asRecord(application.college).id) || undefined,
 		collegeSlug,
 		status: asString(application.status, "draft"),
 		paymentStatus: asString(application.paymentStatus, "not_started"),
-		currentStep: asString(application.currentStep, "account"),
+		currentStep: effectiveCurrentStep,
 		completedSteps: asArray(application.completedSteps),
 		lastSavedAt: asString(application.lastSavedAt, asString(application.updatedAt)),
-		metadata: asRecord(application.metadata),
+		metadata,
 		persisted: true,
 	};
 }
@@ -448,6 +483,12 @@ export default {
 		const now = new Date().toISOString();
 		const status = asString(application.status, "draft");
 		const programmeData = asRecord(admissionProfile.programmeData);
+		const isComplete = hasCompleteAdmissionProfile(admissionProfile);
+		const nextStatus =
+			["under_review", "approved", "rejected"].includes(status) ||
+			(status === "submitted" && isComplete)
+				? status
+				: "draft";
 		const response = await strapi.db
 			.query("api::admission-application.admission-application")
 			.update({
@@ -456,9 +497,7 @@ export default {
 					currentStep,
 					completedSteps,
 					lastSavedAt: now,
-					status: ["submitted", "under_review", "approved", "rejected"].includes(status)
-						? status
-						: "draft",
+					status: nextStatus,
 					...(step === "programmeData"
 						? {
 								programmeType: getProgrammeType(programmeData.programmeType),
@@ -517,14 +556,7 @@ export default {
 		const application = await ensureApplication(resolved);
 		const metadata = asRecord(application.metadata);
 		const admissionProfile = asRecord(metadata.admissionProfile);
-		const requiredSteps: AdmissionProfileStep[] = [
-			"bioData",
-			"contactData",
-			"oLevelData",
-			"programmeData",
-			"declarationData",
-		];
-		const missingSteps = requiredSteps.filter(
+		const missingSteps = REQUIRED_PROFILE_STEPS.filter(
 			(step) => !Object.keys(asRecord(admissionProfile[step])).length,
 		);
 
@@ -533,11 +565,16 @@ export default {
 		}
 
 		const now = new Date().toISOString();
+		const admissionReferenceNumber =
+			asString(application.admissionReferenceNumber) ||
+			asString(metadata.admissionReferenceNumber) ||
+			createAdmissionReferenceNumber(asString(resolved.college.code));
 		const response = await strapi.db
 			.query("api::admission-application.admission-application")
 			.update({
 				where: { id: asNumber(application.id) },
 				data: {
+					admissionReferenceNumber,
 					status: "submitted",
 					currentStep: "submitted",
 					completedSteps: [
@@ -556,6 +593,7 @@ export default {
 						admissionProfile,
 						formData: flattenAdmissionProfile(admissionProfile),
 						source: "student-admission-profile",
+						admissionReferenceNumber,
 						submittedBy: normalizeEmail(resolved.user.email),
 					},
 				},
@@ -568,10 +606,12 @@ export default {
 			action: "student.admission.submitted",
 			eventType: "updated",
 			entityId: getApplicationId(response as Record<string, unknown>),
-			targetLabel: asString(response.applicationNumber),
+			targetLabel: admissionReferenceNumber,
 			summary: "Student submitted complete admission profile.",
 			metadata: {
-				steps: requiredSteps,
+				steps: REQUIRED_PROFILE_STEPS,
+				registrationNumber: asString(response.applicationNumber),
+				admissionReferenceNumber,
 			},
 		});
 

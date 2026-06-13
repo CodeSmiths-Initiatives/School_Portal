@@ -1,13 +1,11 @@
 "use client";
 
 import {
-	BookOpenCheck,
 	Camera,
 	CheckCircle2,
 	ClipboardCheck,
 	FileText,
 	GraduationCap,
-	IdCard,
 	Phone,
 	Printer,
 	UserRound,
@@ -1325,12 +1323,12 @@ function printAdmissionConfirmationSlip(input: {
 							<div class="check">&#10003;</div>
 							<div>
 								<h2>Application submitted successfully</h2>
-								<p>Your student admission application has been received for review. Keep this confirmation slip and reference number for future tracking.</p>
+								<p>Your student admission application has been received for review. Keep this confirmation slip and admission reference number for future tracking.</p>
 							</div>
 						</div>
 
 						<div class="reference">
-							<p class="label">Reference Number</p>
+							<p class="label">Admission Reference Number</p>
 							<strong>${escapePrintText(input.referenceNumber)}</strong>
 						</div>
 
@@ -1360,7 +1358,7 @@ function printAdmissionConfirmationSlip(input: {
 							</div>
 							<div class="notice-card">
 								<p class="label">Important</p>
-								<p>Use the reference number above whenever you contact admissions or check your application status.</p>
+								<p>Use the admission reference number above whenever you contact admissions or check your application status.</p>
 							</div>
 						</div>
 
@@ -1410,11 +1408,11 @@ function SuccessScreen({
 			</h2>
 			<p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-[#60728f]">
 				Your student admission application for {collegeName} has been received.
-				Please save your reference number for future tracking.
+				Please save your admission reference number for future tracking.
 			</p>
 			<div className="mx-auto mt-6 max-w-md rounded-2xl border border-[#E4A11B]/60 bg-[#0D2B55] px-5 py-4 text-left">
 				<p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#E4A11B]">
-					Reference Number
+					Admission Reference Number
 				</p>
 				<p className="mt-2 break-all text-lg font-bold text-white">
 					{referenceNumber}
@@ -1437,11 +1435,6 @@ function SuccessScreen({
 			</button>
 		</div>
 	);
-}
-
-function createReferenceNumber() {
-	const random = Math.random().toString(36).slice(2, 8).toUpperCase();
-	return `ADM-${Date.now()}-${random}`;
 }
 
 function asRecord(value: unknown) {
@@ -1538,9 +1531,7 @@ export default function StudentAdmissionForm({
 					setApplication(savedApplication);
 
 					if (savedApplication.currentStep === "submitted") {
-						setReferenceNumber(
-							savedApplication.applicationNumber || createReferenceNumber(),
-						);
+						setReferenceNumber(savedApplication.admissionReferenceNumber ?? "");
 					}
 				}
 			} catch (error) {
@@ -1647,10 +1638,12 @@ export default function StudentAdmissionForm({
 					throw new Error("Application was submitted without a reference.");
 				}
 
+				if (!savedApplication.admissionReferenceNumber) {
+					throw new Error("Admission reference was not returned after submission.");
+				}
+
 				setApplication(savedApplication);
-				setReferenceNumber(
-					savedApplication.applicationNumber || createReferenceNumber(),
-				);
+				setReferenceNumber(savedApplication.admissionReferenceNumber);
 				setStep(6);
 				toast.success({
 					title: "Application submitted",
@@ -1730,7 +1723,7 @@ export default function StudentAdmissionForm({
 								</div>
 								{application ? (
 									<div className="rounded-full border border-[#dbe5f1] bg-[#f8fbff] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-[#60728f]">
-										{application.applicationNumber} - {application.currentStep ?? application.status}
+										Registration No: {application.applicationNumber} - {application.currentStep ?? application.status}
 									</div>
 								) : null}
 							</div>

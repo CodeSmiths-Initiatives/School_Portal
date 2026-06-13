@@ -470,11 +470,9 @@ export async function recordPaymentVerified(
 		if (applicationId && input.module === "admission") {
 			await strapiPut(`/api/admission-applications/${applicationId}`, {
 				data: {
-					status: "submitted",
 					paymentStatus: "paid",
-					currentStep: "submitted",
+					currentStep: "biodata",
 					completedSteps: ["programme", "payment"],
-					submittedAt: input.verifiedAt,
 				},
 			});
 		}
