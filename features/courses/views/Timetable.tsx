@@ -2,11 +2,15 @@
 
 import {
 	CalendarClock,
+	ChevronLeft,
+	ChevronRight,
+	Clock3,
 	Eye,
 	Filter,
 	Layers3,
 	MapPin,
 	MonitorPlay,
+	MoreVertical,
 	Pencil,
 	Plus,
 	Search,
@@ -15,11 +19,33 @@ import {
 	X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import type { Course, Level, Mode, TimelineSlot } from "../types/course.types";
+import type { Course, CourseType, Level, Mode, TimelineSlot } from "../types/course.types";
 import { DAYS } from "../utils/data";
 
 const LEVELS: Level[] = ["100L", "200L", "300L", "400L"];
 const MODES: Array<Mode | "All Modes"> = ["All Modes", "On-Site", "Online", "Hybrid"];
+const COURSE_TYPES: Array<CourseType | "All Types"> = [
+	"All Types",
+	"Core",
+	"Elective",
+	"Required",
+	"Borrowed",
+	"Carryover",
+];
+const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+const FULL_DAYS = [
+	"Sunday",
+	"Monday",
+	"Tuesday",
+	"Wednesday",
+	"Thursday",
+	"Friday",
+	"Saturday",
+] as const;
+const MONTH_FORMATTER = new Intl.DateTimeFormat("en-NG", {
+	month: "long",
+	year: "numeric",
+});
 
 type SlotForm = Omit<TimelineSlot, "id">;
 
@@ -29,6 +55,37 @@ function normaliseTime(value: string) {
 
 function formatTime(value: string) {
 	return value.replace("-", " - ");
+}
+
+function getMonthKey(date: Date) {
+	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function getMonthTitle(monthKey: string) {
+	const [year, month] = monthKey.split("-").map(Number);
+	return MONTH_FORMATTER.format(new Date(year, month - 1, 1));
+}
+
+function shiftMonth(monthKey: string, offset: number) {
+	const [year, month] = monthKey.split("-").map(Number);
+	return getMonthKey(new Date(year, month - 1 + offset, 1));
+}
+
+function getMonthDates(monthKey: string) {
+	const [year, month] = monthKey.split("-").map(Number);
+	const firstDate = new Date(year, month - 1, 1);
+	const lastDate = new Date(year, month, 0);
+	const cursor = new Date(firstDate);
+	const dates: Date[] = [];
+
+	cursor.setDate(firstDate.getDate() - firstDate.getDay());
+
+	while (cursor <= lastDate || dates.length % 7 !== 0) {
+		dates.push(new Date(cursor));
+		cursor.setDate(cursor.getDate() + 1);
+	}
+
+	return dates;
 }
 
 function modeTone(mode: Mode) {
@@ -295,6 +352,70 @@ function AddSlotModal({
 	);
 }
 
+function SlotActionMenu({
+	slot,
+	isOpen,
+	canManageTimetable,
+	onToggle,
+	onView,
+	onEdit,
+	onDelete,
+}: {
+	slot: TimelineSlot;
+	isOpen: boolean;
+	canManageTimetable: boolean;
+	onToggle: () => void;
+	onView: () => void;
+	onEdit: () => void;
+	onDelete: () => void;
+}) {
+	return (
+		<div className="relative z-[60] shrink-0">
+			<button
+				type="button"
+				onClick={onToggle}
+				className="flex size-8 items-center justify-center rounded-xl bg-white/85 text-[#0D2B55] shadow-sm transition hover:bg-white"
+				aria-expanded={isOpen}
+				aria-label={`Open actions for ${slot.code} timetable slot`}
+			>
+				<MoreVertical className="size-4" />
+			</button>
+			{isOpen ? (
+				<div className="absolute right-0 top-10 z-[90] w-36 overflow-hidden rounded-xl border border-[#dbe5f1] bg-white py-1 text-[#0D2B55] shadow-[0_18px_45px_rgba(13,43,85,0.22)]">
+					<button
+						type="button"
+						onClick={onView}
+						className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-black transition hover:bg-[#f6f9fd]"
+					>
+						<Eye className="size-4" />
+						View
+					</button>
+					{canManageTimetable ? (
+						<>
+							<button
+								type="button"
+								onClick={onEdit}
+								className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-black transition hover:bg-[#f6f9fd]"
+							>
+								<Pencil className="size-4" />
+								Edit
+							</button>
+							<button
+								type="button"
+								onClick={onDelete}
+								className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-black text-red-700 transition hover:bg-red-50"
+							>
+								<Trash2 className="size-4" />
+								Delete
+							</button>
+						</>
+					) : null}
+				</div>
+			) : null}
+		</div>
+	);
+}
+
 export default function Timetable({
 	courses,
 	slots,
@@ -312,34 +433,77 @@ export default function Timetable({
 }) {
 	const [levelFilter, setLevelFilter] = useState<Level | "All Levels">("All Levels");
 	const [modeFilter, setModeFilter] = useState<Mode | "All Modes">("All Modes");
+	const [typeFilter, setTypeFilter] = useState<CourseType | "All Types">("All Types");
 	const [searchQuery, setSearchQuery] = useState("");
+	const [monthKey, setMonthKey] = useState(() => getMonthKey(new Date()));
 	const [showModal, setShowModal] = useState<"add" | "edit" | null>(null);
 	const [selectedSlot, setSelectedSlot] = useState<TimelineSlot | null>(null);
+	const [openActionSlotId, setOpenActionSlotId] = useState<string | null>(null);
 
-	const timeSlots = useMemo(
-		() =>
-			Array.from(new Set(slots.map((slot) => slot.time))).sort((a, b) =>
-				a.localeCompare(b),
-			),
-		[slots],
-	);
+	const monthDates = useMemo(() => getMonthDates(monthKey), [monthKey]);
+	const activeMonth = Number(monthKey.split("-")[1]) - 1;
+	const todayKey = new Date().toDateString();
+	const coursesBySlotKey = useMemo(() => {
+		const lookup = new Map<string, Course>();
+
+		for (const course of courses) {
+			lookup.set(course.id, course);
+			lookup.set(course.code, course);
+		}
+
+		return lookup;
+	}, [courses]);
 
 	const filteredSlots = useMemo(() => {
 		const query = searchQuery.trim().toLowerCase();
 
 		return slots.filter((slot) => {
+			const linkedCourse =
+				coursesBySlotKey.get(slot.courseId ?? "") ?? coursesBySlotKey.get(slot.code);
 			const levelMatch = levelFilter === "All Levels" || slot.level === levelFilter;
 			const modeMatch = modeFilter === "All Modes" || slot.mode === modeFilter;
+			const typeMatch = typeFilter === "All Types" || linkedCourse?.type === typeFilter;
 			const queryMatch =
 				!query ||
-				[slot.code, slot.course, slot.room, slot.day, slot.level]
+				[
+					slot.code,
+					slot.course,
+					slot.room,
+					slot.day,
+					slot.level,
+					slot.mode,
+					linkedCourse?.department,
+					linkedCourse?.lecturer,
+					linkedCourse?.type,
+				]
 					.join(" ")
 					.toLowerCase()
 					.includes(query);
 
-			return levelMatch && modeMatch && queryMatch;
+			return levelMatch && modeMatch && typeMatch && queryMatch;
 		});
-	}, [levelFilter, modeFilter, searchQuery, slots]);
+	}, [coursesBySlotKey, levelFilter, modeFilter, searchQuery, slots, typeFilter]);
+
+	const slotsByDay = useMemo(() => {
+		const grouped = new Map<string, TimelineSlot[]>();
+
+		for (const slot of filteredSlots) {
+			grouped.set(slot.day, [...(grouped.get(slot.day) ?? []), slot]);
+		}
+
+		for (const [day, daySlots] of grouped.entries()) {
+			grouped.set(
+				day,
+				[...daySlots].sort(
+					(left, right) =>
+						left.time.localeCompare(right.time) ||
+						left.code.localeCompare(right.code),
+				),
+			);
+		}
+
+		return grouped;
+	}, [filteredSlots]);
 
 	const analytics = useMemo(
 		() => [
@@ -374,7 +538,10 @@ export default function Timetable({
 	function clearFilters() {
 		setLevelFilter("All Levels");
 		setModeFilter("All Modes");
+		setTypeFilter("All Types");
 		setSearchQuery("");
+		setMonthKey(getMonthKey(new Date()));
+		setOpenActionSlotId(null);
 	}
 
 	async function submitSlot(form: SlotForm) {
@@ -392,15 +559,12 @@ export default function Timetable({
 	}
 
 	async function removeSlot(slot: TimelineSlot) {
+		setOpenActionSlotId(null);
 		const confirmed = window.confirm(`Delete ${slot.code} from the timetable?`);
 
 		if (!confirmed) return;
 
 		await onDeleteSlot?.(slot.id);
-	}
-
-	function getCellSlots(day: string, time: string) {
-		return filteredSlots.filter((slot) => slot.day === day && slot.time === time);
 	}
 
 	return (
@@ -416,7 +580,7 @@ export default function Timetable({
 						</h2>
 						<p className="mt-2 max-w-3xl text-sm leading-7 text-[#556987]">
 							Track teaching slots across levels, delivery modes, rooms, and
-							weekday patterns before backend timetable publishing is connected.
+							monthly calendar patterns from the live course timetable.
 						</p>
 					</div>
 					{canManageTimetable ? (
@@ -482,13 +646,13 @@ export default function Timetable({
 					</button>
 				</div>
 
-				<div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+				<div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
 					<label className="relative xl:col-span-2">
 						<Search className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[#7b8faa]" />
 						<input
 							value={searchQuery}
 							onChange={(event) => setSearchQuery(event.target.value)}
-							placeholder="Search course, code, room, level"
+							placeholder="Search course, code, room, lecturer"
 							className="h-12 w-full rounded-2xl border border-[#d3dfed] bg-[#f8fbff] pl-11 pr-4 text-sm font-semibold text-[#0D2B55] outline-none transition focus:border-[#2E86C1]"
 						/>
 					</label>
@@ -519,133 +683,193 @@ export default function Timetable({
 							</option>
 						))}
 					</select>
+					<select
+						value={typeFilter}
+						onChange={(event) =>
+							setTypeFilter(event.target.value as CourseType | "All Types")
+						}
+						className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+					>
+						{COURSE_TYPES.map((type) => (
+							<option key={type} value={type}>
+								{type}
+							</option>
+						))}
+					</select>
 				</div>
 			</div>
 
-			<div className="overflow-hidden rounded-3xl border border-[#d7e2f0] bg-white shadow-[0_18px_45px_rgba(13,43,85,0.08)]">
+			<div className="rounded-3xl border border-[#d7e2f0] bg-white shadow-[0_18px_45px_rgba(13,43,85,0.08)]">
 				<div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#dbe5f1] px-4 py-4 sm:px-5">
 					<div>
 						<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#B7770D]">
-							Calendar
+							Monthly Calendar
 						</p>
 						<p className="mt-1 text-sm font-semibold text-[#60728f]">
-							Showing {filteredSlots.length} of {slots.length} timeline slots
+							Showing {filteredSlots.length} of {slots.length} weekly slots
+							across {getMonthTitle(monthKey)}
 						</p>
 					</div>
-					<div className="flex items-center gap-2 rounded-full border border-[#dbe5f1] bg-[#f8fbff] px-4 py-2 text-xs font-black text-[#0D2B55]">
-						<Users className="size-4" />
-						2025/2026 Session
+					<div className="flex flex-wrap items-center gap-2">
+						<button
+							type="button"
+							onClick={() => {
+								setOpenActionSlotId(null);
+								setMonthKey((current) => shiftMonth(current, -1));
+							}}
+							className="flex size-11 items-center justify-center rounded-xl border border-[#d8e3f0] bg-white text-[#0D2B55] transition hover:border-[#bfd2e9] hover:bg-[#f6f9fd]"
+							aria-label="Show previous month"
+						>
+							<ChevronLeft className="size-5" />
+						</button>
+						<div className="min-w-48 rounded-xl border border-[#d8e3f0] bg-[#f8fbff] px-4 py-2 text-center">
+							<p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#7486a0]">
+								Month
+							</p>
+							<p className="text-sm font-black text-[#0D2B55]">
+								{getMonthTitle(monthKey)}
+							</p>
+						</div>
+						<button
+							type="button"
+							onClick={() => {
+								setOpenActionSlotId(null);
+								setMonthKey((current) => shiftMonth(current, 1));
+							}}
+							className="flex size-11 items-center justify-center rounded-xl border border-[#d8e3f0] bg-white text-[#0D2B55] transition hover:border-[#bfd2e9] hover:bg-[#f6f9fd]"
+							aria-label="Show next month"
+						>
+							<ChevronRight className="size-5" />
+						</button>
+						<div className="flex items-center gap-2 rounded-full border border-[#dbe5f1] bg-[#f8fbff] px-4 py-2 text-xs font-black text-[#0D2B55]">
+							<Users className="size-4" />
+							2025/2026 Session
+						</div>
 					</div>
 				</div>
 
-				<div className="overflow-x-auto">
-					<div className="min-w-[1040px]">
-						<div className="grid grid-cols-[8rem_repeat(5,minmax(11rem,1fr))] bg-[#0D2B55] text-white">
-							<div className="border-r border-white/10 px-4 py-4 text-[10px] font-black uppercase tracking-[0.22em] text-white/70">
-								Time
-							</div>
-							{DAYS.map((day) => (
+				<div className="overflow-x-auto app-scrollbar">
+					<div className="min-w-[1080px]">
+						<div className="grid grid-cols-7 bg-[#0D2B55] text-white">
+							{WEEK_DAYS.map((day) => (
 								<div
 									key={day}
-									className="border-r border-white/10 px-4 py-4 text-sm font-black last:border-r-0"
+									className="border-r border-white/10 px-3 py-3 text-center text-xs font-black uppercase tracking-[0.14em] last:border-r-0"
 								>
 									{day}
 								</div>
 							))}
 						</div>
 
-						{timeSlots.map((time, index) => (
-							<div
-								key={time}
-								className={`grid grid-cols-[8rem_repeat(5,minmax(11rem,1fr))] border-t border-[#dbe5f1] ${
-									index % 2 === 0 ? "bg-white" : "bg-[#fbfdff]"
-								}`}
-							>
-								<div className="border-r border-[#dbe5f1] px-4 py-4">
-									<p className="text-xs font-black text-[#0D2B55]">
-										{formatTime(time)}
-									</p>
-								</div>
-								{DAYS.map((day) => {
-									const entries = getCellSlots(day, time);
+						<div className="grid grid-cols-7">
+							{monthDates.map((date, index) => {
+								const dayName = FULL_DAYS[date.getDay()];
+								const entries = slotsByDay.get(dayName) ?? [];
+								const isOutsideMonth = date.getMonth() !== activeMonth;
+								const isToday = date.toDateString() === todayKey;
 
-									return (
-										<div
-											key={`${day}-${time}`}
-											className="min-h-32 border-r border-[#dbe5f1] p-3 last:border-r-0"
-										>
-											<div className="space-y-2">
-												{entries.map((entry) => {
-													const tone = modeTone(entry.mode);
-
-													return (
-														<div
-															key={entry.id}
-															className={`rounded-2xl border p-3 shadow-sm transition duration-300 hover:-translate-y-0.5 hover:shadow-md ${tone.card}`}
-														>
-															<div className="flex items-start justify-between gap-2">
-																<div>
-																	<p className="text-xs font-black">{entry.code}</p>
-																	<p className="mt-1 text-sm font-black leading-5">
-																		{entry.course}
-																	</p>
-																</div>
-																<div className="flex shrink-0 items-center gap-1">
-																	<button
-																		type="button"
-																		onClick={() => setSelectedSlot(entry)}
-																		className={`flex size-8 items-center justify-center rounded-xl ${tone.icon}`}
-																		aria-label={`View ${entry.code} timetable slot`}
-																	>
-																		<Eye className="size-4" />
-																	</button>
-																	{canManageTimetable ? (
-																		<>
-																			<button
-																				type="button"
-																				onClick={() => {
-																					setSelectedSlot(entry);
-																					setShowModal("edit");
-																				}}
-																				className={`flex size-8 items-center justify-center rounded-xl ${tone.icon}`}
-																				aria-label={`Edit ${entry.code} timetable slot`}
-																			>
-																				<Pencil className="size-4" />
-																			</button>
-																			<button
-																				type="button"
-																				onClick={() => {
-																					removeSlot(entry);
-																				}}
-																				className="flex size-8 items-center justify-center rounded-xl bg-white/75 text-red-700"
-																				aria-label={`Delete ${entry.code} timetable slot`}
-																			>
-																				<Trash2 className="size-4" />
-																			</button>
-																		</>
-																	) : null}
-																</div>
-															</div>
-															<div className="mt-3 flex flex-wrap gap-2 text-[11px] font-black">
-																<span className="rounded-full bg-white/75 px-2.5 py-1">
-																	{entry.level}
-																</span>
-																<span className="rounded-full bg-white/75 px-2.5 py-1">
-																	{entry.mode}
-																</span>
-																<span className="rounded-full bg-white/75 px-2.5 py-1">
-																	{entry.room || "Venue TBD"}
-																</span>
-															</div>
-														</div>
-													);
-												})}
-											</div>
+								return (
+									<section
+										key={date.toISOString()}
+										className={`relative min-h-64 border-r border-t border-[#dbe5f1] p-2.5 ${
+											(index + 1) % 7 === 0 ? "border-r-0" : ""
+										} ${
+											isOutsideMonth
+												? "bg-[#f8fbff] text-[#8a9bb3]"
+												: "bg-white"
+										}`}
+									>
+										<div className="flex items-center justify-between gap-2">
+											<span
+												className={`flex size-8 items-center justify-center rounded-full text-sm font-black ${
+													isToday
+														? "bg-[#0D2B55] text-white"
+														: "bg-[#eef4fb] text-[#17305f]"
+												}`}
+											>
+												{date.getDate()}
+											</span>
+											{entries.length ? (
+												<span className="rounded-full bg-[#fff6e8] px-2 py-1 text-[10px] font-black text-[#9a5d08]">
+													{entries.length}
+												</span>
+											) : null}
 										</div>
-									);
-								})}
-							</div>
-						))}
+										<div className="mt-2 space-y-2">
+											{entries.map((entry) => {
+												const tone = modeTone(entry.mode);
+												const linkedCourse =
+													coursesBySlotKey.get(entry.courseId ?? "") ??
+													coursesBySlotKey.get(entry.code);
+
+												return (
+													<div
+														key={`${date.toISOString()}-${entry.id}`}
+														className={`relative rounded-2xl border p-3 shadow-sm transition duration-300 hover:-translate-y-0.5 hover:shadow-md ${tone.card}`}
+													>
+														<div className="flex items-start justify-between gap-2">
+															<div className="min-w-0">
+																<p className="truncate text-xs font-black">
+																	{entry.code}
+																</p>
+																<p className="mt-1 line-clamp-2 text-sm font-black leading-5">
+																	{entry.course}
+																</p>
+															</div>
+															<SlotActionMenu
+																slot={entry}
+																isOpen={openActionSlotId === `${date.toISOString()}-${entry.id}`}
+																canManageTimetable={canManageTimetable}
+																onToggle={() =>
+																	setOpenActionSlotId((current) =>
+																		current === `${date.toISOString()}-${entry.id}`
+																			? null
+																			: `${date.toISOString()}-${entry.id}`,
+																	)
+																}
+																onView={() => {
+																	setOpenActionSlotId(null);
+																	setSelectedSlot(entry);
+																}}
+																onEdit={() => {
+																	setOpenActionSlotId(null);
+																	setSelectedSlot(entry);
+																	setShowModal("edit");
+																}}
+																onDelete={() => removeSlot(entry)}
+															/>
+														</div>
+														<div className="mt-3 space-y-1.5 text-xs font-bold">
+															<span className="flex items-center gap-2">
+																<Clock3 className="size-3.5" />
+																{formatTime(entry.time)}
+															</span>
+															<span className="flex items-center gap-2">
+																<MapPin className="size-3.5" />
+																{entry.room || "Venue TBD"}
+															</span>
+														</div>
+														<div className="mt-3 flex flex-wrap gap-2 text-[10px] font-black">
+															<span className="rounded-full bg-white/75 px-2.5 py-1">
+																{entry.level}
+															</span>
+															<span className="rounded-full bg-white/75 px-2.5 py-1">
+																{entry.mode}
+															</span>
+															{linkedCourse?.type ? (
+																<span className="rounded-full bg-white/75 px-2.5 py-1">
+																	{linkedCourse.type}
+																</span>
+															) : null}
+														</div>
+													</div>
+												);
+											})}
+										</div>
+									</section>
+								);
+							})}
+						</div>
 					</div>
 				</div>
 			</div>
