@@ -381,7 +381,13 @@ function BioDataStep({
 	);
 }
 
-function ContactStep({ errors }: { errors: AdmissionErrors }) {
+function ContactStep({
+	errors,
+	loginEmail,
+}: {
+	errors: AdmissionErrors;
+	loginEmail: string;
+}) {
 	const { contactData, updateContactData } = useStudentAdmissionStore();
 
 	function update<K extends keyof ContactData>(field: K, value: ContactData[K]) {
@@ -420,22 +426,27 @@ function ContactStep({ errors }: { errors: AdmissionErrors }) {
 			</div>
 
 			<div className="grid gap-4 md:grid-cols-2">
-				<AdmissionField label="Email Address" required error={errors.emailAddress}>
+				<AdmissionField
+					label="Login Email Address"
+					required
+					error={errors.emailAddress}
+					hint="This is the email used to sign in to your student account."
+				>
 					<input
 						type="email"
-						className={getAdmissionControlClass(errors.emailAddress)}
+						disabled
+						className={`${getAdmissionControlClass(errors.emailAddress)} cursor-not-allowed bg-[#f3f6fa] text-[#5f7189]`}
 						placeholder="student@example.com"
-						value={contactData.emailAddress}
-						onChange={(event) => update("emailAddress", event.target.value)}
+						value={loginEmail}
 					/>
 				</AdmissionField>
 				<AdmissionField label="Confirm Email" required error={errors.confirmEmail}>
 					<input
 						type="email"
-						className={getAdmissionControlClass(errors.confirmEmail)}
+						disabled
+						className={`${getAdmissionControlClass(errors.confirmEmail)} cursor-not-allowed bg-[#f3f6fa] text-[#5f7189]`}
 						placeholder="Retype your email"
-						value={contactData.confirmEmail}
-						onChange={(event) => update("confirmEmail", event.target.value)}
+						value={loginEmail}
 					/>
 				</AdmissionField>
 			</div>
@@ -1491,10 +1502,18 @@ export default function StudentAdmissionForm({
 	const isSuccess = currentStep === 6;
 
 	useEffect(() => {
-		if (!contactData.emailAddress && email) {
+		if (
+			email &&
+			(contactData.emailAddress !== email || contactData.confirmEmail !== email)
+		) {
 			updateContactData({ emailAddress: email, confirmEmail: email });
 		}
-	}, [contactData.emailAddress, email, updateContactData]);
+	}, [
+		contactData.confirmEmail,
+		contactData.emailAddress,
+		email,
+		updateContactData,
+	]);
 
 	useEffect(() => {
 		let isMounted = true;
@@ -1516,9 +1535,9 @@ export default function StudentAdmissionForm({
 						currentStep: stepFromApplication(savedApplication),
 						bioData: asStepData<BioData>(admissionProfile.bioData),
 						contactData: {
+							...asStepData<ContactData>(admissionProfile.contactData),
 							emailAddress: email,
 							confirmEmail: email,
-							...asStepData<ContactData>(admissionProfile.contactData),
 						},
 						oLevelData: asStepData<OLevelData>(admissionProfile.oLevelData),
 						programmeData: asStepData<ProgrammeData>(
@@ -1734,7 +1753,9 @@ export default function StudentAdmissionForm({
 						{currentStep === 1 ? (
 							<BioDataStep errors={errors} collegeSlug={collegeSlug} />
 						) : null}
-						{currentStep === 2 ? <ContactStep errors={errors} /> : null}
+						{currentStep === 2 ? (
+							<ContactStep errors={errors} loginEmail={email} />
+						) : null}
 						{currentStep === 3 ? <OLevelStep errors={errors} /> : null}
 						{currentStep === 4 ? <ProgrammeStep errors={errors} /> : null}
 						{currentStep === 5 ? <DeclarationStep errors={errors} /> : null}

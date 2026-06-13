@@ -123,6 +123,22 @@ function getChangedFields(payload: Record<string, unknown>) {
 	return Object.keys(payload).filter((key) => payload[key] !== undefined);
 }
 
+function normalizeStepPayload(
+	step: AdmissionProfileStep,
+	payload: Record<string, unknown>,
+	email: string,
+) {
+	if (step !== "contactData") {
+		return payload;
+	}
+
+	return {
+		...payload,
+		emailAddress: email,
+		confirmEmail: email,
+	};
+}
+
 function isPersistedPhotoSource(value: unknown) {
 	const photo = asString(value);
 
@@ -474,9 +490,14 @@ export default {
 
 		const application = await ensureApplication(resolved);
 		const metadata = asRecord(application.metadata);
+		const normalizedPayload = normalizeStepPayload(
+			step,
+			payload,
+			resolved.email,
+		);
 		const admissionProfile = {
 			...asRecord(metadata.admissionProfile),
-			[step]: payload,
+			[step]: normalizedPayload,
 		};
 		const currentStep = STEP_TO_CURRENT_STEP[step];
 		const completedSteps = mergeUniqueSteps(application.completedSteps, currentStep);
@@ -527,7 +548,7 @@ export default {
 			summary: `Student saved ${currentStep} admission profile step.`,
 			metadata: {
 				step,
-				changedFields: getChangedFields(payload),
+				changedFields: getChangedFields(normalizedPayload),
 			},
 		});
 

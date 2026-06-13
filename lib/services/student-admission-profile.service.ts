@@ -68,6 +68,22 @@ function getStudentPayload(session: AuthSession) {
 	};
 }
 
+function normalizeAdmissionStepPayload(
+	step: StudentAdmissionProfileStep,
+	payload: Record<string, unknown>,
+	session: AuthSession,
+) {
+	if (step !== "contactData") {
+		return payload;
+	}
+
+	return {
+		...payload,
+		emailAddress: session.user.email,
+		confirmEmail: session.user.email,
+	};
+}
+
 export async function getStudentAdmissionProfile(collegeSlug: string) {
 	const session = assertStudentSession(await getCurrentAuthSession(), collegeSlug);
 
@@ -100,7 +116,7 @@ export async function saveStudentAdmissionProfileStep(input: {
 			collegeSlug: input.collegeSlug,
 			student: getStudentPayload(session),
 			step: input.step,
-			payload: input.payload,
+			payload: normalizeAdmissionStepPayload(input.step, input.payload, session),
 		},
 		{
 			headers: getInternalHeaders(),
