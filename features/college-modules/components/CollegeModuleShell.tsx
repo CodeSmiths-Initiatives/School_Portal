@@ -17,6 +17,7 @@ import {
 	getDefaultPermissionsForDomain,
 	type UserPermissionKey,
 } from "@/lib/rbac";
+import { requirePaidStudentAccess } from "@/lib/auth/student-access";
 
 type CollegeModuleShellProps = {
 	collegeSlug: string;
@@ -45,7 +46,15 @@ export default async function CollegeModuleShell({
 		redirect("/signin");
 	}
 
-	const module = getCollegeModuleConfig(moduleKey);
+	if (session.user.collegeSlug && session.user.collegeSlug !== collegeSlug) {
+		redirect(session.destination.path);
+	}
+
+	if (session.user.domain === "student" && moduleKey === "courses") {
+		await requirePaidStudentAccess(collegeSlug);
+	}
+
+	const moduleConfig = getCollegeModuleConfig(moduleKey);
 	const domain =
 		session.user.domain === "superadmin" ? "admin" : session.user.domain;
 	const dashboard = getDashboardContent(domain, collegeSlug);
@@ -61,7 +70,7 @@ export default async function CollegeModuleShell({
 			domain={domain}
 			roleLabel={session.user.roleLabel ?? dashboard.roleLabel}
 			tenantSlug={collegeSlug}
-			activeMenuKey={module.activeMenuKey}
+			activeMenuKey={moduleConfig.activeMenuKey}
 			permissions={permissions}
 			stats={dashboard.stats}
 			highlights={dashboard.highlights}
@@ -73,10 +82,11 @@ export default async function CollegeModuleShell({
 			contentWidth={["hostel", "courses", "payments"].includes(moduleKey) ? "wide" : "default"}
 		>
 			<CollegeModuleWorkspace
-				module={module}
+				module={moduleConfig}
 				permissions={permissions}
 				collegeName={session.user.collegeName ?? formatCollegeName(collegeSlug)}
 				collegeSlug={collegeSlug}
+				domain={domain}
 			/>
 		</RoleDashboardShell>
 	);

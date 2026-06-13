@@ -11,13 +11,17 @@ import type { CollegeModuleConfig } from "@/features/college-modules/config/coll
 import CourseModuleWorkspace from "@/features/college-modules/components/CourseModuleWorkspace";
 import HostelModuleWorkspace from "@/features/college-modules/components/HostelModuleWorkspace";
 import PaymentModuleWorkspace from "@/features/college-modules/components/PaymentModuleWorkspace";
+import StudentCourseWorkspace from "@/features/college-modules/components/StudentCourseWorkspace";
 import { hasPermissions, type UserPermissionKey } from "@/lib/rbac";
+import type { DashboardDomain } from "@/lib/auth";
+import { getStudentCourseData } from "@/lib/services/student-course.service";
 
 type CollegeModuleWorkspaceProps = {
 	module: CollegeModuleConfig;
 	permissions: UserPermissionKey[];
 	collegeName: string;
 	collegeSlug: string;
+	domain: DashboardDomain;
 };
 
 const MODULE_ICONS = {
@@ -27,11 +31,12 @@ const MODULE_ICONS = {
 	CircleDollarSign,
 };
 
-export default function CollegeModuleWorkspace({
+export default async function CollegeModuleWorkspace({
 	module,
 	permissions,
 	collegeName,
 	collegeSlug,
+	domain,
 }: CollegeModuleWorkspaceProps) {
 	const Icon = MODULE_ICONS[module.icon];
 	const canView = hasPermissions(permissions, module.requiredPermissions);
@@ -73,6 +78,17 @@ export default function CollegeModuleWorkspace({
 	}
 
 	if (module.key === "courses") {
+		if (domain === "student") {
+			const data = await getStudentCourseData(collegeSlug);
+
+			return (
+				<StudentCourseWorkspace
+					data={data}
+					collegeName={collegeName}
+				/>
+			);
+		}
+
 		return (
 			<CourseModuleWorkspace
 				permissions={permissions}
