@@ -3,6 +3,7 @@
 import {
 	BadgeCheck,
 	CheckCircle2,
+	EllipsisVertical,
 	Eye,
 	Filter,
 	Search,
@@ -301,6 +302,76 @@ function ConfirmDecisionModal({
 	);
 }
 
+function HodRowActions({
+	course,
+	open,
+	onToggle,
+	onView,
+	onApprove,
+	onReject,
+}: {
+	course: Course;
+	open: boolean;
+	onToggle: () => void;
+	onView: () => void;
+	onApprove?: () => void;
+	onReject?: () => void;
+}) {
+	return (
+		<div className="relative flex justify-end">
+			<button
+				type="button"
+				onClick={onToggle}
+				className="inline-flex size-10 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+				aria-label={`Open actions for ${course.code}`}
+				aria-haspopup="menu"
+				aria-expanded={open}
+				title="Actions"
+			>
+				<EllipsisVertical className="size-4" />
+			</button>
+			{open ? (
+				<div
+					role="menu"
+					className="absolute right-0 top-11 z-20 w-44 overflow-hidden rounded-2xl border border-[#dbe5f1] bg-white py-2 text-sm font-bold text-[#0D2B55] shadow-[0_18px_45px_rgba(13,43,85,0.16)]"
+				>
+					<button
+						type="button"
+						role="menuitem"
+						onClick={onView}
+						className="flex w-full items-center gap-2 px-4 py-2.5 text-left transition hover:bg-[#f8fbff]"
+					>
+						<Eye className="size-4" />
+						View
+					</button>
+					{onApprove ? (
+						<button
+							type="button"
+							role="menuitem"
+							onClick={onApprove}
+							className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-emerald-700 transition hover:bg-emerald-50"
+						>
+							<CheckCircle2 className="size-4" />
+							Approve
+						</button>
+					) : null}
+					{onReject ? (
+						<button
+							type="button"
+							role="menuitem"
+							onClick={onReject}
+							className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-[#c54848] transition hover:bg-red-50"
+						>
+							<XCircle className="size-4" />
+							Reject
+						</button>
+					) : null}
+				</div>
+			) : null}
+		</div>
+	);
+}
+
 export default function HodApproval({
 	courses,
 	onUpdateStatus,
@@ -311,6 +382,7 @@ export default function HodApproval({
 	const [searchQuery, setSearchQuery] = useState("");
 	const [viewCourse, setViewCourse] = useState<Course | null>(null);
 	const [decisionTarget, setDecisionTarget] = useState<DecisionTarget | null>(null);
+	const [openActionsId, setOpenActionsId] = useState<string | null>(null);
 
 	const analytics = useMemo(
 		() => [
@@ -370,6 +442,10 @@ export default function HodApproval({
 		setStatusFilter("All Status");
 		setTypeFilter("All Types");
 		setSearchQuery("");
+	}
+
+	function closeActions() {
+		setOpenActionsId(null);
 	}
 
 	function requestDecision(action: DecisionAction, course: Course) {
@@ -567,39 +643,35 @@ export default function HodApproval({
 											</span>
 										</td>
 										<td className="px-5 py-4">
-											<div className="flex justify-end gap-2">
-												<button
-													type="button"
-													onClick={() => setViewCourse(course)}
-													className="inline-flex size-10 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
-													aria-label={`View ${course.title}`}
-													title="View"
-												>
-													<Eye className="size-4" />
-												</button>
-												{canReviewCourses && course.status === "Pending" ? (
-													<>
-														<button
-															type="button"
-															onClick={() => requestDecision("Approved", course)}
-															className="inline-flex size-10 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700 transition hover:-translate-y-0.5 hover:bg-emerald-100"
-															aria-label={`Approve ${course.title}`}
-															title="Approve"
-														>
-															<CheckCircle2 className="size-4" />
-														</button>
-														<button
-															type="button"
-															onClick={() => requestDecision("Rejected", course)}
-															className="inline-flex size-10 items-center justify-center rounded-2xl border border-red-200 bg-red-50 text-red-700 transition hover:-translate-y-0.5 hover:bg-red-100"
-															aria-label={`Reject ${course.title}`}
-															title="Reject"
-														>
-															<XCircle className="size-4" />
-														</button>
-													</>
-												) : null}
-											</div>
+											<HodRowActions
+												course={course}
+												open={openActionsId === course.id}
+												onToggle={() =>
+													setOpenActionsId((current) =>
+														current === course.id ? null : course.id,
+													)
+												}
+												onView={() => {
+													setViewCourse(course);
+													closeActions();
+												}}
+												onApprove={
+													canReviewCourses && course.status === "Pending"
+														? () => {
+																requestDecision("Approved", course);
+																closeActions();
+															}
+														: undefined
+												}
+												onReject={
+													canReviewCourses && course.status === "Pending"
+														? () => {
+																requestDecision("Rejected", course);
+																closeActions();
+															}
+														: undefined
+												}
+											/>
 										</td>
 									</tr>
 								))}
