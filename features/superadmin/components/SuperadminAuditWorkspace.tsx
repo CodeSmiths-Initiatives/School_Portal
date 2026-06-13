@@ -420,7 +420,7 @@ export function SuperadminAuditWorkspace({
 	const collegeOptions = colleges.length > 0 ? colleges : fallbackColleges;
 	const auditEvents = useMemo(
 		() =>
-			auditData?.events.length
+			auditData
 				? auditData.events.map((event) => ({
 						...event,
 						eventType: event.eventType as AuditEventType,

@@ -64,6 +64,10 @@ function asRecord(value: unknown) {
 		: {};
 }
 
+function asArray(value: unknown) {
+	return Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
+}
+
 function getCollege(value: unknown) {
 	const college = asRecord(value);
 
@@ -128,6 +132,85 @@ function createReportRow(college: ReturnType<typeof getCollege>) {
 		paymentUnpaid: 0,
 		revenue: 0,
 		trend: [0, 0, 0, 0, 0, 0],
+	};
+}
+
+type AuditRow = {
+	id: string;
+	collegeSlug: string;
+	collegeName: string;
+	actor: string;
+	actorEmail: string;
+	role: string;
+	activity: string;
+	target: string;
+	eventType: string;
+	when: string;
+	ipAddress: string;
+	summary: string;
+};
+
+function formatPaymentAmount(value: unknown, currencyValue: unknown) {
+	const amount = asNumber(value);
+	const currency = asString(currencyValue, "NGN");
+
+	return new Intl.NumberFormat("en-NG", {
+		style: "currency",
+		currency,
+		maximumFractionDigits: 2,
+	}).format(amount);
+}
+
+function paymentRowFromInvoice(invoice: Record<string, unknown>): AuditRow | null {
+	const college = getCollege(invoice.college);
+	const transactions = asArray(invoice.transactions);
+	const latestTransaction =
+		transactions.find((transaction) => asString(transaction.status) === "success") ??
+		transactions[0] ??
+		{};
+	const metadata = asRecord(invoice.metadata);
+	const application = asRecord(invoice.admissionApplication);
+	const invoiceNumber = asString(invoice.invoiceNumber, String(invoice.id ?? ""));
+	const reference =
+		asString(latestTransaction.reference) ||
+		asString(metadata.paymentReference) ||
+		invoiceNumber;
+	const status = asString(invoice.status, "pending");
+	const payerName = asString(invoice.payerName, asString(invoice.payerEmail, "Student"));
+	const payerEmail = asString(invoice.payerEmail);
+	const occurredAt =
+		asString(invoice.paidAt) ||
+		asString(latestTransaction.verifiedAt) ||
+		asString(latestTransaction.paidAt) ||
+		asString(invoice.createdAt);
+
+	if (!invoiceNumber || !occurredAt) {
+		return null;
+	}
+
+	return {
+		id: `PAY-${asString(invoice.documentId, String(invoice.id ?? invoiceNumber))}`,
+		collegeSlug: college.slug,
+		collegeName: college.name || "Platform",
+		actor: payerName,
+		actorEmail: payerEmail,
+		role: "Student",
+		activity: status === "paid" ? "Payment verified" : "Payment initialized",
+		target: invoiceNumber,
+		eventType: "payment",
+		when: occurredAt,
+		ipAddress: "Gateway",
+		summary: `${payerName} ${status === "paid" ? "completed" : "started"} ${asString(
+			invoice.module,
+			"student",
+		)} payment ${reference} for ${formatPaymentAmount(
+			invoice.amount,
+			invoice.currency,
+		)}${
+			asString(application.applicationNumber)
+				? ` on application ${asString(application.applicationNumber)}`
+				: ""
+		}.`,
 	};
 }
 
@@ -308,10 +391,10 @@ export default {
 		const collegeSlug = ctx.request.query?.collegeSlug;
 		const logs = await strapi.db.query("api::audit-log.audit-log").findMany({
 			orderBy: { occurredAt: "desc" },
-			limit: 250,
+			limit: 1000,
 			populate: { college: true, actor: true },
 		});
-		const rows = (logs as Record<string, unknown>[])
+		const logRows = (logs as Record<string, unknown>[])
 			.map((log) => {
 				const college = getCollege(log.college);
 				const actor = asRecord(log.actor);
@@ -359,7 +442,48 @@ export default {
 				const rightTime = toDate(right.when)?.getTime() ?? 0;
 				return rightTime - leftTime;
 			})
-			.map(({ hasStructuredAuditShape: _hasStructuredAuditShape, ...row }) => row);
+			.map((row) => ({
+				id: row.id,
+				collegeSlug: row.collegeSlug,
+				collegeName: row.collegeName,
+				actor: row.actor,
+				actorEmail: row.actorEmail,
+				role: row.role,
+				activity: row.activity,
+				target: row.target,
+				eventType: row.eventType,
+				when: row.when,
+				ipAddress: row.ipAddress,
+				summary: row.summary,
+			}));
+
+		const invoices = await strapi.db
+			.query("api::payment-invoice.payment-invoice")
+			.findMany({
+				orderBy: { createdAt: "desc" },
+				limit: 1000,
+				populate: {
+					college: true,
+					transactions: true,
+					admissionApplication: true,
+				},
+			});
+		const paymentRows = (invoices as Record<string, unknown>[])
+			.map(paymentRowFromInvoice)
+			.filter((row): row is AuditRow => Boolean(row))
+			.filter((row) => {
+				const matchesCollege =
+					!collegeSlug || collegeSlug === "all" || row.collegeSlug === collegeSlug;
+
+				return matchesCollege && inDateRange(row.when, from, to);
+			});
+		const rows = [...logRows, ...paymentRows]
+			.sort((left, right) => {
+				const leftTime = toDate(left.when)?.getTime() ?? 0;
+				const rightTime = toDate(right.when)?.getTime() ?? 0;
+				return rightTime - leftTime;
+			})
+			.slice(0, 250);
 
 		ctx.body = {
 			generatedAt: new Date().toISOString(),
