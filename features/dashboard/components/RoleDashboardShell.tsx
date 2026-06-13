@@ -183,7 +183,7 @@ export default function RoleDashboardShell({
 				<aside className="bg-[#0D2B55] px-4 py-4 text-white shadow-lg shadow-[#0d2b55]/12 sm:px-6 lg:h-full lg:w-[20rem] lg:flex-none lg:overflow-hidden lg:px-6 lg:py-5 xl:w-[22rem] xl:px-8">
 					<div className="lg:sticky lg:top-5">
 						<nav className="space-y-2">
-							{navItems.map((item, index) => {
+							{navItems.map((item) => {
 								const Icon =
 									MENU_ICON_MAP[item.icon as keyof typeof MENU_ICON_MAP] ??
 									LayoutDashboard;
@@ -325,7 +325,7 @@ export default function RoleDashboardShell({
 														const y = 140 - (Math.min(point.value, 100) / 100) * 112;
 														return (
 															<circle
-																key={point.label}
+																key={`${point.label}-${index}-dot`}
 																cx={x}
 																cy={y}
 																r="5"
@@ -338,8 +338,8 @@ export default function RoleDashboardShell({
 												</svg>
 											</div>
 											<div className="mt-3 grid grid-cols-4 gap-2">
-												{reportPanel.points.map((point) => (
-													<div key={point.label} className="text-center">
+												{reportPanel.points.map((point, index) => (
+													<div key={`${point.label}-${index}-axis`} className="text-center">
 														<p className="text-sm font-semibold text-[#17305f]">
 															{point.amount}
 														</p>
@@ -352,8 +352,8 @@ export default function RoleDashboardShell({
 										</div>
 									) : (
 										<div className="flex h-52 items-end gap-3">
-											{reportPanel.points.map((point) => (
-												<div key={point.label} className="flex min-w-0 flex-1 flex-col items-center gap-3">
+											{reportPanel.points.map((point, index) => (
+												<div key={`${point.label}-${index}-bar`} className="flex min-w-0 flex-1 flex-col items-center gap-3">
 													<div className="flex h-40 w-full items-end">
 														<div
 															className="w-full rounded-t-2xl bg-[linear-gradient(180deg,#2E86C1_0%,#0D2B55_100%)] shadow-[0_12px_24px_rgba(46,134,193,0.18)]"
@@ -375,9 +375,9 @@ export default function RoleDashboardShell({
 								</div>
 
 								<div className="space-y-3">
-									{reportPanel.points.map((point) => (
+									{reportPanel.points.map((point, index) => (
 										<div
-											key={`${point.label}-summary`}
+											key={`${point.label}-${index}-summary`}
 											className="rounded-xl border border-[#e3eaf4] bg-[#fbfdff] px-4 py-3"
 										>
 											<p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#8a9ab5]">

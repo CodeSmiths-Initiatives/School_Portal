@@ -4,22 +4,17 @@ import type {
   StudentDashboardNotice,
 } from "@/lib/services/student-dashboard.service";
 import {
-  ArrowRight,
   BadgeCheck,
   Banknote,
   Bell,
   BookOpen,
   CalendarClock,
   CheckCircle2,
-  CircleDollarSign,
   ClipboardCheck,
-  FileText,
   GraduationCap,
   LineChart,
   Sparkles,
-  UserRound,
 } from "lucide-react";
-import Link from "next/link";
 
 type StudentDashboardWorkspaceProps = {
   collegeSlug: string;
@@ -413,7 +408,7 @@ function HeroTrendPanel({ data }: { data: StudentDashboardData }) {
 
               return (
                 <circle
-                  key={`${point.label}-dot`}
+                  key={`${point.label}-${index}-dot`}
                   cx={x}
                   cy={y}
                   r="5"
@@ -463,32 +458,9 @@ function HeroTrendPanel({ data }: { data: StudentDashboardData }) {
 }
 
 export default function StudentDashboardWorkspace({
-  collegeSlug,
   data,
 }: StudentDashboardWorkspaceProps) {
   const latestInvoice = data.paymentSummary.latestInvoice;
-  const quickActions = [
-    {
-      label: "Admission",
-      href: `/college/${collegeSlug}/student/admission`,
-      icon: FileText,
-    },
-    {
-      label: "Profile",
-      href: `/college/${collegeSlug}/student/profile`,
-      icon: UserRound,
-    },
-    {
-      label: "Payments",
-      href: `/college/${collegeSlug}/modules/payments`,
-      icon: CircleDollarSign,
-    },
-    {
-      label: "Courses",
-      href: `/college/${collegeSlug}/modules/courses`,
-      icon: BookOpen,
-    },
-  ];
 
   return (
     <div className="space-y-5">
@@ -512,26 +484,6 @@ export default function StudentDashboardWorkspace({
                 </p>
               </div>
             </div>
-
-            {/* <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-							{quickActions.map((action) => {
-								const Icon = action.icon;
-
-								return (
-									<Link
-										key={action.label}
-										href={action.href}
-										className="group flex items-center justify-between gap-3 rounded-2xl border border-white/12 bg-white/8 px-4 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-white hover:text-[#0D2B55]"
-									>
-										<span className="flex items-center gap-2">
-											<Icon className="size-4 text-[#E4A11B] transition group-hover:text-[#B7770D]" />
-											{action.label}
-										</span>
-										<ArrowRight className="size-4" />
-									</Link>
-								);
-							})}
-						</div> */}
 
             <HeroTrendPanel data={data} />
           </div>
