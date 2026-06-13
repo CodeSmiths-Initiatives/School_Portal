@@ -56,12 +56,12 @@
   },
   "indexes": [
     {
-      "name": "course_timetable_slot_college_status_idx",
-      "columns": ["college_id", "status"]
+      "name": "course_timetable_slot_status_idx",
+      "columns": ["status"]
     },
     {
       "name": "course_timetable_slot_lookup_idx",
-      "columns": ["college_id", "day", "time", "level"]
+      "columns": ["day", "time", "level", "status"]
     }
   ]
 }
