@@ -4,6 +4,8 @@ import {
 	BookOpenCheck,
 	CalendarDays,
 	CheckCircle2,
+	ChevronLeft,
+	ChevronRight,
 	Clock3,
 	Filter,
 	GraduationCap,
@@ -38,9 +40,22 @@ type AllocationRow = {
 };
 
 const LEVELS: Level[] = ["100L", "200L", "300L", "400L"];
-const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"] as const;
+const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+const FULL_DAYS = [
+	"Sunday",
+	"Monday",
+	"Tuesday",
+	"Wednesday",
+	"Thursday",
+	"Friday",
+	"Saturday",
+] as const;
 const COURSE_TYPES: CourseType[] = ["Core", "Elective", "Required", "Borrowed", "Carryover"];
 const COURSE_MODES: Mode[] = ["On-Site", "Online", "Hybrid"];
+const MONTH_FORMATTER = new Intl.DateTimeFormat("en-NG", {
+	month: "long",
+	year: "numeric",
+});
 
 function formatDateTime(value: string) {
 	const date = new Date(value);
@@ -82,6 +97,41 @@ function modePill(mode: Mode) {
 	};
 
 	return `inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${styles[mode]}`;
+}
+
+function formatTime(value: string) {
+	return value.replace("-", " - ");
+}
+
+function getMonthKey(date: Date) {
+	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function getMonthTitle(monthKey: string) {
+	const [year, month] = monthKey.split("-").map(Number);
+	return MONTH_FORMATTER.format(new Date(year, month - 1, 1));
+}
+
+function shiftMonth(monthKey: string, offset: number) {
+	const [year, month] = monthKey.split("-").map(Number);
+	return getMonthKey(new Date(year, month - 1 + offset, 1));
+}
+
+function getMonthDates(monthKey: string) {
+	const [year, month] = monthKey.split("-").map(Number);
+	const firstDate = new Date(year, month - 1, 1);
+	const lastDate = new Date(year, month, 0);
+	const cursor = new Date(firstDate);
+	const dates: Date[] = [];
+
+	cursor.setDate(firstDate.getDate() - firstDate.getDay());
+
+	while (cursor <= lastDate || dates.length % 7 !== 0) {
+		dates.push(new Date(cursor));
+		cursor.setDate(cursor.getDate() + 1);
+	}
+
+	return dates;
 }
 
 function SummaryCard({
@@ -229,77 +279,294 @@ function AllocationTable({ rows }: { rows: AllocationRow[] }) {
 	);
 }
 
-function CalendarSlot({ slot }: { slot: TimelineSlot }) {
+function CalendarSlot({
+	slot,
+	courseType,
+	compact = false,
+}: {
+	slot: TimelineSlot;
+	courseType?: CourseType;
+	compact?: boolean;
+}) {
 	return (
-		<div className="student-dashboard-enter rounded-xl border border-[#dbe5f1] bg-white p-3 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-[#bfd2e9]">
+		<div className="student-dashboard-enter rounded-xl border border-[#dbe5f1] bg-white p-2.5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-[#bfd2e9]">
 			<div className="flex items-start justify-between gap-2">
 				<div className="min-w-0">
 					<p className="truncate text-sm font-black text-[#0D2B55]">
 						{slot.code}
 					</p>
-					<p className="mt-1 line-clamp-2 text-xs leading-5 text-[#60728f]">
-						{slot.course}
-					</p>
+					{compact ? null : (
+						<p className="mt-1 line-clamp-2 text-xs leading-5 text-[#60728f]">
+							{slot.course}
+						</p>
+					)}
 				</div>
 				<span className="shrink-0 rounded-full bg-[#fff6e8] px-2 py-1 text-[10px] font-black text-[#9a5d08]">
 					{slot.level}
 				</span>
 			</div>
-			<div className="mt-3 space-y-2 text-xs font-bold text-[#4f6788]">
+			<div className="mt-2 space-y-1.5 text-xs font-bold text-[#4f6788]">
 				<span className="flex items-center gap-2">
 					<Clock3 className="size-3.5 text-[#B7770D]" />
-					{slot.time}
+					{formatTime(slot.time)}
 				</span>
 				<span className="flex items-center gap-2">
 					<MapPin className="size-3.5 text-[#B7770D]" />
 					{slot.room}
 				</span>
 			</div>
+			<div className="mt-2 flex flex-wrap gap-1.5">
+				<span className="rounded-full bg-[#eef4fb] px-2 py-0.5 text-[10px] font-black text-[#31547d]">
+					{slot.mode}
+				</span>
+				{courseType ? (
+					<span className="rounded-full bg-[#f3f8ff] px-2 py-0.5 text-[10px] font-black text-[#255b98]">
+						{courseType}
+					</span>
+				) : null}
+			</div>
 		</div>
 	);
 }
 
-function TimetableCalendar({ slots }: { slots: TimelineSlot[] }) {
+function TimetableCalendar({
+	slots,
+	courses,
+}: {
+	slots: TimelineSlot[];
+	courses: Course[];
+}) {
+	const [monthKey, setMonthKey] = useState(() => getMonthKey(new Date()));
+	const [search, setSearch] = useState("");
+	const [levelFilter, setLevelFilter] = useState("All Levels");
+	const [modeFilter, setModeFilter] = useState("All Modes");
+	const [typeFilter, setTypeFilter] = useState("All Types");
+	const monthDates = useMemo(() => getMonthDates(monthKey), [monthKey]);
+	const activeMonth = Number(monthKey.split("-")[1]) - 1;
+	const todayKey = new Date().toDateString();
+
+	const coursesBySlotKey = useMemo(() => {
+		const lookup = new Map<string, Course>();
+
+		for (const course of courses) {
+			lookup.set(course.id, course);
+			lookup.set(course.code, course);
+		}
+
+		return lookup;
+	}, [courses]);
+
+	const filteredSlots = useMemo(
+		() =>
+			slots.filter((slot) => {
+				const linkedCourse = coursesBySlotKey.get(slot.courseId ?? "") ?? coursesBySlotKey.get(slot.code);
+				const searchable = [
+					slot.code,
+					slot.course,
+					slot.room,
+					slot.day,
+					slot.level,
+					slot.mode,
+					linkedCourse?.department,
+					linkedCourse?.lecturer,
+					linkedCourse?.type,
+				].join(" ");
+
+				return (
+					(!search.trim() || includesSearch(searchable, search)) &&
+					(levelFilter === "All Levels" || slot.level === levelFilter) &&
+					(modeFilter === "All Modes" || slot.mode === modeFilter) &&
+					(typeFilter === "All Types" || linkedCourse?.type === typeFilter)
+				);
+			}),
+		[coursesBySlotKey, levelFilter, modeFilter, search, slots, typeFilter],
+	);
+
 	const slotsByDay = useMemo(() => {
 		const grouped = new Map<string, TimelineSlot[]>();
 
-		for (const slot of slots) {
+		for (const slot of filteredSlots) {
 			grouped.set(slot.day, [...(grouped.get(slot.day) ?? []), slot]);
 		}
 
+		for (const [day, daySlots] of grouped.entries()) {
+			grouped.set(
+				day,
+				[...daySlots].sort(
+					(left, right) =>
+						left.time.localeCompare(right.time) ||
+						left.code.localeCompare(right.code),
+				),
+			);
+		}
+
 		return grouped;
-	}, [slots]);
+	}, [filteredSlots]);
+
+	function clearCalendarFilters() {
+		setSearch("");
+		setLevelFilter("All Levels");
+		setModeFilter("All Modes");
+		setTypeFilter("All Types");
+		setMonthKey(getMonthKey(new Date()));
+	}
 
 	return (
-		<div className="grid gap-4 xl:grid-cols-5">
-			{DAYS.map((day) => {
-				const daySlots = (slotsByDay.get(day) ?? []).sort((left, right) =>
-					left.time.localeCompare(right.time),
-				);
-
-				return (
-					<section
-						key={day}
-						className="min-h-64 rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] p-3"
+		<div className="space-y-4">
+			<div className="rounded-2xl border border-[#e3eaf4] bg-[#fbfdff] p-4">
+				<div className="flex flex-wrap items-center justify-between gap-3">
+					<div className="flex items-center gap-2">
+						<button
+							type="button"
+							onClick={() => setMonthKey((current) => shiftMonth(current, -1))}
+							className="flex size-11 items-center justify-center rounded-xl border border-[#d8e3f0] bg-white text-[#0D2B55] transition hover:border-[#bfd2e9] hover:bg-[#f6f9fd]"
+							aria-label="Show previous month"
+						>
+							<ChevronLeft className="size-5" />
+						</button>
+						<div className="min-w-48 rounded-xl border border-[#d8e3f0] bg-white px-4 py-2 text-center">
+							<p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#7486a0]">
+								Month
+							</p>
+							<p className="text-sm font-black text-[#0D2B55]">
+								{getMonthTitle(monthKey)}
+							</p>
+						</div>
+						<button
+							type="button"
+							onClick={() => setMonthKey((current) => shiftMonth(current, 1))}
+							className="flex size-11 items-center justify-center rounded-xl border border-[#d8e3f0] bg-white text-[#0D2B55] transition hover:border-[#bfd2e9] hover:bg-[#f6f9fd]"
+							aria-label="Show next month"
+						>
+							<ChevronRight className="size-5" />
+						</button>
+					</div>
+					<button
+						type="button"
+						onClick={clearCalendarFilters}
+						className="flex h-11 items-center justify-center gap-2 rounded-xl border border-[#d8e3f0] bg-white px-4 text-sm font-black text-[#0D2B55] transition hover:border-[#bfd2e9] hover:bg-[#f6f9fd]"
 					>
-						<div className="flex items-center justify-between gap-2 rounded-xl bg-[#0D2B55] px-3 py-3 text-white">
-							<p className="text-sm font-black">{day}</p>
-							<span className="rounded-full bg-white/12 px-2.5 py-1 text-[11px] font-black text-[#E4A11B]">
-								{daySlots.length}
-							</span>
+						<Filter className="size-4" />
+						Reset
+					</button>
+				</div>
+
+				<div className="mt-4 grid gap-3 lg:grid-cols-[minmax(16rem,1fr)_repeat(3,minmax(9rem,12rem))]">
+					<label className="min-w-0">
+						<span className="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-[#7486a0]">
+							Search
+						</span>
+						<div className="flex h-11 items-center gap-2 rounded-xl border border-[#d8e3f0] bg-white px-3 transition focus-within:border-[#2E86C1] focus-within:ring-4 focus-within:ring-[#2E86C1]/10">
+							<Search className="size-4 text-[#8395AF]" />
+							<input
+								value={search}
+								onChange={(event) => setSearch(event.target.value)}
+								placeholder="Course, code, room, lecturer"
+								className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-[#17305f] outline-none placeholder:text-[#8ba0ba]"
+							/>
 						</div>
-						<div className="mt-3 space-y-3">
-							{daySlots.length ? (
-								daySlots.map((slot) => <CalendarSlot key={slot.id} slot={slot} />)
-							) : (
-								<div className="rounded-xl border border-dashed border-[#cfdbea] bg-white px-3 py-8 text-center text-xs font-bold leading-5 text-[#71839e]">
-									No published class slot
+					</label>
+					<SelectFilter
+						label="Level"
+						value={levelFilter}
+						options={["All Levels", ...LEVELS]}
+						onChange={setLevelFilter}
+					/>
+					<SelectFilter
+						label="Mode"
+						value={modeFilter}
+						options={["All Modes", ...COURSE_MODES]}
+						onChange={setModeFilter}
+					/>
+					<SelectFilter
+						label="Type"
+						value={typeFilter}
+						options={["All Types", ...COURSE_TYPES]}
+						onChange={setTypeFilter}
+					/>
+				</div>
+			</div>
+
+			<div className="overflow-hidden rounded-2xl border border-[#dbe5f1] bg-white">
+				<div className="overflow-x-auto app-scrollbar">
+					<div className="min-w-[980px]">
+						<div className="grid grid-cols-7 bg-[#0D2B55] text-white">
+							{WEEK_DAYS.map((day) => (
+								<div
+									key={day}
+									className="border-r border-white/10 px-2 py-3 text-center text-xs font-black uppercase tracking-[0.14em] last:border-r-0"
+								>
+									{day}
 								</div>
-							)}
+							))}
 						</div>
-					</section>
-				);
-			})}
+						<div className="grid grid-cols-7">
+							{monthDates.map((date, index) => {
+								const dayName = FULL_DAYS[date.getDay()];
+								const daySlots = slotsByDay.get(dayName) ?? [];
+								const isOutsideMonth = date.getMonth() !== activeMonth;
+								const isToday = date.toDateString() === todayKey;
+
+								return (
+									<section
+										key={date.toISOString()}
+										className={`min-h-52 border-r border-t border-[#dbe5f1] p-2 ${
+											(index + 1) % 7 === 0 ? "border-r-0" : ""
+										} ${
+											isOutsideMonth
+												? "bg-[#f8fbff] text-[#8a9bb3]"
+												: "bg-white"
+										}`}
+									>
+										<div className="flex items-center justify-between gap-2">
+											<span
+												className={`flex size-8 items-center justify-center rounded-full text-sm font-black ${
+													isToday
+														? "bg-[#0D2B55] text-white"
+														: "bg-[#eef4fb] text-[#17305f]"
+												}`}
+											>
+												{date.getDate()}
+											</span>
+											{daySlots.length ? (
+												<span className="rounded-full bg-[#fff6e8] px-2 py-1 text-[10px] font-black text-[#9a5d08]">
+													{daySlots.length}
+												</span>
+											) : null}
+										</div>
+										<div className="mt-2 space-y-2">
+											{daySlots.slice(0, 3).map((slot) => {
+												const linkedCourse =
+													coursesBySlotKey.get(slot.courseId ?? "") ??
+													coursesBySlotKey.get(slot.code);
+
+												return (
+													<CalendarSlot
+														key={`${date.toISOString()}-${slot.id}`}
+														slot={slot}
+														courseType={linkedCourse?.type}
+														compact
+													/>
+												);
+											})}
+											{daySlots.length > 3 ? (
+												<div className="rounded-xl border border-dashed border-[#cfdbea] bg-[#fbfdff] px-3 py-2 text-center text-[11px] font-black text-[#60728f]">
+													+{daySlots.length - 3} more
+												</div>
+											) : null}
+										</div>
+									</section>
+								);
+							})}
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<p className="text-xs font-bold leading-5 text-[#60728f]">
+				Showing {filteredSlots.length} of {slots.length} published weekly slots
+				repeated across {getMonthTitle(monthKey)}.
+			</p>
 		</div>
 	);
 }
@@ -526,7 +793,10 @@ export default function StudentCourseWorkspace({
 				) : (
 					<div className="student-dashboard-enter mt-4">
 						{data.timetableSlots.length ? (
-							<TimetableCalendar slots={data.timetableSlots} />
+							<TimetableCalendar
+								slots={data.timetableSlots}
+								courses={data.courses}
+							/>
 						) : (
 							<EmptyState
 								title="No timetable slot has been published"
