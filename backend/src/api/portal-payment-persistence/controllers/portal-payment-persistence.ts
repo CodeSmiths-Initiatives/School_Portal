@@ -341,6 +341,8 @@ export default {
 				data: {
 					status: "submitted",
 					paymentStatus: "paid",
+					currentStep: "submitted",
+					completedSteps: ["programme", "payment"],
 					submittedAt: input.verifiedAt,
 				},
 			});

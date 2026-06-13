@@ -90,6 +90,12 @@ function getInternalSecret() {
 	return DEV_INTERNAL_SECRET;
 }
 
+function getInternalHeaders() {
+	return {
+		"x-portal-internal-secret": getInternalSecret(),
+	};
+}
+
 function createApplicationNumber(collegeCode?: string) {
 	const code = (collegeCode || "APP").replace(/[^a-z0-9]/gi, "").toUpperCase();
 	const randomPart = Math.random().toString(36).slice(2, 8).toUpperCase();
@@ -228,7 +234,19 @@ async function findLatestApplicationByEmail(
 	email: string,
 ): Promise<AdmissionApplicationSummary | null> {
 	if (!hasPersistenceToken()) {
-		return null;
+		const response = await strapiGet<{
+			applications?: AdmissionApplicationSummary[];
+		}>("/api/internal/admission-applications", {
+			cache: "no-store",
+			headers: getInternalHeaders(),
+			query: {
+				collegeSlug,
+				email,
+				limit: 1,
+			},
+		});
+
+		return response.applications?.[0] ?? null;
 	}
 
 	const response = await strapiGet<
@@ -309,25 +327,22 @@ export async function createAdmissionApplicationRecord(
 	}
 
 	if (!hasPersistenceToken()) {
-		return {
-			id: applicationNumber,
-			applicationNumber,
-			collegeId,
-			collegeSlug: input.collegeSlug,
-			status: "payment_pending",
-			paymentStatus: "pending",
-			currentStep: "payment",
-			completedSteps: ["programme"],
-			lastSavedAt: new Date().toISOString(),
-			metadata: {
-				collegeSlug: input.collegeSlug,
-				account: input.account,
-				programmeSelection: input.programme,
-				source: "tenant-admission-wizard",
+		const response = await strapiPost<{
+			application?: AdmissionApplicationSummary;
+		}>(
+			"/api/internal/admission-applications",
+			input,
+			{
+				cache: "no-store",
+				headers: getInternalHeaders(),
 			},
-			persisted: false,
-			reason: "STRAPI_API_TOKEN is not configured.",
-		};
+		);
+
+		if (!response.application) {
+			throw new Error("Internal admission persistence did not return an application.");
+		}
+
+		return response.application;
 	}
 
 	if (!college || !collegeId) {
@@ -425,20 +440,22 @@ export async function updateAdmissionApplicationRecord(
 	const collegeId = relationId(college);
 
 	if (!hasPersistenceToken()) {
-		return {
-			id: applicationId,
-			applicationNumber: applicationId,
-			collegeId,
-			collegeSlug: input.collegeSlug,
-			status: input.status ?? "draft",
-			paymentStatus: input.paymentStatus ?? "not_started",
-			currentStep: input.currentStep,
-			completedSteps: input.completedStep ? [input.completedStep] : [],
-			lastSavedAt: new Date().toISOString(),
-			metadata: input.formData ? { formData: input.formData } : undefined,
-			persisted: false,
-			reason: "STRAPI_API_TOKEN is not configured.",
-		};
+		const response = await strapiPut<{
+			application?: AdmissionApplicationSummary;
+		}>(
+			`/api/internal/admission-applications/${encodeURIComponent(applicationId)}`,
+			input,
+			{
+				cache: "no-store",
+				headers: getInternalHeaders(),
+			},
+		);
+
+		if (!response.application) {
+			throw new Error("Internal admission persistence did not return an application.");
+		}
+
+		return response.application;
 	}
 
 	const existing = await strapiGet<StrapiSingleResponse<StrapiAdmissionApplication>>(
@@ -532,7 +549,7 @@ export async function listAdmissionApplicationRecords(
 		}>("/api/internal/admission-applications", {
 			cache: "no-store",
 			headers: {
-				"x-portal-internal-secret": getInternalSecret(),
+				...getInternalHeaders(),
 			},
 			query: {
 				collegeSlug: input.collegeSlug,

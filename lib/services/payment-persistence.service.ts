@@ -406,6 +406,8 @@ export async function recordPaymentVerified(
 				data: {
 					status: "submitted",
 					paymentStatus: "paid",
+					currentStep: "submitted",
+					completedSteps: ["programme", "payment"],
 					submittedAt: input.verifiedAt,
 				},
 			});
