@@ -2,7 +2,6 @@
 
 import {
 	BookOpenCheck,
-	EllipsisVertical,
 	Eye,
 	Filter,
 	Pencil,
@@ -12,6 +11,7 @@ import {
 	X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { RowActionMenu } from "@/components/ui/row-action-menu";
 import type { Course, CourseStatus, CourseType, Level } from "../types/course.types";
 import DefineNewCourse from "./DefineNewCourse";
 
@@ -216,57 +216,38 @@ function RowActions({
 	onDelete?: () => void;
 }) {
 	return (
-		<div className="relative flex justify-end">
-			<button
-				type="button"
-				onClick={onToggle}
-				className="inline-flex size-10 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
-				aria-label={`Open actions for ${course.title}`}
-				aria-haspopup="menu"
-				aria-expanded={open}
-				title="Actions"
-			>
-				<EllipsisVertical className="size-4" />
-			</button>
-			{open ? (
-				<div
-					role="menu"
-					className="absolute right-0 top-11 z-20 w-44 overflow-hidden rounded-2xl border border-[#dbe5f1] bg-white py-2 text-sm font-bold text-[#0D2B55] shadow-[0_18px_45px_rgba(13,43,85,0.16)]"
-				>
-					<button
-						type="button"
-						role="menuitem"
-						onClick={onView}
-						className="flex w-full items-center gap-2 px-4 py-2.5 text-left transition hover:bg-[#f8fbff]"
-					>
-						<Eye className="size-4" />
-						View
-					</button>
-					{onEdit ? (
-						<button
-							type="button"
-							role="menuitem"
-							onClick={onEdit}
-							className="flex w-full items-center gap-2 px-4 py-2.5 text-left transition hover:bg-[#f8fbff]"
-						>
-							<Pencil className="size-4" />
-							Edit
-						</button>
-					) : null}
-					{onDelete ? (
-						<button
-							type="button"
-							role="menuitem"
-							onClick={onDelete}
-							className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-[#c54848] transition hover:bg-red-50"
-						>
-							<Trash2 className="size-4" />
-							Delete
-						</button>
-					) : null}
-				</div>
-			) : null}
-		</div>
+		<RowActionMenu
+			label={`Open actions for ${course.title}`}
+			open={open}
+			onOpenChange={onToggle}
+			width={176}
+			items={[
+				{
+					label: "View",
+					icon: <Eye className="size-4" />,
+					onSelect: onView,
+				},
+				...(onEdit
+					? [
+							{
+								label: "Edit",
+								icon: <Pencil className="size-4" />,
+								onSelect: onEdit,
+							},
+						]
+					: []),
+				...(onDelete
+					? [
+							{
+								label: "Delete",
+								icon: <Trash2 className="size-4" />,
+								onSelect: onDelete,
+								className: "text-[#c54848] hover:bg-red-50",
+							},
+						]
+					: []),
+			]}
+		/>
 	);
 }
 
