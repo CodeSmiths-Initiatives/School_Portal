@@ -55,6 +55,9 @@ type RecordVerificationInput = {
 type StrapiPaymentRecord = Record<string, unknown> & {
 	invoiceNumber?: unknown;
 	reference?: unknown;
+	module?: unknown;
+	status?: unknown;
+	payerEmail?: unknown;
 	college?: unknown;
 	invoice?: unknown;
 	admissionApplication?: unknown;
@@ -170,6 +173,10 @@ async function resolveCollegeRelationId(collegeSlug?: string) {
 	}
 }
 
+function isPaidAdmissionInvoice(invoice: StrapiPaymentRecord) {
+	return invoice.module === "admission" && invoice.status === "paid";
+}
+
 function getWriteDocumentId(
 	record?: { documentId?: unknown; id?: unknown; numericId?: unknown } | null,
 ) {
@@ -229,6 +236,65 @@ async function findPaymentTransaction(reference: string) {
 
 	const transaction = unwrapStrapiCollection(response.data)[0];
 	return transaction;
+}
+
+async function hasInternalPaidAdmissionPayment(input: {
+	collegeSlug: string;
+	email: string;
+}) {
+	const searchParams = new URLSearchParams({
+		scope: "student",
+		collegeSlug: input.collegeSlug,
+		payerEmail: input.email,
+	});
+
+	const response = await fetch(
+		`${getStrapiBaseUrl()}/api/payments/ledger-records?${searchParams.toString()}`,
+		{
+			method: "GET",
+			headers: {
+				"x-portal-internal-secret": getInternalSecret(),
+			},
+			cache: "no-store",
+		},
+	);
+
+	const payload = (await response.json().catch(() => null)) as
+		| { invoices?: StrapiPaymentRecord[] }
+		| null;
+
+	if (!response.ok || !payload?.invoices) {
+		return false;
+	}
+
+	return payload.invoices.some(isPaidAdmissionInvoice);
+}
+
+export async function hasPaidAdmissionPaymentForApplicant(input: {
+	collegeSlug: string;
+	email: string;
+}) {
+	if (!hasPersistenceToken()) {
+		return hasInternalPaidAdmissionPayment(input);
+	}
+
+	const response = await strapiGet<StrapiCollectionResponse<StrapiPaymentRecord>>(
+		"/api/payment-invoices",
+		{
+			cache: "no-store",
+			query: {
+				filters: {
+					college: { slug: { $eq: input.collegeSlug } },
+					payerEmail: { $eqi: input.email },
+					module: { $eq: "admission" },
+					status: { $eq: "paid" },
+				},
+				pagination: { page: 1, pageSize: 1 },
+			},
+		},
+	);
+
+	return unwrapStrapiCollection(response.data).some(isPaidAdmissionInvoice);
 }
 
 export async function recordPaymentInitialized(

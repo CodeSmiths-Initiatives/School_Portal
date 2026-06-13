@@ -3,6 +3,7 @@ import {
 	getAdmissionApplicationForApplicant,
 	isAdmissionApplicationDashboardReady,
 } from "@/lib/services/admission-application.service";
+import { hasPaidAdmissionPaymentForApplicant } from "@/lib/services/payment-persistence.service";
 import { redirect } from "next/navigation";
 
 function getResumeStep(application: Awaited<ReturnType<typeof getAdmissionApplicationForApplicant>>) {
@@ -35,7 +36,15 @@ export async function requirePaidStudentAccess(collegeSlug: string) {
 			}).catch(() => null)
 		: null;
 
-	if (!isAdmissionApplicationDashboardReady(application)) {
+	const hasPaidAdmissionPayment =
+		session.user.email && !isAdmissionApplicationDashboardReady(application)
+			? await hasPaidAdmissionPaymentForApplicant({
+					collegeSlug,
+					email: session.user.email,
+				}).catch(() => false)
+			: false;
+
+	if (!isAdmissionApplicationDashboardReady(application) && !hasPaidAdmissionPayment) {
 		redirect(`/college/${collegeSlug}/apply?resume=${getResumeStep(application)}`);
 	}
 

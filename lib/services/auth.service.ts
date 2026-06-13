@@ -13,6 +13,7 @@ import {
 	getAdmissionApplicationForApplicant,
 	isAdmissionApplicationDashboardReady,
 } from "@/lib/services/admission-application.service";
+import { hasPaidAdmissionPaymentForApplicant } from "@/lib/services/payment-persistence.service";
 import { strapiGet, strapiPost, StrapiApiError } from "@/lib/api";
 
 export type LoginSuccess = {
@@ -291,7 +292,14 @@ async function applyStudentAdmissionDestination(session: AuthSession) {
 		application = null;
 	}
 
-	if (isAdmissionApplicationDashboardReady(application)) {
+	const hasPaidAdmissionPayment = !isAdmissionApplicationDashboardReady(application)
+		? await hasPaidAdmissionPaymentForApplicant({
+				collegeSlug: session.user.collegeSlug,
+				email: session.user.email,
+			}).catch(() => false)
+		: false;
+
+	if (isAdmissionApplicationDashboardReady(application) || hasPaidAdmissionPayment) {
 		return session;
 	}
 

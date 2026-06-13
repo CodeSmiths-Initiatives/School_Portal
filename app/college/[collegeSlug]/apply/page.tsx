@@ -5,6 +5,7 @@ import {
 	isAdmissionApplicationDashboardReady,
 } from "@/lib/services/admission-application.service";
 import { getAdmissionCollegeBySlug } from "@/lib/services/admission-college.service";
+import { hasPaidAdmissionPaymentForApplicant } from "@/lib/services/payment-persistence.service";
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
@@ -52,8 +53,20 @@ export default async function TenantApplyPage({
 					email: session.user.email,
 				}).catch(() => null)
 			: null;
+	const hasPaidAdmissionPayment =
+		isCurrentStudent &&
+		session.user.email &&
+		!isAdmissionApplicationDashboardReady(application)
+			? await hasPaidAdmissionPaymentForApplicant({
+					collegeSlug: college.slug,
+					email: session.user.email,
+				}).catch(() => false)
+			: false;
 
-	if (isCurrentStudent && isAdmissionApplicationDashboardReady(application)) {
+	if (
+		isCurrentStudent &&
+		(isAdmissionApplicationDashboardReady(application) || hasPaidAdmissionPayment)
+	) {
 		redirect(`/college/${college.slug}/student/dashboard`);
 	}
 
