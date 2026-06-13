@@ -2,10 +2,13 @@
 
 import {
 	BookOpenCheck,
+	EllipsisVertical,
 	Eye,
 	Filter,
+	Pencil,
 	Plus,
 	Search,
+	Trash2,
 	X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -27,6 +30,8 @@ interface Props {
 	activeLevel: Level | null;
 	onLevelFilter: (l: Level | null) => void;
 	onDefineNew: (course: Omit<Course, "id">) => void;
+	onUpdateCourse?: (id: string, course: Omit<Course, "id">) => void;
+	onDeleteCourse?: (id: string) => void;
 	canDefineCourse?: boolean;
 }
 
@@ -143,10 +148,12 @@ function DefineCourseModal({
 	open,
 	onClose,
 	onSave,
+	course,
 }: {
 	open: boolean;
 	onClose: () => void;
 	onSave: (course: Omit<Course, "id">) => void;
+	course?: Course | null;
 }) {
 	if (!open) {
 		return null;
@@ -179,6 +186,8 @@ function DefineCourseModal({
 
 				<div className="max-h-[calc(90vh-8rem)] overflow-y-auto p-5 sm:p-6">
 					<DefineNewCourse
+						initialCourse={course ?? undefined}
+						saveLabel={course ? "Save Changes" : "Submit for Approval"}
 						onSave={(course) => {
 							onSave(course);
 							onClose();
@@ -187,6 +196,76 @@ function DefineCourseModal({
 					/>
 				</div>
 			</div>
+		</div>
+	);
+}
+
+function RowActions({
+	course,
+	open,
+	onToggle,
+	onView,
+	onEdit,
+	onDelete,
+}: {
+	course: Course;
+	open: boolean;
+	onToggle: () => void;
+	onView: () => void;
+	onEdit?: () => void;
+	onDelete?: () => void;
+}) {
+	return (
+		<div className="relative flex justify-end">
+			<button
+				type="button"
+				onClick={onToggle}
+				className="inline-flex size-10 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+				aria-label={`Open actions for ${course.title}`}
+				aria-haspopup="menu"
+				aria-expanded={open}
+				title="Actions"
+			>
+				<EllipsisVertical className="size-4" />
+			</button>
+			{open ? (
+				<div
+					role="menu"
+					className="absolute right-0 top-11 z-20 w-44 overflow-hidden rounded-2xl border border-[#dbe5f1] bg-white py-2 text-sm font-bold text-[#0D2B55] shadow-[0_18px_45px_rgba(13,43,85,0.16)]"
+				>
+					<button
+						type="button"
+						role="menuitem"
+						onClick={onView}
+						className="flex w-full items-center gap-2 px-4 py-2.5 text-left transition hover:bg-[#f8fbff]"
+					>
+						<Eye className="size-4" />
+						View
+					</button>
+					{onEdit ? (
+						<button
+							type="button"
+							role="menuitem"
+							onClick={onEdit}
+							className="flex w-full items-center gap-2 px-4 py-2.5 text-left transition hover:bg-[#f8fbff]"
+						>
+							<Pencil className="size-4" />
+							Edit
+						</button>
+					) : null}
+					{onDelete ? (
+						<button
+							type="button"
+							role="menuitem"
+							onClick={onDelete}
+							className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-[#c54848] transition hover:bg-red-50"
+						>
+							<Trash2 className="size-4" />
+							Delete
+						</button>
+					) : null}
+				</div>
+			) : null}
 		</div>
 	);
 }
@@ -203,10 +282,14 @@ export default function CourseDefinition({
 	activeLevel,
 	onLevelFilter,
 	onDefineNew,
+	onUpdateCourse,
+	onDeleteCourse,
 	canDefineCourse = true,
 }: Props) {
 	const [viewCourse, setViewCourse] = useState<Course | null>(null);
 	const [defineOpen, setDefineOpen] = useState(false);
+	const [editCourse, setEditCourse] = useState<Course | null>(null);
+	const [openActionsId, setOpenActionsId] = useState<string | null>(null);
 	const [currentPage, setCurrentPage] = useState(1);
 	const pageCount = Math.max(1, Math.ceil(courses.length / PAGE_SIZE));
 	const safePage = Math.min(currentPage, pageCount);
@@ -235,6 +318,10 @@ export default function CourseDefinition({
 		onStatusFilter("All Status");
 		onLevelFilter(null);
 		setCurrentPage(1);
+	}
+
+	function closeActions() {
+		setOpenActionsId(null);
 	}
 
 	return (
@@ -450,17 +537,35 @@ export default function CourseDefinition({
 												</span>
 											</td>
 											<td className="px-5 py-4">
-												<div className="flex justify-end gap-2">
-													<button
-														type="button"
-														onClick={() => setViewCourse(course)}
-														className="inline-flex size-10 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
-														aria-label={`View ${course.title}`}
-														title="View"
-													>
-														<Eye className="size-4" />
-													</button>
-												</div>
+												<RowActions
+													course={course}
+													open={openActionsId === course.id}
+													onToggle={() =>
+														setOpenActionsId((current) =>
+															current === course.id ? null : course.id,
+														)
+													}
+													onView={() => {
+														setViewCourse(course);
+														closeActions();
+													}}
+													onEdit={
+														onUpdateCourse
+															? () => {
+																	setEditCourse(course);
+																	closeActions();
+																}
+															: undefined
+													}
+													onDelete={
+														onDeleteCourse
+															? () => {
+																	onDeleteCourse(course.id);
+																	closeActions();
+																}
+															: undefined
+													}
+												/>
 											</td>
 										</tr>
 									))}
@@ -505,6 +610,16 @@ export default function CourseDefinition({
 				open={defineOpen}
 				onClose={() => setDefineOpen(false)}
 				onSave={onDefineNew}
+			/>
+			<DefineCourseModal
+				open={Boolean(editCourse)}
+				course={editCourse}
+				onClose={() => setEditCourse(null)}
+				onSave={(course) => {
+					if (editCourse && onUpdateCourse) {
+						onUpdateCourse(editCourse.id, course);
+					}
+				}}
 			/>
 		</section>
 	);

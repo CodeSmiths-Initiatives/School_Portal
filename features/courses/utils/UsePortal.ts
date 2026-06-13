@@ -42,6 +42,10 @@ export function usePortal() {
   function updateCourseStatus(id: string, status: CourseStatus, note?: string) {
     setCourses(prev => prev.map(c => c.id === id ? { ...c, status, approvalNote: note } : c));
   }
+
+  function updateCourse(id: string, course: Omit<Course, 'id'>) {
+    setCourses(prev => prev.map(c => c.id === id ? { ...course, id } : c));
+  }
  
   function deleteCourse(id: string) {
     setCourses(prev => prev.filter(c => c.id !== id));
@@ -56,7 +60,7 @@ export function usePortal() {
     statusFilter, setStatusFilter,
     levelFilter, setLevelFilter,
     activeLevel, setActiveLevel,
-    addCourse, updateCourseStatus, deleteCourse,
+    addCourse, updateCourse, updateCourseStatus, deleteCourse,
   };
 }
  

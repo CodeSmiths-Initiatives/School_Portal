@@ -1,8 +1,11 @@
 "use client";
 
 import {
+	EllipsisVertical,
+	Eye,
 	Filter,
 	Layers3,
+	Pencil,
 	Plus,
 	Search,
 	Trash2,
@@ -90,14 +93,20 @@ function NewAllocationModal({
 	courses,
 	onAdd,
 	onClose,
+	initialRow,
 }: {
 	courses: Course[];
 	onAdd: (courseId: string, level: Level) => void;
 	onClose: () => void;
+	initialRow?: AllocationTableRow | null;
 }) {
-	const approvedCourses = courses.filter((course) => course.status === "Approved");
-	const [selectedCourse, setSelectedCourse] = useState("");
-	const [selectedLevel, setSelectedLevel] = useState<Level>("100L");
+	const selectableCourses = courses.filter(
+		(course) => course.status === "Approved" || course.id === initialRow?.courseId,
+	);
+	const [selectedCourse, setSelectedCourse] = useState(initialRow?.courseId ?? "");
+	const [selectedLevel, setSelectedLevel] = useState<Level>(
+		initialRow?.level ?? "100L",
+	);
 
 	return (
 		<div className="fixed inset-0 z-50 flex items-center justify-center bg-[#06172f]/60 p-4 backdrop-blur-sm">
@@ -108,7 +117,7 @@ function NewAllocationModal({
 							New Allocation
 						</p>
 						<h2 className="mt-2 text-xl font-black sm:text-2xl">
-							Assign course to level
+							{initialRow ? "Edit allocation" : "Assign course to level"}
 						</h2>
 						<p className="mt-1 text-sm font-semibold text-[#c5d4e8]">
 							Add an approved course to a student level for the current session.
@@ -137,7 +146,7 @@ function NewAllocationModal({
 							<option value="" disabled>
 								Select an approved course
 							</option>
-							{approvedCourses.map((course) => (
+							{selectableCourses.map((course) => (
 								<option key={course.id} value={course.id}>
 									{course.code} - {course.title}
 								</option>
@@ -184,11 +193,159 @@ function NewAllocationModal({
 							className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] px-5 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.18)] transition hover:bg-[#123866] disabled:cursor-not-allowed disabled:opacity-40"
 						>
 							<Plus className="size-4" />
-							Add Allocation
+							{initialRow ? "Save Allocation" : "Add Allocation"}
 						</button>
 					</div>
 				</div>
 			</div>
+		</div>
+	);
+}
+
+function AllocationDetailsModal({
+	row,
+	onClose,
+}: {
+	row: AllocationTableRow | null;
+	onClose: () => void;
+}) {
+	if (!row) {
+		return null;
+	}
+
+	const details = [
+		["Level", row.level],
+		["Course Code", row.course.code],
+		["Department", row.course.department],
+		["Type", row.course.type],
+		["Credit Units", `${row.course.units} Units`],
+		["Semester", row.semester],
+		["Lecturer", row.course.lecturer],
+		["Status", row.course.status],
+	];
+
+	return (
+		<div className="fixed inset-0 z-50 flex items-center justify-center bg-[#06172f]/60 p-4 backdrop-blur-sm">
+			<div className="w-full max-w-3xl overflow-hidden rounded-3xl border border-[#dbe5f1] bg-white shadow-[0_30px_80px_rgba(6,23,47,0.35)]">
+				<div className="flex items-start justify-between gap-4 border-b border-[#dbe5f1] bg-[#0D2B55] px-5 py-5 text-white sm:px-6">
+					<div>
+						<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#E4A11B]">
+							Allocation Details
+						</p>
+						<h2 className="mt-2 text-xl font-black sm:text-2xl">
+							{row.course.title}
+						</h2>
+						<p className="mt-1 text-sm font-semibold text-[#c5d4e8]">
+							{row.course.code} - {row.level}
+						</p>
+					</div>
+					<button
+						type="button"
+						onClick={onClose}
+						className="flex size-10 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition hover:bg-white hover:text-[#0D2B55]"
+						aria-label="Close allocation details"
+					>
+						<X className="size-5" />
+					</button>
+				</div>
+
+				<div className="p-5 sm:p-6">
+					<div className="grid gap-3 md:grid-cols-2">
+						{details.map(([label, value]) => (
+							<div
+								key={label}
+								className="rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] p-3"
+							>
+								<p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8395AF]">
+									{label}
+								</p>
+								<p className="mt-1 break-words text-sm font-black text-[#0D2B55]">
+									{value}
+								</p>
+							</div>
+						))}
+					</div>
+					<div className="mt-5 flex justify-end border-t border-[#dbe5f1] pt-4">
+						<button
+							type="button"
+							onClick={onClose}
+							className="inline-flex items-center justify-center rounded-2xl border border-[#dbe5f1] px-5 py-3 text-sm font-black text-[#0D2B55] transition hover:border-[#0D2B55]"
+						>
+							Close
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
+	);
+}
+
+function AllocationRowActions({
+	row,
+	open,
+	onToggle,
+	onView,
+	onEdit,
+	onDelete,
+}: {
+	row: AllocationTableRow;
+	open: boolean;
+	onToggle: () => void;
+	onView: () => void;
+	onEdit?: () => void;
+	onDelete?: () => void;
+}) {
+	return (
+		<div className="relative flex justify-end">
+			<button
+				type="button"
+				onClick={onToggle}
+				className="inline-flex size-10 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+				aria-label={`Open actions for ${row.course.code} ${row.level}`}
+				aria-haspopup="menu"
+				aria-expanded={open}
+				title="Actions"
+			>
+				<EllipsisVertical className="size-4" />
+			</button>
+			{open ? (
+				<div
+					role="menu"
+					className="absolute right-0 top-11 z-20 w-44 overflow-hidden rounded-2xl border border-[#dbe5f1] bg-white py-2 text-sm font-bold text-[#0D2B55] shadow-[0_18px_45px_rgba(13,43,85,0.16)]"
+				>
+					<button
+						type="button"
+						role="menuitem"
+						onClick={onView}
+						className="flex w-full items-center gap-2 px-4 py-2.5 text-left transition hover:bg-[#f8fbff]"
+					>
+						<Eye className="size-4" />
+						View
+					</button>
+					{onEdit ? (
+						<button
+							type="button"
+							role="menuitem"
+							onClick={onEdit}
+							className="flex w-full items-center gap-2 px-4 py-2.5 text-left transition hover:bg-[#f8fbff]"
+						>
+							<Pencil className="size-4" />
+							Edit
+						</button>
+					) : null}
+					{onDelete ? (
+						<button
+							type="button"
+							role="menuitem"
+							onClick={onDelete}
+							className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-[#c54848] transition hover:bg-red-50"
+						>
+							<Trash2 className="size-4" />
+							Delete
+						</button>
+					) : null}
+				</div>
+			) : null}
 		</div>
 	);
 }
@@ -203,6 +360,9 @@ export default function AllocateToLevels({
 		),
 	);
 	const [showModal, setShowModal] = useState(false);
+	const [viewRow, setViewRow] = useState<AllocationTableRow | null>(null);
+	const [editRow, setEditRow] = useState<AllocationTableRow | null>(null);
+	const [openActionsKey, setOpenActionsKey] = useState<string | null>(null);
 	const [searchQuery, setSearchQuery] = useState("");
 	const [levelFilter, setLevelFilter] =
 		useState<AllocationLevelFilter>("All Levels");
@@ -323,12 +483,42 @@ export default function AllocateToLevels({
 		});
 	}
 
+	function updateAllocation(
+		currentCourseId: string,
+		currentLevel: Level,
+		nextCourseId: string,
+		nextLevel: Level,
+	) {
+		setRows((currentRows) => {
+			const duplicate = currentRows.some(
+				(row) =>
+					row.courseId === nextCourseId &&
+					row.level === nextLevel &&
+					(row.courseId !== currentCourseId || row.level !== currentLevel),
+			);
+
+			if (duplicate) {
+				return currentRows;
+			}
+
+			return currentRows.map((row) =>
+				row.courseId === currentCourseId && row.level === currentLevel
+					? { courseId: nextCourseId, level: nextLevel }
+					: row,
+			);
+		});
+	}
+
 	function removeRow(courseId: string, level: Level) {
 		setRows((currentRows) =>
 			currentRows.filter(
 				(row) => !(row.courseId === courseId && row.level === level),
 			),
 		);
+	}
+
+	function closeActions() {
+		setOpenActionsKey(null);
 	}
 
 	return (
@@ -566,23 +756,39 @@ export default function AllocateToLevels({
 												</span>
 											</td>
 											<td className="px-5 py-4">
-												<div className="flex justify-end gap-2">
-													{canManageAllocations ? (
-														<button
-															type="button"
-															onClick={() => removeRow(row.courseId, row.level)}
-															className="inline-flex size-10 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white text-[#c54848] transition hover:border-[#c54848] hover:bg-red-50"
-															aria-label={`Remove ${row.course.code} from ${row.level}`}
-															title="Remove allocation"
-														>
-															<Trash2 className="size-4" />
-														</button>
-													) : (
-														<span className="rounded-full border border-[#dce6f2] bg-[#f8fbff] px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#6b7e9f]">
-															Locked
-														</span>
-													)}
-												</div>
+												<AllocationRowActions
+													row={row}
+													open={
+														openActionsKey === `${row.courseId}-${row.level}`
+													}
+													onToggle={() =>
+														setOpenActionsKey((current) => {
+															const key = `${row.courseId}-${row.level}`;
+
+															return current === key ? null : key;
+														})
+													}
+													onView={() => {
+														setViewRow(row);
+														closeActions();
+													}}
+													onEdit={
+														canManageAllocations
+															? () => {
+																	setEditRow(row);
+																	closeActions();
+																}
+															: undefined
+													}
+													onDelete={
+														canManageAllocations
+															? () => {
+																	removeRow(row.courseId, row.level);
+																	closeActions();
+																}
+															: undefined
+													}
+												/>
 											</td>
 										</tr>
 									))}
@@ -624,6 +830,17 @@ export default function AllocateToLevels({
 					courses={courses}
 					onAdd={addAllocation}
 					onClose={() => setShowModal(false)}
+				/>
+			) : null}
+			<AllocationDetailsModal row={viewRow} onClose={() => setViewRow(null)} />
+			{editRow ? (
+				<NewAllocationModal
+					courses={courses}
+					initialRow={editRow}
+					onAdd={(courseId, level) => {
+						updateAllocation(editRow.courseId, editRow.level, courseId, level);
+					}}
+					onClose={() => setEditRow(null)}
 				/>
 			) : null}
 		</section>

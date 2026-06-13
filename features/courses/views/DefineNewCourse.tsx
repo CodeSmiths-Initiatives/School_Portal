@@ -6,6 +6,8 @@ import type { Course, CourseType, Level, Mode } from "../types/course.types";
 interface Props {
 	onSave: (course: Omit<Course, "id">) => void;
 	onCancel: () => void;
+	initialCourse?: Course;
+	saveLabel?: string;
 }
 
 const LEVELS: { value: Level; label: string }[] = [
@@ -62,23 +64,40 @@ function SectionHeading({ label }: { label: string }) {
 	);
 }
 
-export default function DefineNewCourse({ onSave, onCancel }: Props) {
+function splitSchedule(schedule?: string) {
+	if (!schedule) {
+		return { day: "Monday", timeSlot: "8:00 - 10:00" };
+	}
+
+	const day = DAYS.find((item) => schedule.startsWith(item)) ?? "Monday";
+	const timeSlot = schedule.replace(day, "").trim() || "8:00 - 10:00";
+
+	return { day, timeSlot };
+}
+
+export default function DefineNewCourse({
+	onSave,
+	onCancel,
+	initialCourse,
+	saveLabel = "Submit for Approval",
+}: Props) {
+	const initialSchedule = splitSchedule(initialCourse?.schedule);
 	const [form, setForm] = useState({
-		code: "",
-		title: "",
-		description: "",
-		type: "" as CourseType | "",
-		units: "" as number | "",
-		department: "Computer Science",
+		code: initialCourse?.code ?? "",
+		title: initialCourse?.title ?? "",
+		description: initialCourse?.description ?? "",
+		type: initialCourse?.type ?? ("" as CourseType | ""),
+		units: initialCourse?.units ?? ("" as number | ""),
+		department: initialCourse?.department ?? "Computer Science",
 		semester: "1st Semester",
-		levels: [] as Level[],
+		levels: initialCourse?.levels ?? ([] as Level[]),
 		maxStudents: "",
-		lecturer: "Dr. Adeyemi Bolaji",
-		day: "Monday",
-		timeSlot: "8:00 - 10:00",
-		mode: "On-Site" as Mode,
+		lecturer: initialCourse?.lecturer ?? "Dr. Adeyemi Bolaji",
+		day: initialSchedule.day,
+		timeSlot: initialSchedule.timeSlot,
+		mode: initialCourse?.mode ?? ("On-Site" as Mode),
 		venue: "",
-		status: "Pending" as const,
+		status: initialCourse?.status ?? ("Pending" as const),
 	});
 	const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -132,7 +151,7 @@ export default function DefineNewCourse({ onSave, onCancel }: Props) {
 			mode: form.mode,
 			schedule: `${form.day} ${form.timeSlot}`,
 			lecturer: form.lecturer,
-			status: "Pending",
+			status: form.status,
 		});
 	}
 
@@ -330,7 +349,7 @@ export default function DefineNewCourse({ onSave, onCancel }: Props) {
 						type="submit"
 						className="inline-flex items-center justify-center rounded-2xl bg-[#0D2B55] px-6 py-3 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.18)] transition hover:-translate-y-0.5 hover:bg-[#123866]"
 					>
-						Submit for Approval
+						{saveLabel}
 					</button>
 					<button
 						type="button"

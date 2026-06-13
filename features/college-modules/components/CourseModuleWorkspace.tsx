@@ -101,7 +101,9 @@ export default function CourseModuleWorkspace({
 		activeLevel,
 		setActiveLevel,
 		addCourse,
+		updateCourse,
 		updateCourseStatus,
+		deleteCourse,
 	} = usePortal();
 	const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -263,6 +265,8 @@ export default function CourseModuleWorkspace({
 								activeLevel={activeLevel}
 								onLevelFilter={setActiveLevel}
 								onDefineNew={addCourse}
+								onUpdateCourse={updateCourse}
+								onDeleteCourse={deleteCourse}
 								canDefineCourse={canCreateCourse}
 							/>
 						) : null}
