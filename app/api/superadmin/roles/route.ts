@@ -5,6 +5,7 @@ import {
 	globalRolePermissionSchema,
 	updateGlobalRolePermissions,
 } from "@/lib/services/superadmin-role.service";
+import { recordSuperadminAuditEvent } from "@/lib/services/superadmin-audit.service";
 import { getCurrentAuthSession } from "@/lib/auth/server-session";
 import { getEffectivePermissionsForDomain, hasPermissions } from "@/lib/rbac";
 import { NextResponse } from "next/server";
@@ -65,6 +66,20 @@ export async function PATCH(request: Request) {
 
 	try {
 		const result = await updateGlobalRolePermissions(validation.data);
+		await recordSuperadminAuditEvent({
+			action: "roles.permissions.updated",
+			eventType: "updated",
+			actorName: session!.user.name,
+			actorEmail: session!.user.email,
+			actorRole: session!.user.roleLabel,
+			entityType: "portal-role",
+			entityId: validation.data.roleCode,
+			targetLabel: validation.data.roleCode,
+			summary: `Superadmin updated permissions for ${validation.data.roleCode}.`,
+			metadata: {
+				permissionCount: validation.data.permissionKeys.length,
+			},
+		}).catch(() => null);
 		return NextResponse.json(result);
 	} catch (error) {
 		return NextResponse.json(

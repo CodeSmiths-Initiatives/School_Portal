@@ -4,15 +4,20 @@ import {
 	Activity,
 	CalendarDays,
 	Download,
+	Eye,
 	FileText,
 	Filter,
+	Pencil,
 	RefreshCcw,
+	Save,
 	Search,
 	ShieldCheck,
 	Trash2,
 	UserRound,
+	X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { RowActionMenu } from "@/components/ui/row-action-menu";
 import type { ProvisionedCollege } from "@/lib/services/superadmin-college.service";
 import type { SuperadminAuditData } from "@/lib/services/superadmin-audit.service";
 import { toast } from "@/lib/toast";
@@ -31,6 +36,7 @@ type AuditEvent = {
 	collegeSlug: string;
 	collegeName: string;
 	actor: string;
+	actorEmail?: string;
 	role: string;
 	activity: string;
 	target: string;
@@ -44,6 +50,14 @@ type SuperadminAuditWorkspaceProps = {
 	colleges: ProvisionedCollege[];
 	auditData?: SuperadminAuditData | null;
 };
+
+type ModalMode = "view" | "edit";
+type ReviewDraft = {
+	status: "unreviewed" | "reviewed" | "flagged";
+	note: string;
+};
+
+const PAGE_SIZE = 20;
 
 const fallbackColleges: ProvisionedCollege[] = [
 	{
@@ -121,7 +135,9 @@ function createAuditEvents(colleges: ProvisionedCollege[]): AuditEvent[] {
 	const source = colleges.length > 0 ? colleges : fallbackColleges;
 	const [primary, secondary = source[0]] = source;
 
-	const definitions: Array<Omit<AuditEvent, "collegeSlug" | "collegeName"> & { collegeIndex: number }> = [
+	const definitions: Array<
+		Omit<AuditEvent, "collegeSlug" | "collegeName"> & { collegeIndex: number }
+	> = [
 		{
 			id: "AUD-1001",
 			collegeIndex: 0,
@@ -230,6 +246,161 @@ function formatDateTime(value: string) {
 	}).format(new Date(value));
 }
 
+function emptyReviewDraft(): ReviewDraft {
+	return {
+		status: "unreviewed",
+		note: "",
+	};
+}
+
+function AuditModal({
+	event,
+	mode,
+	draft,
+	onClose,
+	onDraftChange,
+	onSave,
+}: {
+	event: AuditEvent | null;
+	mode: ModalMode | null;
+	draft: ReviewDraft;
+	onClose: () => void;
+	onDraftChange: (draft: ReviewDraft) => void;
+	onSave: () => void;
+}) {
+	if (!event || !mode) {
+		return null;
+	}
+
+	const meta = eventMeta[event.eventType];
+	const Icon = meta.Icon;
+	const isEdit = mode === "edit";
+
+	return (
+		<div className="fixed inset-0 z-50 flex items-center justify-center bg-[#06172f]/60 p-4 backdrop-blur-sm">
+			<div className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-3xl border border-[#dbe5f1] bg-white shadow-[0_30px_80px_rgba(6,23,47,0.35)]">
+				<div className="flex items-start justify-between gap-4 border-b border-[#dbe5f1] bg-[#0D2B55] px-5 py-5 text-white sm:px-6">
+					<div className="flex items-start gap-4">
+						<div className={`flex size-12 shrink-0 items-center justify-center rounded-2xl border ${meta.className}`}>
+							<Icon className="size-5" />
+						</div>
+						<div>
+							<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#E4A11B]">
+								{isEdit ? "Edit Audit Review" : "Audit Details"}
+							</p>
+							<h2 className="mt-2 text-xl font-black sm:text-2xl">
+								{event.activity}
+							</h2>
+							<p className="mt-1 text-sm font-semibold text-[#c5d4e8]">
+								{event.id} - {event.collegeName} - {formatDateTime(event.when)}
+							</p>
+						</div>
+					</div>
+					<button
+						type="button"
+						onClick={onClose}
+						className="flex size-10 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition hover:bg-white hover:text-[#0D2B55]"
+						aria-label="Close audit details"
+					>
+						<X className="size-5" />
+					</button>
+				</div>
+
+				<div className="max-h-[calc(90vh-8rem)] overflow-y-auto p-5 sm:p-6">
+					<div className="grid gap-3 md:grid-cols-3">
+						{[
+							["Actor", event.actor],
+							["Role", event.role],
+							["IP Address", event.ipAddress],
+							["Target", event.target],
+							["College", event.collegeName],
+							["Type", meta.label],
+						].map(([label, value]) => (
+							<div
+								key={label}
+								className="rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] p-4"
+							>
+								<p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8395AF]">
+									{label}
+								</p>
+								<p className="mt-2 break-words text-sm font-black text-[#0D2B55]">
+									{value}
+								</p>
+							</div>
+						))}
+					</div>
+
+					<div className="mt-5 rounded-3xl border border-[#dbe5f1] bg-white p-5">
+						<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#B7770D]">
+							Summary
+						</p>
+						<p className="mt-3 text-sm font-semibold leading-7 text-[#60728f]">
+							{event.summary}
+						</p>
+					</div>
+
+					<div className="mt-5 rounded-3xl border border-[#dbe5f1] bg-white">
+						<div className="border-b border-[#dbe5f1] bg-[#fbfdff] px-5 py-4">
+							<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#B7770D]">
+								Review
+							</p>
+							<p className="mt-1 text-sm font-semibold text-[#60728f]">
+								Review notes are UI-only for this slice; the audit event itself remains immutable.
+							</p>
+						</div>
+						<div className="grid gap-3 p-5 lg:grid-cols-[14rem_minmax(0,1fr)]">
+							<select
+								value={draft.status}
+								disabled={!isEdit}
+								onChange={(event) =>
+									onDraftChange({
+										...draft,
+										status: event.target.value as ReviewDraft["status"],
+									})
+								}
+								className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1] disabled:opacity-70"
+							>
+								<option value="unreviewed">Unreviewed</option>
+								<option value="reviewed">Reviewed</option>
+								<option value="flagged">Flagged</option>
+							</select>
+							<textarea
+								value={draft.note}
+								disabled={!isEdit}
+								onChange={(event) =>
+									onDraftChange({ ...draft, note: event.target.value })
+								}
+								placeholder="Add an internal review note"
+								className="min-h-28 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 py-3 text-sm font-semibold text-[#0D2B55] outline-none focus:border-[#2E86C1] disabled:opacity-70"
+							/>
+						</div>
+					</div>
+
+					<div className="sticky bottom-0 mt-5 flex flex-col gap-3 border-t border-[#dbe5f1] bg-white/95 pt-4 backdrop-blur sm:flex-row sm:justify-end">
+						<button
+							type="button"
+							onClick={onClose}
+							className="inline-flex items-center justify-center rounded-2xl border border-[#dbe5f1] px-5 py-3 text-sm font-black text-[#0D2B55] transition hover:border-[#0D2B55]"
+						>
+							Close
+						</button>
+						{isEdit ? (
+							<button
+								type="button"
+								onClick={onSave}
+								className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] px-5 py-3 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.18)] transition hover:-translate-y-0.5 hover:bg-[#123866]"
+							>
+								<Save className="size-4" />
+								Save review
+							</button>
+						) : null}
+					</div>
+				</div>
+			</div>
+		</div>
+	);
+}
+
 export function SuperadminAuditWorkspace({
 	colleges,
 	auditData,
@@ -239,6 +410,12 @@ export function SuperadminAuditWorkspace({
 	const [query, setQuery] = useState("");
 	const [fromDate, setFromDate] = useState(dateOnly(daysAgo(7)));
 	const [toDate, setToDate] = useState(dateOnly(new Date()));
+	const [currentPage, setCurrentPage] = useState(1);
+	const [openActionsId, setOpenActionsId] = useState<string | null>(null);
+	const [modalEvent, setModalEvent] = useState<AuditEvent | null>(null);
+	const [modalMode, setModalMode] = useState<ModalMode | null>(null);
+	const [reviewsByEvent, setReviewsByEvent] = useState<Record<string, ReviewDraft>>({});
+	const [reviewDraft, setReviewDraft] = useState<ReviewDraft>(emptyReviewDraft());
 
 	const collegeOptions = colleges.length > 0 ? colleges : fallbackColleges;
 	const auditEvents = useMemo(
@@ -251,11 +428,12 @@ export function SuperadminAuditWorkspace({
 				: createAuditEvents(collegeOptions),
 		[auditData, collegeOptions],
 	);
-
 	const filteredEvents = useMemo(() => {
 		const search = query.trim().toLowerCase();
 		const fromTime = fromDate ? new Date(`${fromDate}T00:00:00`).getTime() : 0;
-		const toTime = toDate ? new Date(`${toDate}T23:59:59`).getTime() : Number.MAX_SAFE_INTEGER;
+		const toTime = toDate
+			? new Date(`${toDate}T23:59:59`).getTime()
+			: Number.MAX_SAFE_INTEGER;
 
 		return auditEvents.filter((event) => {
 			const eventTime = new Date(event.when).getTime();
@@ -266,25 +444,81 @@ export function SuperadminAuditWorkspace({
 			const matchesSearch =
 				!search ||
 				[
+					event.id,
 					event.actor,
+					event.actorEmail,
 					event.role,
 					event.activity,
 					event.target,
 					event.summary,
 					event.collegeName,
-				].some((value) => value.toLowerCase().includes(search));
+					event.ipAddress,
+				]
+					.filter(Boolean)
+					.some((value) => String(value).toLowerCase().includes(search));
 
 			return matchesCollege && matchesType && matchesDate && matchesSearch;
 		});
 	}, [auditEvents, collegeSlug, eventType, fromDate, query, toDate]);
+	const stats = useMemo(
+		() => ({
+			visible: filteredEvents.length,
+			modified: filteredEvents.filter((event) => event.eventType === "updated").length,
+			deleted: filteredEvents.filter((event) => event.eventType === "deleted").length,
+			reviewed: filteredEvents.filter(
+				(event) => reviewsByEvent[event.id]?.status === "reviewed",
+			).length,
+		}),
+		[filteredEvents, reviewsByEvent],
+	);
+	const pageCount = Math.max(1, Math.ceil(filteredEvents.length / PAGE_SIZE));
+	const safePage = Math.min(currentPage, pageCount);
+	const paginatedEvents = filteredEvents.slice(
+		(safePage - 1) * PAGE_SIZE,
+		safePage * PAGE_SIZE,
+	);
 
-	const deletedCount = filteredEvents.filter(
-		(event) => event.eventType === "deleted",
-	).length;
-	const modifiedCount = filteredEvents.filter(
-		(event) => event.eventType === "updated",
-	).length;
-	const recentEvents = filteredEvents.slice(0, 4);
+	function updateFilter<T>(setter: (value: T) => void, value: T) {
+		setter(value);
+		setCurrentPage(1);
+	}
+
+	function resetFilters() {
+		setCollegeSlug("all");
+		setEventType("all");
+		setQuery("");
+		setFromDate(dateOnly(daysAgo(7)));
+		setToDate(dateOnly(new Date()));
+		setCurrentPage(1);
+	}
+
+	function openEvent(event: AuditEvent, mode: ModalMode) {
+		setModalEvent(event);
+		setModalMode(mode);
+		setReviewDraft(reviewsByEvent[event.id] ?? emptyReviewDraft());
+		setOpenActionsId(null);
+	}
+
+	function closeModal() {
+		setModalEvent(null);
+		setModalMode(null);
+	}
+
+	function saveReview() {
+		if (!modalEvent) {
+			return;
+		}
+
+		setReviewsByEvent((current) => ({
+			...current,
+			[modalEvent.id]: reviewDraft,
+		}));
+		toast.success({
+			title: "Review saved",
+			description: `${modalEvent.id} review status is now ${reviewDraft.status}.`,
+		});
+		closeModal();
+	}
 
 	function handleExport() {
 		if (filteredEvents.length === 0) {
@@ -305,6 +539,7 @@ export function SuperadminAuditWorkspace({
 			"Event Type",
 			"When",
 			"IP Address",
+			"Review Status",
 			"Summary",
 		];
 		const rows = filteredEvents.map((event) => [
@@ -317,6 +552,7 @@ export function SuperadminAuditWorkspace({
 			eventMeta[event.eventType].label,
 			formatDateTime(event.when),
 			event.ipAddress,
+			reviewsByEvent[event.id]?.status ?? "unreviewed",
 			event.summary,
 		]);
 		const csv = [headers, ...rows]
@@ -338,289 +574,281 @@ export function SuperadminAuditWorkspace({
 		});
 	}
 
-	function resetFilters() {
-		setCollegeSlug("all");
-		setEventType("all");
-		setQuery("");
-		setFromDate(dateOnly(daysAgo(7)));
-		setToDate(dateOnly(new Date()));
-	}
-
 	return (
-		<div className="space-y-6">
-			<section className="grid gap-4 lg:grid-cols-4">
-				<div className="rounded-3xl border border-[#d7e2f0] bg-white p-5 shadow-sm">
-					<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#8395AF]">
-						Visible Events
-					</p>
-					<p className="mt-3 text-3xl font-black text-[#0D2B55]">
-						{filteredEvents.length}
-					</p>
-					<p className="mt-2 text-sm font-semibold text-[#60728f]">
-						Filtered by college, date, and activity.
-					</p>
+		<section className="space-y-5">
+			<div className="rounded-3xl border border-[#d7e2f0] bg-white p-5 shadow-[0_18px_45px_rgba(13,43,85,0.08)] sm:p-6">
+				<div className="flex flex-wrap items-start justify-between gap-4">
+					<div>
+						<p className="text-[11px] font-black uppercase tracking-[0.28em] text-[#B7770D]">
+							Audit Trail
+						</p>
+						<h2 className="mt-2 text-2xl font-black text-[#06183A]">
+							Platform audit table
+						</h2>
+						<p className="mt-2 max-w-3xl text-sm leading-7 text-[#556987]">
+							Review who did what, when it happened, which tenant was affected,
+							and whether the event has been reviewed.
+						</p>
+					</div>
+					<button
+						type="button"
+						onClick={handleExport}
+						disabled={filteredEvents.length === 0}
+						className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] px-5 text-sm font-black text-white shadow-[0_14px_26px_rgba(13,43,85,0.2)] transition hover:bg-[#123a73] disabled:cursor-not-allowed disabled:opacity-50"
+					>
+						<Download className="size-4" />
+						Export CSV
+					</button>
 				</div>
-				<div className="rounded-3xl border border-[#d7e2f0] bg-white p-5 shadow-sm">
-					<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#8395AF]">
-						Modified
-					</p>
-					<p className="mt-3 text-3xl font-black text-[#0D2B55]">
-						{modifiedCount}
-					</p>
-					<p className="mt-2 text-sm font-semibold text-[#60728f]">
-						Who modified what is tracked.
-					</p>
-				</div>
-				<div className="rounded-3xl border border-[#d7e2f0] bg-white p-5 shadow-sm">
-					<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#8395AF]">
-						Deleted
-					</p>
-					<p className="mt-3 text-3xl font-black text-[#0D2B55]">
-						{deletedCount}
-					</p>
-					<p className="mt-2 text-sm font-semibold text-[#60728f]">
-						Deletion actions stay visible.
-					</p>
-				</div>
-				<div className="rounded-3xl border border-[#d7e2f0] bg-[#0D2B55] p-5 text-white shadow-sm">
-					<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#E4A11B]">
-						Export Ready
-					</p>
-					<p className="mt-3 text-3xl font-black">CSV</p>
-					<p className="mt-2 text-sm font-semibold text-[#b8c7dc]">
-						Export the current audit view.
-					</p>
-				</div>
-			</section>
 
-			<section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
-				<div className="rounded-3xl border border-[#d7e2f0] bg-white p-5 shadow-[0_18px_45px_rgba(13,43,85,0.08)] sm:p-6">
-					<div className="flex flex-wrap items-start justify-between gap-4">
-						<div>
-							<p className="text-[11px] font-black uppercase tracking-[0.28em] text-[#B7770D]">
-								Audit Trail
+				<div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+					{[
+						["Visible Events", stats.visible],
+						["Modified", stats.modified],
+						["Deleted", stats.deleted],
+						["Reviewed", stats.reviewed],
+					].map(([label, value]) => (
+						<div
+							key={label}
+							className="rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] p-4"
+						>
+							<p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8395AF]">
+								{label}
 							</p>
-							<h2 className="mt-2 text-2xl font-black text-[#06183A]">
-								Who did what, and when
-							</h2>
-							<p className="mt-2 max-w-2xl text-sm leading-7 text-[#556987]">
-								Review sensitive activity by college, actor, date range, and
-								action type. This workspace is ready to connect to Strapi audit
-								log rows when the backend writer is enabled.
-							</p>
+							<p className="mt-2 text-3xl font-black text-[#0D2B55]">{value}</p>
 						</div>
-						<button
-							type="button"
-							onClick={handleExport}
-							className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] px-5 text-sm font-black text-white shadow-[0_14px_26px_rgba(13,43,85,0.2)] transition hover:bg-[#123a73]"
-						>
-							<Download className="size-4" />
-							Export CSV
-						</button>
-					</div>
+					))}
+				</div>
+			</div>
 
-					<div className="mt-6 grid gap-3 rounded-3xl border border-[#dbe5f1] bg-[#f8fbff] p-4 lg:grid-cols-[1fr_1fr_1fr_1fr_auto]">
-						<label className="block">
-							<span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-[#8395AF]">
-								<Filter className="size-3.5" />
-								College
-							</span>
-							<select
-								value={collegeSlug}
-								onChange={(event) => setCollegeSlug(event.target.value)}
-								className="mt-2 h-12 w-full rounded-2xl border border-[#cbd9ec] bg-white px-4 text-sm font-bold text-[#0D2B55] outline-none transition focus:border-[#2E86C1]"
-							>
-								<option value="all">All colleges</option>
-								{collegeOptions.map((college) => (
-									<option key={college.slug} value={college.slug}>
-										{college.name}
-									</option>
-								))}
-							</select>
-						</label>
-						<label className="block">
-							<span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-[#8395AF]">
-								<Activity className="size-3.5" />
-								Activity
-							</span>
-							<select
-								value={eventType}
-								onChange={(event) =>
-									setEventType(event.target.value as "all" | AuditEventType)
-								}
-								className="mt-2 h-12 w-full rounded-2xl border border-[#cbd9ec] bg-white px-4 text-sm font-bold text-[#0D2B55] outline-none transition focus:border-[#2E86C1]"
-							>
-								<option value="all">All activities</option>
-								{Object.entries(eventMeta).map(([key, meta]) => (
-									<option key={key} value={key}>
-										{meta.label}
-									</option>
-								))}
-							</select>
-						</label>
-						<label className="block">
-							<span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-[#8395AF]">
-								<CalendarDays className="size-3.5" />
-								From
-							</span>
-							<input
-								type="date"
-								value={fromDate}
-								onChange={(event) => setFromDate(event.target.value)}
-								className="mt-2 h-12 w-full rounded-2xl border border-[#cbd9ec] bg-white px-4 text-sm font-bold text-[#0D2B55] outline-none transition focus:border-[#2E86C1]"
-							/>
-						</label>
-						<label className="block">
-							<span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-[#8395AF]">
-								<CalendarDays className="size-3.5" />
-								To
-							</span>
-							<input
-								type="date"
-								value={toDate}
-								onChange={(event) => setToDate(event.target.value)}
-								className="mt-2 h-12 w-full rounded-2xl border border-[#cbd9ec] bg-white px-4 text-sm font-bold text-[#0D2B55] outline-none transition focus:border-[#2E86C1]"
-							/>
-						</label>
-						<button
-							type="button"
-							onClick={resetFilters}
-							className="mt-5 flex h-12 items-center justify-center gap-2 rounded-2xl border border-[#cbd9ec] bg-white px-4 text-sm font-black text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D] lg:mt-auto"
-						>
-							<RefreshCcw className="size-4" />
-							Reset
-						</button>
+			<div className="rounded-3xl border border-[#d7e2f0] bg-white p-4 shadow-[0_18px_45px_rgba(13,43,85,0.08)] sm:p-5">
+				<div className="flex flex-wrap items-center justify-between gap-3">
+					<div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.24em] text-[#B7770D]">
+						<Filter className="size-4" />
+						Filters
 					</div>
-
-					<label className="mt-4 flex h-12 items-center gap-3 rounded-2xl border border-[#dbe5f1] bg-white px-4 text-sm font-semibold text-[#60728f]">
-						<Search className="size-4 text-[#8395AF]" />
+					<button
+						type="button"
+						onClick={resetFilters}
+						className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-[#d3dfed] bg-white px-4 text-xs font-black uppercase tracking-[0.12em] text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+					>
+						<RefreshCcw className="size-3.5" />
+						Reset filters
+					</button>
+				</div>
+				<div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_14rem_14rem_12rem_12rem]">
+					<label className="relative">
+						<Search className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[#7b8faa]" />
 						<input
 							value={query}
-							onChange={(event) => setQuery(event.target.value)}
-							placeholder="Search by user, activity, target, or college"
-							className="min-w-0 flex-1 bg-transparent text-[#0D2B55] outline-none placeholder:text-[#8ca0bb]"
+							onChange={(event) => updateFilter(setQuery, event.target.value)}
+							placeholder="Search by actor, target, college, or IP"
+							className="h-12 w-full rounded-2xl border border-[#d3dfed] bg-[#f8fbff] pl-11 pr-4 text-sm font-semibold text-[#0D2B55] outline-none transition focus:border-[#2E86C1]"
 						/>
 					</label>
+					<select
+						value={collegeSlug}
+						onChange={(event) => updateFilter(setCollegeSlug, event.target.value)}
+						className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+					>
+						<option value="all">All colleges</option>
+						{collegeOptions.map((college) => (
+							<option key={college.slug} value={college.slug}>
+								{college.name}
+							</option>
+						))}
+					</select>
+					<select
+						value={eventType}
+						onChange={(event) =>
+							updateFilter(setEventType, event.target.value as "all" | AuditEventType)
+						}
+						className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+					>
+						<option value="all">All activities</option>
+						{Object.entries(eventMeta).map(([key, meta]) => (
+							<option key={key} value={key}>
+								{meta.label}
+							</option>
+						))}
+					</select>
+					<label className="relative">
+						<CalendarDays className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[#7b8faa]" />
+						<input
+							type="date"
+							value={fromDate}
+							onChange={(event) => updateFilter(setFromDate, event.target.value)}
+							className="h-12 w-full rounded-2xl border border-[#d3dfed] bg-[#f8fbff] pl-11 pr-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+						/>
+					</label>
+					<label className="relative">
+						<CalendarDays className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[#7b8faa]" />
+						<input
+							type="date"
+							value={toDate}
+							onChange={(event) => updateFilter(setToDate, event.target.value)}
+							className="h-12 w-full rounded-2xl border border-[#d3dfed] bg-[#f8fbff] pl-11 pr-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+						/>
+					</label>
+				</div>
+			</div>
 
-					<div className="mt-5 overflow-hidden rounded-3xl border border-[#dbe5f1]">
-						<div className="hidden grid-cols-[1.2fr_1.3fr_1fr_1.1fr_9rem] gap-4 bg-[#f8fbff] px-5 py-4 text-[10px] font-black uppercase tracking-[0.22em] text-[#8395AF] lg:grid">
-							<span>Actor</span>
-							<span>Activity</span>
-							<span>College</span>
-							<span>When</span>
-							<span>Type</span>
-						</div>
-						<div className="divide-y divide-[#e2eaf4]">
-							{filteredEvents.map((event) => {
-								const meta = eventMeta[event.eventType];
-								const Icon = meta.Icon;
-
-								return (
-									<article
-										key={event.id}
-										className="grid gap-4 bg-white px-5 py-5 transition hover:bg-[#fbfdff] lg:grid-cols-[1.2fr_1.3fr_1fr_1.1fr_9rem] lg:items-center"
-									>
-										<div>
-											<p className="font-black text-[#06183A]">{event.actor}</p>
-											<p className="mt-1 text-xs font-bold text-[#6b7f9c]">
-												{event.role} - {event.ipAddress}
-											</p>
-										</div>
-										<div>
-											<p className="font-black text-[#0D2B55]">
-												{event.activity}
-											</p>
-											<p className="mt-1 text-sm leading-6 text-[#60728f]">
-												{event.target}
-											</p>
-										</div>
-										<p className="text-sm font-bold text-[#405879]">
-											{event.collegeName}
-										</p>
-										<p className="text-sm font-bold text-[#405879]">
-											{formatDateTime(event.when)}
-										</p>
-										<span
-											className={`inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-black ${meta.className}`}
-										>
-											<Icon className="size-3.5" />
-											{meta.label}
-										</span>
-										<p className="lg:col-span-5 rounded-2xl border border-[#e5edf6] bg-[#fbfdff] px-4 py-3 text-sm leading-6 text-[#60728f]">
-											{event.summary}
-										</p>
-									</article>
-								);
-							})}
-							{filteredEvents.length === 0 ? (
-								<div className="bg-white px-5 py-10 text-center">
-									<p className="text-base font-black text-[#0D2B55]">
-										No audit activity found
-									</p>
-									<p className="mt-2 text-sm font-semibold text-[#60728f]">
-										Change the college, date range, or activity filter.
-									</p>
-								</div>
-							) : null}
-						</div>
+			<div className="overflow-hidden rounded-3xl border border-[#d7e2f0] bg-white shadow-[0_18px_45px_rgba(13,43,85,0.08)]">
+				<div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#dbe5f1] px-4 py-4 sm:px-5">
+					<div>
+						<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#B7770D]">
+							Audit Table
+						</p>
+						<p className="mt-1 text-sm font-semibold text-[#60728f]">
+							Showing {paginatedEvents.length} of {filteredEvents.length} events
+						</p>
+					</div>
+					<div className="flex items-center gap-2 rounded-full border border-[#dbe5f1] bg-[#f8fbff] px-4 py-2 text-xs font-black text-[#0D2B55]">
+						Page {safePage} of {pageCount}
 					</div>
 				</div>
 
-				<aside className="space-y-5">
-					<div className="rounded-3xl border border-[#d7e2f0] bg-white p-5 shadow-[0_18px_45px_rgba(13,43,85,0.08)]">
-						<p className="text-[11px] font-black uppercase tracking-[0.28em] text-[#B7770D]">
-							Recent Activity
-						</p>
-						<h3 className="mt-2 text-xl font-black text-[#06183A]">
-							Latest platform movement
+				{filteredEvents.length === 0 ? (
+					<div className="p-8 text-center">
+						<div className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#eef4fb] text-[#2E86C1]">
+							<Activity className="size-6" />
+						</div>
+						<h3 className="mt-4 text-lg font-black text-[#06183A]">
+							No audit activity found
 						</h3>
-						<div className="mt-5 space-y-3">
-							{recentEvents.map((event) => {
-								const meta = eventMeta[event.eventType];
-								const Icon = meta.Icon;
-
-								return (
-									<div
-										key={`${event.id}-recent`}
-										className="rounded-2xl border border-[#e2eaf4] bg-[#fbfdff] p-4"
-									>
-										<div className="flex items-start gap-3">
-											<div
-												className={`flex size-10 shrink-0 items-center justify-center rounded-full border ${meta.className}`}
-											>
-												<Icon className="size-4" />
-											</div>
-											<div>
-												<p className="text-sm font-black text-[#0D2B55]">
-													{event.activity}
-												</p>
-												<p className="mt-1 text-xs font-bold text-[#6b7f9c]">
-													{event.actor} - {event.collegeName}
-												</p>
-											</div>
-										</div>
-										<p className="mt-3 text-xs font-semibold leading-5 text-[#60728f]">
-											{event.summary}
-										</p>
-									</div>
-								);
-							})}
-						</div>
-					</div>
-
-					<div className="rounded-3xl border border-[#d7e2f0] bg-[#0D2B55] p-5 text-white shadow-[0_18px_45px_rgba(13,43,85,0.14)]">
-						<p className="text-[11px] font-black uppercase tracking-[0.28em] text-[#E4A11B]">
-							Compliance Scope
+						<p className="mt-2 text-sm text-[#60728f]">
+							Change the college, date range, or activity filter.
 						</p>
-						<h3 className="mt-2 text-xl font-black">Audit rules</h3>
-						<div className="mt-4 space-y-3 text-sm font-semibold leading-6 text-[#c8d6e8]">
-							<p>Every sensitive action should persist actor, role, college, target, IP address, and timestamp.</p>
-							<p>Deletes are never removed from audit history; only the business record changes.</p>
-							<p>Superadmin can export filtered audit evidence per college and date range.</p>
-						</div>
 					</div>
-				</aside>
-			</section>
-		</div>
+				) : (
+					<>
+						<div className="overflow-x-auto">
+							<table className="min-w-[1120px] w-full border-collapse text-left">
+								<thead className="bg-[#f8fbff]">
+									<tr className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8395AF]">
+										<th className="px-5 py-4">Actor</th>
+										<th className="px-5 py-4">Activity</th>
+										<th className="px-5 py-4">College</th>
+										<th className="px-5 py-4">When</th>
+										<th className="px-5 py-4">Type</th>
+										<th className="px-5 py-4">Review</th>
+										<th className="px-5 py-4 text-right">Actions</th>
+									</tr>
+								</thead>
+								<tbody className="divide-y divide-[#dbe5f1]">
+									{paginatedEvents.map((event) => {
+										const meta = eventMeta[event.eventType];
+										const Icon = meta.Icon;
+										const review = reviewsByEvent[event.id] ?? emptyReviewDraft();
+
+										return (
+											<tr
+												key={event.id}
+												className="bg-white transition hover:bg-[#f8fbff]"
+											>
+												<td className="px-5 py-4">
+													<p className="font-black text-[#06183A]">{event.actor}</p>
+													<p className="mt-1 text-xs font-bold text-[#6b7f9c]">
+														{event.role} - {event.ipAddress}
+													</p>
+												</td>
+												<td className="px-5 py-4">
+													<p className="font-black text-[#0D2B55]">
+														{event.activity}
+													</p>
+													<p className="mt-1 max-w-[20rem] truncate text-sm font-semibold text-[#60728f]">
+														{event.target}
+													</p>
+												</td>
+												<td className="px-5 py-4">
+													<p className="text-sm font-black text-[#405879]">
+														{event.collegeName}
+													</p>
+												</td>
+												<td className="px-5 py-4">
+													<p className="text-sm font-bold text-[#60728f]">
+														{formatDateTime(event.when)}
+													</p>
+												</td>
+												<td className="px-5 py-4">
+													<span
+														className={`inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-black ${meta.className}`}
+													>
+														<Icon className="size-3.5" />
+														{meta.label}
+													</span>
+												</td>
+												<td className="px-5 py-4">
+													<span className="rounded-full border border-[#dbe5f1] bg-[#f8fbff] px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-[#0D2B55]">
+														{review.status}
+													</span>
+												</td>
+												<td className="px-5 py-4">
+													<RowActionMenu
+														label={`Open actions for ${event.id}`}
+														open={openActionsId === event.id}
+														onOpenChange={(open) =>
+															setOpenActionsId(open ? event.id : null)
+														}
+														items={[
+															{
+																label: "View",
+																icon: <Eye className="size-4" />,
+																onSelect: () => openEvent(event, "view"),
+															},
+															{
+																label: "Edit review",
+																icon: <Pencil className="size-4" />,
+																className: "text-[#0D2B55] hover:bg-[#eef4fb]",
+																onSelect: () => openEvent(event, "edit"),
+															},
+														]}
+													/>
+												</td>
+											</tr>
+										);
+									})}
+								</tbody>
+							</table>
+						</div>
+
+						<div className="flex flex-col gap-3 border-t border-[#dbe5f1] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+							<p className="text-sm font-semibold text-[#60728f]">
+								Rows per page: {PAGE_SIZE}
+							</p>
+							<div className="flex items-center gap-2">
+								<button
+									type="button"
+									onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+									disabled={safePage === 1}
+									className="h-10 rounded-2xl border border-[#d3dfed] bg-white px-4 text-sm font-black text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D] disabled:cursor-not-allowed disabled:opacity-40"
+								>
+									Previous
+								</button>
+								<button
+									type="button"
+									onClick={() =>
+										setCurrentPage((page) => Math.min(pageCount, page + 1))
+									}
+									disabled={safePage === pageCount}
+									className="h-10 rounded-2xl bg-[#0D2B55] px-4 text-sm font-black text-white transition hover:bg-[#123866] disabled:cursor-not-allowed disabled:opacity-40"
+								>
+									Next
+								</button>
+							</div>
+						</div>
+					</>
+				)}
+			</div>
+
+			<AuditModal
+				event={modalEvent}
+				mode={modalMode}
+				draft={reviewDraft}
+				onClose={closeModal}
+				onDraftChange={setReviewDraft}
+				onSave={saveReview}
+			/>
+		</section>
 	);
 }
