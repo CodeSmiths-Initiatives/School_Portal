@@ -1,5 +1,9 @@
 import { getCurrentAuthSession } from "@/lib/auth/server-session";
-import { hasPermissions, type UserPermissionKey } from "@/lib/rbac";
+import {
+	getDefaultPermissionsForDomain,
+	hasPermissions,
+	type UserPermissionKey,
+} from "@/lib/rbac";
 import {
 	type CollegeRoleMutationInput,
 	updateCollegeAdminRole,
@@ -31,7 +35,9 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 			);
 		}
 
-		const permissions = (session.user.permissions ?? []) as UserPermissionKey[];
+		const permissions = (session.user.permissions?.length
+			? session.user.permissions
+			: getDefaultPermissionsForDomain(session.user.domain)) as UserPermissionKey[];
 
 		if (
 			!hasPermissions(permissions, ["roles.update", "roles.assign_permissions"], {

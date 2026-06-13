@@ -266,6 +266,9 @@ export function createStaffDashboardContent(
 export function createCollegeAdminDashboardContent(
 	collegeSlug: string,
 ): DashboardContentBundle {
+	const staffDashboardPath = `/college/${collegeSlug}/staff/dashboard`;
+	const studentDashboardPath = `/college/${collegeSlug}/student/dashboard`;
+
 	return {
 		badge: "College Admin Dashboard",
 		title: "College admin dashboard",
@@ -344,13 +347,13 @@ export function createCollegeAdminDashboardContent(
 		quickLinks: [
 			{
 				label: "Review college staff",
-				href: DEFAULT_STAFF_DASHBOARD_PATH,
+				href: staffDashboardPath,
 				description:
 					"Inspect the shared staff workspace and operational queues under the same college scope.",
 			},
 			{
 				label: "Review college student portal",
-				href: DEFAULT_STUDENT_DASHBOARD_PATH,
+				href: studentDashboardPath,
 				description:
 					"Compare the student-facing experience against the college admin perspective.",
 			},

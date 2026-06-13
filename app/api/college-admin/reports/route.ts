@@ -1,5 +1,9 @@
 import { getCurrentAuthSession } from "@/lib/auth/server-session";
-import { hasPermissions, type UserPermissionKey } from "@/lib/rbac";
+import {
+	getDefaultPermissionsForDomain,
+	hasPermissions,
+	type UserPermissionKey,
+} from "@/lib/rbac";
 import { getCollegeAdminReports } from "@/lib/services/college-admin.service";
 import { NextResponse } from "next/server";
 
@@ -24,7 +28,9 @@ export async function GET(request: Request) {
 			);
 		}
 
-		const permissions = (session.user.permissions ?? []) as UserPermissionKey[];
+		const permissions = (session.user.permissions?.length
+			? session.user.permissions
+			: getDefaultPermissionsForDomain(session.user.domain)) as UserPermissionKey[];
 
 		if (!hasPermissions(permissions, ["reports.view"], { mode: "any" })) {
 			return NextResponse.json(

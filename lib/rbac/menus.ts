@@ -148,6 +148,25 @@ type DashboardMenuOptions = {
   collegeSlug?: string;
 };
 
+const ADMIN_ROUTED_MENU_KEYS = new Set([
+  "dashboard",
+  "students",
+  "courses",
+  "results",
+  "payments",
+  "hostel",
+  "reports",
+  "roles",
+]);
+
+function hasImplementedRoute(item: MenuItemDefinition, domain: DashboardDomain) {
+  if (domain !== "admin") {
+    return true;
+  }
+
+  return ADMIN_ROUTED_MENU_KEYS.has(item.key);
+}
+
 export function getVisibleDashboardMenus({
   domain,
   permissions,
@@ -167,6 +186,10 @@ export function getVisibleDashboardMenus({
     }
 
     if (menuItem.href.includes("[collegeSlug]") && !collegeSlug) {
+      return false;
+    }
+
+    if (!hasImplementedRoute(menuItem, domain)) {
       return false;
     }
 

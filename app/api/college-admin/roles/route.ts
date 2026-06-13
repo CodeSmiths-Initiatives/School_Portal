@@ -4,7 +4,11 @@ import {
 	getCollegeAdminRoles,
 	type CollegeRoleMutationInput,
 } from "@/lib/services/college-admin.service";
-import { hasPermissions, type UserPermissionKey } from "@/lib/rbac";
+import {
+	getDefaultPermissionsForDomain,
+	hasPermissions,
+	type UserPermissionKey,
+} from "@/lib/rbac";
 import { NextResponse } from "next/server";
 
 function canManageRoles(permissions: UserPermissionKey[]) {
@@ -45,7 +49,9 @@ async function authorize(request: Request, mutate = false) {
 		};
 	}
 
-	const permissions = (session.user.permissions ?? []) as UserPermissionKey[];
+	const permissions = (session.user.permissions?.length
+		? session.user.permissions
+		: getDefaultPermissionsForDomain(session.user.domain)) as UserPermissionKey[];
 	const allowed = mutate ? canMutateRoles(permissions) : canManageRoles(permissions);
 
 	if (!allowed) {
