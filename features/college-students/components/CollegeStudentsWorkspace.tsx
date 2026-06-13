@@ -10,6 +10,7 @@ import {
 	X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { RowActionMenu } from "@/components/ui/row-action-menu";
 import { hasPermissions, type UserPermissionKey } from "@/lib/rbac";
 import type { AdmissionApplicationSummary } from "@/lib/services/admission-application.service";
 import type { CollegeAdminStudentRecord } from "@/lib/services/college-admin.service";
@@ -371,6 +372,7 @@ export default function CollegeStudentsWorkspace({
 	const [currentPage, setCurrentPage] = useState(1);
 	const [viewApplication, setViewApplication] =
 		useState<AdmissionApplicationSummary | null>(null);
+	const [openActionsId, setOpenActionsId] = useState<string | number | null>(null);
 	const canViewStudentRecords = hasPermissions(permissions, ["students.view"], {
 		mode: "any",
 	});
@@ -489,6 +491,10 @@ export default function CollegeStudentsWorkspace({
 		downloadCsv(`${application.applicationNumber}.csv`, [
 			Object.fromEntries(detailRows(application)),
 		]);
+	}
+
+	function closeActions() {
+		setOpenActionsId(null);
 	}
 
 	return (
@@ -690,56 +696,52 @@ export default function CollegeStudentsWorkspace({
 													</p>
 												</td>
 												<td className="px-5 py-4">
-													<div className="flex justify-end gap-2">
-														<button
-															type="button"
-															onClick={() =>
-																application && canUseApplicationRecord
-																	? setViewApplication(application)
-																	: null
-															}
-															disabled={
-																!canViewStudentRecords || !canUseApplicationRecord
-															}
-															className="inline-flex size-10 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D] disabled:cursor-not-allowed disabled:opacity-40"
-															aria-label={`View ${studentName}`}
-															title="View"
-														>
-															<Eye className="size-4" />
-														</button>
-														<button
-															type="button"
-															onClick={() =>
-																application && canUseApplicationRecord
-																	? printApplication(application, collegeName)
-																	: null
-															}
-															disabled={
-																!canViewStudentRecords || !canUseApplicationRecord
-															}
-															className="inline-flex size-10 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D] disabled:cursor-not-allowed disabled:opacity-40"
-															aria-label={`Print ${studentName}`}
-															title="Print"
-														>
-															<Printer className="size-4" />
-														</button>
-														<button
-															type="button"
-															onClick={() =>
-																application && canUseApplicationRecord
-																	? exportApplication(application)
-																	: null
-															}
-															disabled={
-																!canExportStudentRecords || !canUseApplicationRecord
-															}
-															className="inline-flex size-10 items-center justify-center rounded-2xl bg-[#0D2B55] text-white transition hover:bg-[#123866] disabled:cursor-not-allowed disabled:opacity-40"
-															aria-label={`Export ${studentName}`}
-															title="Export"
-														>
-															<Download className="size-4" />
-														</button>
-													</div>
+													<RowActionMenu
+														label={`Open actions for ${studentName}`}
+														open={openActionsId === student.id}
+														onOpenChange={(open) =>
+															setOpenActionsId(open ? student.id : null)
+														}
+														items={[
+															{
+																label: "View",
+																icon: <Eye className="size-4" />,
+																disabled:
+																	!canViewStudentRecords || !canUseApplicationRecord,
+																onSelect: () => {
+																	if (application && canUseApplicationRecord) {
+																		setViewApplication(application);
+																	}
+																	closeActions();
+																},
+															},
+															{
+																label: "Print",
+																icon: <Printer className="size-4" />,
+																disabled:
+																	!canViewStudentRecords || !canUseApplicationRecord,
+																onSelect: () => {
+																	if (application && canUseApplicationRecord) {
+																		printApplication(application, collegeName);
+																	}
+																	closeActions();
+																},
+															},
+															{
+																label: "Export",
+																icon: <Download className="size-4" />,
+																disabled:
+																	!canExportStudentRecords || !canUseApplicationRecord,
+																className: "text-[#0D2B55] hover:bg-[#eef4fb]",
+																onSelect: () => {
+																	if (application && canUseApplicationRecord) {
+																		exportApplication(application);
+																	}
+																	closeActions();
+																},
+															},
+														]}
+													/>
 												</td>
 											</tr>
 										);

@@ -4,7 +4,6 @@ import {
 	BadgeCheck,
 	Building2,
 	CheckCircle2,
-	EllipsisVertical,
 	Eye,
 	Filter,
 	KeyRound,
@@ -20,6 +19,7 @@ import {
 	XCircle,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { RowActionMenu } from "@/components/ui/row-action-menu";
 import { toast } from "@/lib/toast";
 import type {
 	ProvisionCollegeInput,
@@ -501,62 +501,40 @@ function CollegeRowActions({
 	const isActive = college.status === "active";
 
 	return (
-		<div className="relative flex justify-end">
-			<button
-				type="button"
-				onClick={onToggle}
-				className="inline-flex size-10 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
-				aria-label={`Open actions for ${college.name}`}
-				aria-haspopup="menu"
-				aria-expanded={open}
-				title="Actions"
-			>
-				<EllipsisVertical className="size-4" />
-			</button>
-			{open ? (
-				<div
-					role="menu"
-					className="absolute right-0 top-11 z-20 w-48 overflow-hidden rounded-2xl border border-[#dbe5f1] bg-white py-2 text-sm font-bold text-[#0D2B55] shadow-[0_18px_45px_rgba(13,43,85,0.16)]"
-				>
-					<button
-						type="button"
-						role="menuitem"
-						onClick={onView}
-						className="flex w-full items-center gap-2 px-4 py-2.5 text-left transition hover:bg-[#f8fbff]"
-					>
-						<Eye className="size-4" />
-						View
-					</button>
-					<button
-						type="button"
-						role="menuitem"
-						onClick={onEdit}
-						className="flex w-full items-center gap-2 px-4 py-2.5 text-left transition hover:bg-[#f8fbff]"
-					>
-						<Pencil className="size-4" />
-						Edit
-					</button>
-					<button
-						type="button"
-						role="menuitem"
-						disabled={isUpdating}
-						onClick={onStatusChange}
-						className={`flex w-full items-center gap-2 px-4 py-2.5 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
-							isActive
-								? "text-[#c54848] hover:bg-red-50"
-								: "text-emerald-700 hover:bg-emerald-50"
-						}`}
-					>
-						{isActive ? (
-							<XCircle className="size-4" />
-						) : (
-							<CheckCircle2 className="size-4" />
-						)}
-						{isActive ? "Deactivate" : "Activate"}
-					</button>
-				</div>
-			) : null}
-		</div>
+		<RowActionMenu
+			label={`Open actions for ${college.name}`}
+			open={open}
+			onOpenChange={(nextOpen) => {
+				if (nextOpen !== open) {
+					onToggle();
+				}
+			}}
+			items={[
+				{
+					label: "View",
+					icon: <Eye className="size-4" />,
+					onSelect: onView,
+				},
+				{
+					label: "Edit",
+					icon: <Pencil className="size-4" />,
+					onSelect: onEdit,
+				},
+				{
+					label: isActive ? "Deactivate" : "Activate",
+					icon: isActive ? (
+						<XCircle className="size-4" />
+					) : (
+						<CheckCircle2 className="size-4" />
+					),
+					onSelect: onStatusChange,
+					disabled: isUpdating,
+					className: isActive
+						? "text-[#c54848] hover:bg-red-50"
+						: "text-emerald-700 hover:bg-emerald-50",
+				},
+			]}
+		/>
 	);
 }
 

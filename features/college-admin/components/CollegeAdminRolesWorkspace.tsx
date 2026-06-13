@@ -13,6 +13,7 @@ import {
 	X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { RowActionMenu } from "@/components/ui/row-action-menu";
 import type {
 	CollegeAdminPermission,
 	CollegeAdminRole,
@@ -619,6 +620,7 @@ export default function CollegeAdminRolesWorkspace({
 	const [scopeType, setScopeType] = useState<ScopeFilter>("all");
 	const [moduleFilter, setModuleFilter] = useState("all");
 	const [currentPage, setCurrentPage] = useState(1);
+	const [openActionsId, setOpenActionsId] = useState<string | number | null>(null);
 	const [modalRole, setModalRole] = useState<CollegeAdminRole | null>(null);
 	const [modalMode, setModalMode] = useState<ModalMode | null>(null);
 	const [editDraft, setEditDraft] = useState<RoleDraft>(getRoleDraft());
@@ -724,11 +726,16 @@ export default function CollegeAdminRolesWorkspace({
 		setEditDraft(getRoleDraft(role));
 		setError("");
 		setMessage("");
+		closeActions();
 	}
 
 	function closeRoleModal() {
 		setModalRole(null);
 		setModalMode(null);
+	}
+
+	function closeActions() {
+		setOpenActionsId(null);
 	}
 
 	function openCreateModal() {
@@ -1050,27 +1057,27 @@ export default function CollegeAdminRolesWorkspace({
 													</p>
 												</td>
 												<td className="px-5 py-4">
-													<div className="flex justify-end gap-2">
-														<button
-															type="button"
-															onClick={() => openRole(role, "view")}
-															className="inline-flex size-10 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
-															aria-label={`View ${role.name}`}
-															title="View"
-														>
-															<Eye className="size-4" />
-														</button>
-														<button
-															type="button"
-															onClick={() => openRole(role, "edit")}
-															disabled={!canUpdate}
-															className="inline-flex size-10 items-center justify-center rounded-2xl bg-[#0D2B55] text-white transition hover:bg-[#123866] disabled:cursor-not-allowed disabled:opacity-40"
-															aria-label={`Edit ${role.name}`}
-															title="Edit permissions"
-														>
-															<Pencil className="size-4" />
-														</button>
-													</div>
+													<RowActionMenu
+														label={`Open actions for ${role.name}`}
+														open={openActionsId === role.id}
+														onOpenChange={(open) =>
+															setOpenActionsId(open ? role.id : null)
+														}
+														items={[
+															{
+																label: "View",
+																icon: <Eye className="size-4" />,
+																onSelect: () => openRole(role, "view"),
+															},
+															{
+																label: "Edit permissions",
+																icon: <Pencil className="size-4" />,
+																disabled: !canUpdate,
+																className: "text-[#0D2B55] hover:bg-[#eef4fb]",
+																onSelect: () => openRole(role, "edit"),
+															},
+														]}
+													/>
 												</td>
 											</tr>
 										);
