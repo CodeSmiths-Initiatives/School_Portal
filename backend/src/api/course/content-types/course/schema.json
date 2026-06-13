@@ -30,6 +30,36 @@
       "type": "integer",
       "default": 3
     },
+    "description": {
+      "type": "text"
+    },
+    "type": {
+      "type": "enumeration",
+      "enum": ["Core", "Elective", "Required", "Borrowed", "Carryover"],
+      "default": "Core"
+    },
+    "levels": {
+      "type": "json"
+    },
+    "mode": {
+      "type": "enumeration",
+      "enum": ["On-Site", "Online", "Hybrid"],
+      "default": "On-Site"
+    },
+    "schedule": {
+      "type": "string"
+    },
+    "lecturer": {
+      "type": "string"
+    },
+    "approvalStatus": {
+      "type": "enumeration",
+      "enum": ["Pending", "Approved", "Rejected"],
+      "default": "Pending"
+    },
+    "approvalNote": {
+      "type": "text"
+    },
     "status": {
       "type": "enumeration",
       "enum": ["active", "inactive", "archived"],
@@ -49,4 +79,3 @@
     }
   }
 }
-

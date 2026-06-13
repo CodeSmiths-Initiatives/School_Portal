@@ -120,6 +120,15 @@ export default function DefineNewCourse({
 		}
 	}
 
+	function addLevel(value: string) {
+		if (!value) return;
+		const level = value as Level;
+
+		if (!form.levels.includes(level)) {
+			toggleLevel(level);
+		}
+	}
+
 	function handleSubmit(event: React.FormEvent) {
 		event.preventDefault();
 		const nextErrors: Record<string, string> = {};
@@ -253,21 +262,41 @@ export default function DefineNewCourse({
 					<SectionHeading label="Level Allocation" />
 					<div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
 						<Field label="Applicable Levels" error={errors.levels}>
-							<div className="overflow-hidden rounded-xl border border-[#dce6f2] bg-white">
-								{LEVELS.map((level) => (
-									<button
-										key={level.value}
-										type="button"
-										onClick={() => toggleLevel(level.value)}
-										className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
-											form.levels.includes(level.value)
-												? "bg-[#dde8f5] font-semibold text-[#1a2b52]"
-												: "text-[#4a5a7a] hover:bg-[#f7f9fd]"
-										}`}
-									>
-										{level.label}
-									</button>
-								))}
+							<div className="space-y-2">
+								<select
+									className={`${inputClass(errors.levels)} appearance-none pr-9`}
+									value=""
+									onChange={(event) => addLevel(event.target.value)}
+								>
+									<option value="" disabled>
+										Select level...
+									</option>
+									{LEVELS.filter((level) => !form.levels.includes(level.value)).map(
+										(level) => (
+											<option key={level.value} value={level.value}>
+												{level.label}
+											</option>
+										),
+									)}
+								</select>
+								<div className="flex min-h-10 flex-wrap gap-2 rounded-xl border border-[#dce6f2] bg-[#f8fbff] p-2">
+									{form.levels.length ? (
+										form.levels.map((level) => (
+											<button
+												key={level}
+												type="button"
+												onClick={() => toggleLevel(level)}
+												className="rounded-full border border-[#cbd8e8] bg-white px-3 py-1 text-xs font-black text-[#0D2B55] transition hover:border-red-200 hover:bg-red-50 hover:text-red-700"
+											>
+												{level} remove
+											</button>
+										))
+									) : (
+										<span className="px-2 py-1 text-xs font-semibold text-[#7a8daa]">
+											No level selected
+										</span>
+									)}
+								</div>
 							</div>
 						</Field>
 						<Field label="Max. Students">

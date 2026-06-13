@@ -1,20 +1,35 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Course, CourseStatus, CourseType, Level, NavPage, Role } from "../types/course.types";
-import { COURSES } from "./data";
+import { useEffect, useMemo, useState } from "react";
+import {
+	createCourse,
+	deleteCourse as deleteCourseRequest,
+	loadCourseCatalogue,
+	updateCourse as updateCourseRequest,
+} from "@/features/courses/services/courseCatalogue.client";
+import type {
+	Course,
+	CourseStatus,
+	CourseType,
+	Level,
+	NavPage,
+	Role,
+} from "../types/course.types";
 
-export function usePortal() {
+export function usePortal(collegeSlug: string) {
   const [activePage, setActivePage] = useState<NavPage>('courses-definitions');
   const [activeRole, setActiveRole] = useState<Role>('Lecturer');
-  const [courses, setCourses] = useState<Course[]>(COURSES);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [isMutating, setIsMutating] = useState(false);
  
   // Filters for course definitions page
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<CourseType | 'All Types'>('All Types');
   const [statusFilter, setStatusFilter] = useState<CourseStatus | 'All Status'>('All Status');
   const [levelFilter, setLevelFilter] = useState<Level | 'All Levels'>('All Levels');
-  const [activeLevel, setActiveLevel] = useState<Level | null>('400L');
+  const [activeLevel, setActiveLevel] = useState<Level | null>(null);
  
   const filteredCourses = useMemo(() => {
     return courses.filter(c => {
@@ -34,26 +49,82 @@ export function usePortal() {
     required: courses.filter(c => c.type === 'Required').length,
     borrowed: courses.filter(c => c.type === 'Borrowed').length,
   }), [courses]);
- 
-  function addCourse(course: Omit<Course, 'id'>) {
-    setCourses(prev => [...prev, { ...course, id: Date.now().toString() }]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    loadCourseCatalogue(collegeSlug)
+      .then((payload) => {
+        if (!isMounted) return;
+        setCourses(payload.courses);
+      })
+      .catch((loadError) => {
+        if (!isMounted) return;
+        setError(loadError instanceof Error ? loadError.message : "Unable to load courses.");
+      })
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [collegeSlug]);
+
+  async function addCourse(course: Omit<Course, 'id'>) {
+    setIsMutating(true);
+    setError("");
+
+    try {
+      const result = await createCourse(collegeSlug, course);
+      setCourses(prev => [...prev, result.course]);
+    } catch (mutationError) {
+      setError(mutationError instanceof Error ? mutationError.message : "Unable to create course.");
+    } finally {
+      setIsMutating(false);
+    }
   }
  
-  function updateCourseStatus(id: string, status: CourseStatus, note?: string) {
-    setCourses(prev => prev.map(c => c.id === id ? { ...c, status, approvalNote: note } : c));
+  async function updateCourseStatus(id: string, status: CourseStatus, note?: string) {
+    const currentCourse = courses.find((course) => course.id === id);
+
+    if (!currentCourse) return;
+
+    await updateCourse(id, { ...currentCourse, status, approvalNote: note });
   }
 
-  function updateCourse(id: string, course: Omit<Course, 'id'>) {
-    setCourses(prev => prev.map(c => c.id === id ? { ...course, id } : c));
+  async function updateCourse(id: string, course: Omit<Course, 'id'>) {
+    setIsMutating(true);
+    setError("");
+
+    try {
+      const result = await updateCourseRequest(collegeSlug, id, course);
+      setCourses(prev => prev.map(c => c.id === id ? result.course : c));
+    } catch (mutationError) {
+      setError(mutationError instanceof Error ? mutationError.message : "Unable to update course.");
+    } finally {
+      setIsMutating(false);
+    }
   }
  
-  function deleteCourse(id: string) {
-    setCourses(prev => prev.filter(c => c.id !== id));
+  async function deleteCourse(id: string) {
+    setIsMutating(true);
+    setError("");
+
+    try {
+      await deleteCourseRequest(collegeSlug, id);
+      setCourses(prev => prev.filter(c => c.id !== id));
+    } catch (mutationError) {
+      setError(mutationError instanceof Error ? mutationError.message : "Unable to delete course.");
+    } finally {
+      setIsMutating(false);
+    }
   }
  
   return {
     activePage, setActivePage,
     activeRole, setActiveRole,
+    isLoading, error, isMutating,
     courses, filteredCourses, stats,
     searchQuery, setSearchQuery,
     typeFilter, setTypeFilter,

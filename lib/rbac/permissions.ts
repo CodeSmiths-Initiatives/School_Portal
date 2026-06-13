@@ -174,6 +174,7 @@ export const DEFAULT_DOMAIN_PERMISSIONS: Record<DashboardDomain, PermissionKey[]
 		"courses.view",
 		"courses.create",
 		"courses.update",
+		"courses.delete",
 		"courses.assign_staff",
 		"courses.approve",
 		"courses.reject",

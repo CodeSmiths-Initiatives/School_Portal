@@ -77,6 +77,7 @@ export default function CollegeModuleWorkspace({
 			<CourseModuleWorkspace
 				permissions={permissions}
 				collegeName={collegeName}
+				collegeSlug={collegeSlug}
 			/>
 		);
 	}

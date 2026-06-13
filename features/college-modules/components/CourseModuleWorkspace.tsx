@@ -25,6 +25,7 @@ import {
 type CourseModuleWorkspaceProps = {
 	permissions: UserPermissionKey[];
 	collegeName: string;
+	collegeSlug: string;
 };
 
 type CourseMenuItem = {
@@ -68,12 +69,6 @@ const COURSE_MENU: CourseMenuItem[] = [
 	},
 ];
 
-const COURSE_SUMMARY = [
-	{ label: "Active Courses", value: "42", note: "Current session" },
-	{ label: "Pending Review", value: "08", note: "Academic approval queue" },
-	{ label: "Departments", value: "06", note: "College-scoped catalogue" },
-];
-
 function can(
 	permissions: UserPermissionKey[],
 	requiredPermissions: PermissionKey[],
@@ -85,6 +80,7 @@ function can(
 export default function CourseModuleWorkspace({
 	permissions,
 	collegeName,
+	collegeSlug,
 }: CourseModuleWorkspaceProps) {
 	const {
 		activePage,
@@ -100,11 +96,14 @@ export default function CourseModuleWorkspace({
 		setStatusFilter,
 		activeLevel,
 		setActiveLevel,
+		isLoading,
+		error,
+		isMutating,
 		addCourse,
 		updateCourse,
 		updateCourseStatus,
 		deleteCourse,
-	} = usePortal();
+	} = usePortal(collegeSlug);
 	const [isCollapsed, setIsCollapsed] = useState(false);
 
 	const visibleMenu = useMemo(
@@ -115,12 +114,30 @@ export default function CourseModuleWorkspace({
 		[permissions],
 	);
 	const canCreateCourse = can(permissions, ["courses.create"]);
+	const canUpdateCourse = can(permissions, ["courses.update"]);
+	const canDeleteCourse = can(permissions, ["courses.delete"]);
 	const canAssignCourse = can(permissions, ["courses.assign_staff"]);
 	const canManageTimetable = can(permissions, ["courses.update"], "any");
 	const canReviewCourses = can(
 		permissions,
 		["courses.approve", "courses.reject"],
 		"any",
+	);
+	const courseSummary = useMemo(
+		() => [
+			{ label: "Active Courses", value: courses.length, note: "Live catalogue" },
+			{
+				label: "Pending Review",
+				value: courses.filter((course) => course.status === "Pending").length,
+				note: "Academic approval queue",
+			},
+			{
+				label: "Departments",
+				value: new Set(courses.map((course) => course.department)).size,
+				note: "College-scoped catalogue",
+			},
+		],
+		[courses],
 	);
 
 	useEffect(() => {
@@ -234,7 +251,7 @@ export default function CourseModuleWorkspace({
 						</div>
 
 						<div className="mt-5 grid gap-3 sm:grid-cols-3">
-							{COURSE_SUMMARY.map((item) => (
+							{courseSummary.map((item) => (
 								<div
 									key={item.label}
 									className="rounded-2xl border border-[#e3eaf4] bg-white p-4"
@@ -252,7 +269,25 @@ export default function CourseModuleWorkspace({
 					</section>
 
 					<section className="min-w-0 rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] p-4 shadow-sm sm:p-5">
-						{activePage === "courses-definitions" ? (
+						{error ? (
+							<div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+								{error}
+							</div>
+						) : null}
+						{isMutating ? (
+							<div className="mb-4 rounded-2xl border border-[#dbe5f1] bg-white px-4 py-3 text-sm font-bold text-[#0D2B55]">
+								Saving course catalogue changes...
+							</div>
+						) : null}
+						{isLoading ? (
+							<div className="rounded-3xl border border-[#d7e2f0] bg-white p-8 text-center shadow-sm">
+								<p className="text-sm font-bold text-[#0D2B55]">
+									Loading live course catalogue...
+								</p>
+							</div>
+						) : null}
+
+						{!isLoading && activePage === "courses-definitions" ? (
 							<CourseDefinition
 								courses={filteredCourses}
 								stats={stats}
@@ -265,24 +300,24 @@ export default function CourseModuleWorkspace({
 								activeLevel={activeLevel}
 								onLevelFilter={setActiveLevel}
 								onDefineNew={addCourse}
-								onUpdateCourse={updateCourse}
-								onDeleteCourse={deleteCourse}
+								onUpdateCourse={canUpdateCourse ? updateCourse : undefined}
+								onDeleteCourse={canDeleteCourse ? deleteCourse : undefined}
 								canDefineCourse={canCreateCourse}
 							/>
 						) : null}
 
-						{activePage === "allocate-to-levels" && canAssignCourse ? (
+						{!isLoading && activePage === "allocate-to-levels" && canAssignCourse ? (
 							<AllocateToLevels
 								courses={courses}
 								canManageAllocations={canAssignCourse}
 							/>
 						) : null}
 
-						{activePage === "timetable" ? (
+						{!isLoading && activePage === "timetable" ? (
 							<Timetable canManageTimetable={canManageTimetable} />
 						) : null}
 
-						{activePage === "hod-approval" && canReviewCourses ? (
+						{!isLoading && activePage === "hod-approval" && canReviewCourses ? (
 							<HodApproval
 								courses={courses}
 								onUpdateStatus={updateCourseStatus}
