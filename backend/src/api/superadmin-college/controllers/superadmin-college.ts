@@ -784,6 +784,25 @@ export default {
 						email: nextAdminEmail,
 					})
 				: null;
+			const adminRole = adminUser?.id
+				? await upsertPortalRole({
+						name: "College Admin",
+						code: GLOBAL_COLLEGE_ADMIN_ROLE_CODE,
+						description:
+							"Global college admin role template. Tenant access comes from each user's college role assignment.",
+						scopeType: "college",
+						permissions: COLLEGE_ADMIN_PERMISSIONS,
+					})
+				: null;
+
+			if (adminUser?.id && adminRole?.id) {
+				await upsertAdminAssignment({
+					userId: adminUser.id,
+					roleId: adminRole.id,
+					collegeId: college.id,
+				});
+			}
+
 			const nextMetadata =
 				college.metadata &&
 				typeof college.metadata === "object" &&
@@ -799,6 +818,11 @@ export default {
 							email: nextAdminEmail,
 							phone: nextAdminPhone,
 							userId: adminUser?.id ?? currentAdmin.userId,
+							roleCode:
+								adminRole?.code ??
+								currentAdmin.roleCode ??
+								GLOBAL_COLLEGE_ADMIN_ROLE_CODE,
+							roleAssignmentScope: "college",
 							updatedAt: new Date().toISOString(),
 						}
 					: undefined;
