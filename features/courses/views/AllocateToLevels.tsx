@@ -1,52 +1,91 @@
 "use client";
 
-import { useState } from "react";
-import { Course, Level, CourseType } from "../types/course.types";
-import { Button } from "@/components/ui/button";
+import {
+	Filter,
+	Layers3,
+	Plus,
+	Search,
+	Trash2,
+	X,
+} from "lucide-react";
+import { useMemo, useState } from "react";
+import type {
+	Course,
+	CourseStatus,
+	CourseType,
+	Level,
+} from "../types/course.types";
 
 interface Props {
 	courses: Course[];
 	canManageAllocations?: boolean;
 }
 
-// ─── Level group header colors ────────────────────────────────────────────────
-const LEVEL_META: Record<
-	Level,
-	{ emoji: string; textColor: string; bgColor: string }
-> = {
-	"100L": { emoji: "📘", textColor: "text-blue-600", bgColor: "bg-blue-50" },
-	"200L": {
-		emoji: "📗",
-		textColor: "text-emerald-600",
-		bgColor: "bg-emerald-50",
-	},
-	"300L": {
-		emoji: "📙",
-		textColor: "text-orange-500",
-		bgColor: "bg-orange-50",
-	},
-	"400L": { emoji: "📕", textColor: "text-red-500", bgColor: "bg-red-50" },
+type AllocationRow = {
+	courseId: string;
+	level: Level;
 };
 
-// Level badge pill (200L, 300L etc.)
-const LEVEL_PILL: Record<Level, string> = {
-	"100L": "bg-blue-100   text-blue-700",
-	"200L": "bg-emerald-100 text-emerald-700",
-	"300L": "bg-emerald-100 text-emerald-700",
-	"400L": "bg-emerald-100 text-emerald-700",
+type AllocationTableRow = AllocationRow & {
+	course: Course;
+	semester: string;
 };
 
-// Type pill colors
-const TYPE_PILL: Record<string, string> = {
-	Core: "bg-teal-100   text-teal-700",
-	Elective: "bg-blue-100   text-blue-700",
-	Required: "bg-red-100    text-red-600",
-	Borrowed: "bg-orange-100 text-orange-600",
-};
+type AllocationStatusFilter = CourseStatus | "All Status";
+type AllocationTypeFilter = CourseType | "All Types";
+type AllocationLevelFilter = Level | "All Levels";
+type AllocationSemesterFilter = "All Semesters" | "1st Semester" | "2nd Semester";
 
 const ALL_LEVELS: Level[] = ["100L", "200L", "300L", "400L"];
+const PAGE_SIZE = 10;
 
-// ─── New Allocation modal ─────────────────────────────────────────────────────
+function levelPill(level: Level) {
+	const tone =
+		level === "100L"
+			? "border-sky-200 bg-sky-50 text-sky-700"
+			: level === "200L"
+				? "border-emerald-200 bg-emerald-50 text-emerald-700"
+				: level === "300L"
+					? "border-amber-200 bg-amber-50 text-amber-700"
+					: "border-red-200 bg-red-50 text-red-700";
+
+	return `rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${tone}`;
+}
+
+function statusPill(status: CourseStatus) {
+	const tone =
+		status === "Approved"
+			? "border-emerald-200 bg-emerald-50 text-emerald-700"
+			: status === "Rejected"
+				? "border-red-200 bg-red-50 text-red-700"
+				: "border-amber-200 bg-amber-50 text-amber-700";
+
+	return `rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${tone}`;
+}
+
+function typePill(type: CourseType) {
+	const tone =
+		type === "Core"
+			? "border-sky-200 bg-sky-50 text-sky-700"
+			: type === "Elective"
+				? "border-indigo-200 bg-indigo-50 text-indigo-700"
+				: type === "Required"
+					? "border-purple-200 bg-purple-50 text-purple-700"
+					: "border-amber-200 bg-amber-50 text-amber-700";
+
+	return `rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${tone}`;
+}
+
+function getSemester(course: Course) {
+	const schedule = course.schedule?.toLowerCase() ?? "";
+
+	if (schedule.includes("2nd") || schedule.includes("second")) {
+		return "2nd Semester";
+	}
+
+	return "1st Semester";
+}
+
 function NewAllocationModal({
 	courses,
 	onAdd,
@@ -56,90 +95,96 @@ function NewAllocationModal({
 	onAdd: (courseId: string, level: Level) => void;
 	onClose: () => void;
 }) {
+	const approvedCourses = courses.filter((course) => course.status === "Approved");
 	const [selectedCourse, setSelectedCourse] = useState("");
-	const [selectedLevel, setSelectedLevel] = useState<Level>("200L");
-
-	const sel = `w-full border border-[#dce6f2] rounded-xl px-4 py-3 text-sm text-[#1a2b52]
-		bg-white outline-none focus:border-[#3d5a9e] appearance-none`;
+	const [selectedLevel, setSelectedLevel] = useState<Level>("100L");
 
 	return (
-		<div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center px-4">
-			<div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-7">
-				<div className="flex items-center justify-between mb-5">
-					<h3 className="text-base font-bold text-[#1a2b52]">New Allocation</h3>
+		<div className="fixed inset-0 z-50 flex items-center justify-center bg-[#06172f]/60 p-4 backdrop-blur-sm">
+			<div className="max-h-[90vh] w-full max-w-2xl overflow-hidden rounded-3xl border border-[#dbe5f1] bg-white shadow-[0_30px_80px_rgba(6,23,47,0.35)]">
+				<div className="flex items-start justify-between gap-4 border-b border-[#dbe5f1] bg-[#0D2B55] px-5 py-5 text-white sm:px-6">
+					<div>
+						<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#E4A11B]">
+							New Allocation
+						</p>
+						<h2 className="mt-2 text-xl font-black sm:text-2xl">
+							Assign course to level
+						</h2>
+						<p className="mt-1 text-sm font-semibold text-[#c5d4e8]">
+							Add an approved course to a student level for the current session.
+						</p>
+					</div>
 					<button
+						type="button"
 						onClick={onClose}
-						className="w-8 h-8 rounded-lg border border-[#dce6f2] flex items-center justify-center text-[#8a9ab5] hover:text-[#1a2b52] text-sm"
+						className="flex size-10 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition hover:bg-white hover:text-[#0D2B55]"
+						aria-label="Close allocation form"
 					>
-						✕
+						<X className="size-5" />
 					</button>
 				</div>
-				<div className="flex flex-col gap-4">
-					<div className="flex flex-col gap-1.5">
-						<label className="text-[10px] font-bold tracking-widest text-[#4a5a7a] uppercase">
+
+				<div className="space-y-4 p-5 sm:p-6">
+					<label className="block">
+						<span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8395AF]">
 							Course
-						</label>
-						<div className="relative">
-							<select
-								className={sel}
-								value={selectedCourse}
-								onChange={(e) => setSelectedCourse(e.target.value)}
-							>
-								<option value="" disabled>
-									Select a course...
-								</option>
-								{courses
-									.filter((c) => c.status === "Approved")
-									.map((c) => (
-										<option key={c.id} value={c.id}>
-											{c.code} — {c.title}
-										</option>
-									))}
-							</select>
-							<span className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8a9ab5] pointer-events-none text-xs">
-								▾
-							</span>
-						</div>
-					</div>
-					<div className="flex flex-col gap-1.5">
-						<label className="text-[10px] font-bold tracking-widest text-[#4a5a7a] uppercase">
-							Level
-						</label>
-						<div className="relative">
-							<select
-								className={sel}
-								value={selectedLevel}
-								onChange={(e) => setSelectedLevel(e.target.value as Level)}
-							>
-								{ALL_LEVELS.map((l) => (
-									<option key={l} value={l}>
-										{l.replace("L", " Level")}
-									</option>
-								))}
-							</select>
-							<span className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8a9ab5] pointer-events-none text-xs">
-								▾
-							</span>
-						</div>
-					</div>
-					<div className="flex gap-3 pt-1">
-						<button
-							disabled={!selectedCourse}
-							onClick={() => {
-								if (selectedCourse) {
-									onAdd(selectedCourse, selectedLevel);
-									onClose();
-								}
-							}}
-							className="flex-1 py-3 rounded-xl bg-[#3d5a9e] hover:bg-[#2d4a8e] disabled:opacity-40 text-white text-sm font-bold transition-all"
+						</span>
+						<select
+							value={selectedCourse}
+							onChange={(event) => setSelectedCourse(event.target.value)}
+							className="mt-2 h-12 w-full rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
 						>
-							Add Allocation
-						</button>
+							<option value="" disabled>
+								Select an approved course
+							</option>
+							{approvedCourses.map((course) => (
+								<option key={course.id} value={course.id}>
+									{course.code} - {course.title}
+								</option>
+							))}
+						</select>
+					</label>
+
+					<label className="block">
+						<span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8395AF]">
+							Level
+						</span>
+						<select
+							value={selectedLevel}
+							onChange={(event) => setSelectedLevel(event.target.value as Level)}
+							className="mt-2 h-12 w-full rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+						>
+							{ALL_LEVELS.map((level) => (
+								<option key={level} value={level}>
+									{level.replace("L", " Level")}
+								</option>
+							))}
+						</select>
+					</label>
+
+					<div className="flex flex-col-reverse gap-3 border-t border-[#dbe5f1] pt-4 sm:flex-row sm:justify-end">
 						<button
+							type="button"
 							onClick={onClose}
-							className="flex-1 py-3 rounded-xl border-2 border-[#dce6f2] text-[#4a5a7a] text-sm font-semibold hover:border-[#8a9ab5] transition-colors"
+							className="inline-flex h-11 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white px-5 text-sm font-black text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
 						>
 							Cancel
+						</button>
+						<button
+							type="button"
+							disabled={!selectedCourse}
+							onClick={() => {
+								if (!selectedCourse) {
+									return;
+								}
+
+								onAdd(selectedCourse, selectedLevel);
+								onClose();
+							}}
+							className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] px-5 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.18)] transition hover:bg-[#123866] disabled:cursor-not-allowed disabled:opacity-40"
+						>
+							<Plus className="size-4" />
+							Add Allocation
 						</button>
 					</div>
 				</div>
@@ -148,237 +193,439 @@ function NewAllocationModal({
 	);
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
 export default function AllocateToLevels({
 	courses,
 	canManageAllocations = true,
 }: Props) {
-	// Build initial allocation rows: each course × each of its assigned levels
-	const [rows, setRows] = useState<{ courseId: string; level: Level }[]>(() =>
-		courses.flatMap((c) => c.levels.map((l) => ({ courseId: c.id, level: l }))),
+	const [rows, setRows] = useState<AllocationRow[]>(() =>
+		courses.flatMap((course) =>
+			course.levels.map((level) => ({ courseId: course.id, level })),
+		),
 	);
 	const [showModal, setShowModal] = useState(false);
+	const [searchQuery, setSearchQuery] = useState("");
+	const [levelFilter, setLevelFilter] =
+		useState<AllocationLevelFilter>("All Levels");
+	const [typeFilter, setTypeFilter] =
+		useState<AllocationTypeFilter>("All Types");
+	const [statusFilter, setStatusFilter] =
+		useState<AllocationStatusFilter>("All Status");
+	const [semesterFilter, setSemesterFilter] =
+		useState<AllocationSemesterFilter>("All Semesters");
+	const [currentPage, setCurrentPage] = useState(1);
+
+	const courseById = useMemo(
+		() => new Map(courses.map((course) => [course.id, course])),
+		[courses],
+	);
+
+	const allocationRows = useMemo<AllocationTableRow[]>(
+		() =>
+			rows.flatMap((row) => {
+				const course = courseById.get(row.courseId);
+
+				if (!course) {
+					return [];
+				}
+
+				return [{ ...row, course, semester: getSemester(course) }];
+			}),
+		[courseById, rows],
+	);
+
+	const filteredRows = useMemo(
+		() =>
+			allocationRows.filter((row) => {
+				const query = searchQuery.trim().toLowerCase();
+				const matchesSearch =
+					!query ||
+					row.course.title.toLowerCase().includes(query) ||
+					row.course.code.toLowerCase().includes(query) ||
+					row.course.department.toLowerCase().includes(query) ||
+					row.course.lecturer.toLowerCase().includes(query);
+				const matchesLevel =
+					levelFilter === "All Levels" || row.level === levelFilter;
+				const matchesType =
+					typeFilter === "All Types" || row.course.type === typeFilter;
+				const matchesStatus =
+					statusFilter === "All Status" || row.course.status === statusFilter;
+				const matchesSemester =
+					semesterFilter === "All Semesters" || row.semester === semesterFilter;
+
+				return (
+					matchesSearch &&
+					matchesLevel &&
+					matchesType &&
+					matchesStatus &&
+					matchesSemester
+				);
+			}),
+		[
+			allocationRows,
+			levelFilter,
+			searchQuery,
+			semesterFilter,
+			statusFilter,
+			typeFilter,
+		],
+	);
+
+	const analytics = useMemo(() => {
+		const activeLevelCount = new Set(allocationRows.map((row) => row.level)).size;
+		const approvedCount = allocationRows.filter(
+			(row) => row.course.status === "Approved",
+		).length;
+		const unitTotal = allocationRows.reduce(
+			(total, row) => total + row.course.units,
+			0,
+		);
+
+		return [
+			["Total Allocations", allocationRows.length],
+			["Approved Allocations", approvedCount],
+			["Active Levels", activeLevelCount],
+			["Credit Units", unitTotal],
+		];
+	}, [allocationRows]);
+
+	const pageCount = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+	const safePage = Math.min(currentPage, pageCount);
+	const paginatedRows = filteredRows.slice(
+		(safePage - 1) * PAGE_SIZE,
+		safePage * PAGE_SIZE,
+	);
+
+	function updateFilter<T>(setter: (value: T) => void, value: T) {
+		setter(value);
+		setCurrentPage(1);
+	}
+
+	function clearFilters() {
+		setSearchQuery("");
+		setLevelFilter("All Levels");
+		setTypeFilter("All Types");
+		setStatusFilter("All Status");
+		setSemesterFilter("All Semesters");
+		setCurrentPage(1);
+	}
 
 	function addAllocation(courseId: string, level: Level) {
-		// Prevent duplicate
-		if (!rows.find((r) => r.courseId === courseId && r.level === level)) {
-			setRows((prev) => [...prev, { courseId, level }]);
-		}
+		setRows((currentRows) => {
+			const exists = currentRows.some(
+				(row) => row.courseId === courseId && row.level === level,
+			);
+
+			if (exists) {
+				return currentRows;
+			}
+
+			return [...currentRows, { courseId, level }];
+		});
 	}
 
 	function removeRow(courseId: string, level: Level) {
-		setRows((prev) =>
-			prev.filter((r) => !(r.courseId === courseId && r.level === level)),
+		setRows((currentRows) =>
+			currentRows.filter(
+				(row) => !(row.courseId === courseId && row.level === level),
+			),
 		);
 	}
 
-	// Group rows by level
-	const byLevel: Record<Level, { courseId: string; level: Level }[]> = {
-		"100L": [],
-		"200L": [],
-		"300L": [],
-		"400L": [],
-	};
-	rows.forEach((r) => byLevel[r.level]?.push(r));
-
-	const activeLevels = ALL_LEVELS.filter((l) => byLevel[l].length > 0);
-
-	const COL_HEADERS = [
-		"LEVEL",
-		"COURSE CODE",
-		"COURSE TITLE",
-		"UNITS",
-		"TYPE",
-		"SEMESTER",
-		"LECTURER",
-		"STATUS",
-		"",
-	];
-
 	return (
-		<div className="flex flex-col gap-5">
-			<div className="flex flex-wrap items-start justify-between gap-3">
-				<div>
-					<p className="text-2xl text-black font-semibold mb-1">
-						Level Allocations
-					</p>
-					<p className="text-xs text-[#8a9ab5]">
-						Dept. of Computer Science · 2025/2026
-					</p>
-				</div>
-				<div>
-					<Button className="border border-[#dce6f2] rounded-full px-4 py-1.5 text-xs font-bold text-[#4a5a7a] bg-white mt-1">
-						2025/2026
-					</Button>
-				</div>
-			</div>
-			{/* Page heading */}
-			<div className="flex flex-wrap items-start justify-between gap-3">
-				<div>
-					<h1 className="text-2xl font-bold text-[#1a2b52] mt-1">
-						Course Allocation by Level
-					</h1>
-					<p className="text-xs text-[#8a9ab5] mt-0.5">
-						Assign approved courses to specific student levels
-					</p>
-				</div>
-			</div>
-
-			{/* Table card */}
-			<div className="overflow-x-auto rounded-2xl border border-[#e4eaf4] bg-white shadow-sm">
-				{/* Card header */}
-				<div className="flex items-center justify-between px-6 py-4 border-b border-[#f0f5fb]">
-					<h2 className="font-bold text-[#1a2b52] text-base">
-						Level Allocations
-					</h2>
+		<section className="space-y-5">
+			<div className="rounded-3xl border border-[#d7e2f0] bg-white p-5 shadow-[0_18px_45px_rgba(13,43,85,0.08)] sm:p-6">
+				<div className="flex flex-wrap items-start justify-between gap-4">
+					<div>
+						<p className="text-[11px] font-black uppercase tracking-[0.28em] text-[#B7770D]">
+							Course Allocation
+						</p>
+						<h2 className="mt-2 text-2xl font-black text-[#06183A]">
+							Level allocation table
+						</h2>
+						<p className="mt-2 max-w-3xl text-sm leading-7 text-[#556987]">
+							Assign approved courses to levels, review allocation coverage, and
+							filter the allocation list without leaving the course workspace.
+						</p>
+					</div>
 					{canManageAllocations ? (
 						<button
+							type="button"
 							onClick={() => setShowModal(true)}
-							className="flex items-center gap-1.5 bg-[#0D2B55] hover:bg-[#092244] text-white
-								text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-sm shadow-[#0D2B55]/20"
+							className="inline-flex h-12 items-center gap-2 rounded-2xl bg-[#0D2B55] px-5 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.18)] transition hover:-translate-y-0.5 hover:bg-[#123866]"
 						>
-							<span>+</span> New Allocation
+							<Plus className="size-4" />
+							New Allocation
 						</button>
-					) : null}
+					) : (
+						<span className="rounded-full border border-[#dce6f2] bg-white px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-[#6b7e9f]">
+							View-only allocations
+						</span>
+					)}
 				</div>
 
-				{/* Column headers */}
-				<div
-					className="grid min-w-[980px] grid-cols-[70px_110px_1fr_60px_90px_120px_140px_110px_40px]
-					px-6 py-3 bg-[#f7f9fd] border-b border-[#eef3fb]"
-				>
-					{COL_HEADERS.map((h, i) => (
-						<span
-							key={i}
-							className="text-[10px] font-bold tracking-widest text-[#8a9ab5] uppercase"
+				<div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+					{analytics.map(([label, value]) => (
+						<div
+							key={label}
+							className="rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] p-4"
 						>
-							{h}
-						</span>
+							<p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8395AF]">
+								{label}
+							</p>
+							<p className="mt-2 text-3xl font-black text-[#0D2B55]">{value}</p>
+						</div>
 					))}
 				</div>
+			</div>
 
-				{/* Rows grouped by level */}
-				{activeLevels.length === 0 ? (
-					<div className="px-6 py-12 text-center">
-						<p className="text-sm text-[#8a9ab5]">
-							No allocations yet. Click <strong>+ New Allocation</strong> to
-							begin.
+			<div className="rounded-3xl border border-[#d7e2f0] bg-white p-4 shadow-[0_18px_45px_rgba(13,43,85,0.08)] sm:p-5">
+				<div className="flex flex-wrap items-center justify-between gap-3">
+					<div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.24em] text-[#B7770D]">
+						<Filter className="size-4" />
+						Filters
+					</div>
+					<button
+						type="button"
+						onClick={clearFilters}
+						className="inline-flex h-10 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white px-4 text-xs font-black uppercase tracking-[0.12em] text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+					>
+						Reset filters
+					</button>
+				</div>
+
+				<div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+					<label className="relative xl:col-span-2">
+						<Search className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[#7b8faa]" />
+						<input
+							value={searchQuery}
+							onChange={(event) =>
+								updateFilter(setSearchQuery, event.target.value)
+							}
+							placeholder="Search course, code, department, lecturer"
+							className="h-12 w-full rounded-2xl border border-[#d3dfed] bg-[#f8fbff] pl-11 pr-4 text-sm font-semibold text-[#0D2B55] outline-none transition focus:border-[#2E86C1]"
+						/>
+					</label>
+					<select
+						value={levelFilter}
+						onChange={(event) =>
+							updateFilter(
+								setLevelFilter,
+								event.target.value as AllocationLevelFilter,
+							)
+						}
+						className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+					>
+						<option value="All Levels">All levels</option>
+						{ALL_LEVELS.map((level) => (
+							<option key={level} value={level}>
+								{level}
+							</option>
+						))}
+					</select>
+					<select
+						value={typeFilter}
+						onChange={(event) =>
+							updateFilter(setTypeFilter, event.target.value as AllocationTypeFilter)
+						}
+						className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+					>
+						<option value="All Types">All course types</option>
+						{(["Core", "Elective", "Required", "Borrowed"] as CourseType[]).map(
+							(type) => (
+								<option key={type} value={type}>
+									{type}
+								</option>
+							),
+						)}
+					</select>
+					<select
+						value={semesterFilter}
+						onChange={(event) =>
+							updateFilter(
+								setSemesterFilter,
+								event.target.value as AllocationSemesterFilter,
+							)
+						}
+						className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+					>
+						<option value="All Semesters">All semesters</option>
+						<option value="1st Semester">1st Semester</option>
+						<option value="2nd Semester">2nd Semester</option>
+					</select>
+					<select
+						value={statusFilter}
+						onChange={(event) =>
+							updateFilter(
+								setStatusFilter,
+								event.target.value as AllocationStatusFilter,
+							)
+						}
+						className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+					>
+						<option value="All Status">All approval status</option>
+						{(["Pending", "Approved", "Rejected"] as CourseStatus[]).map(
+							(status) => (
+								<option key={status} value={status}>
+									{status}
+								</option>
+							),
+						)}
+					</select>
+				</div>
+			</div>
+
+			<div className="overflow-hidden rounded-3xl border border-[#d7e2f0] bg-white shadow-[0_18px_45px_rgba(13,43,85,0.08)]">
+				<div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#dbe5f1] px-4 py-4 sm:px-5">
+					<div>
+						<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#B7770D]">
+							Allocations Table
+						</p>
+						<p className="mt-1 text-sm font-semibold text-[#60728f]">
+							Showing {paginatedRows.length} of {filteredRows.length} allocations
+						</p>
+					</div>
+					<div className="flex items-center gap-2 rounded-full border border-[#dbe5f1] bg-[#f8fbff] px-4 py-2 text-xs font-black text-[#0D2B55]">
+						Page {safePage} of {pageCount}
+					</div>
+				</div>
+
+				{filteredRows.length === 0 ? (
+					<div className="p-8 text-center">
+						<div className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#eef4fb] text-[#2E86C1]">
+							<Layers3 className="size-6" />
+						</div>
+						<h3 className="mt-4 text-lg font-black text-[#06183A]">
+							No allocations found
+						</h3>
+						<p className="mt-2 text-sm text-[#60728f]">
+							Adjust the filters or add a new approved course allocation.
 						</p>
 					</div>
 				) : (
-					activeLevels.map((level) => {
-						const meta = LEVEL_META[level];
-						const levelRows = byLevel[level];
-						return (
-							<div key={level}>
-								{/* Level group header */}
-								<div
-									className={`flex items-center gap-2 px-6 py-2.5 ${meta.bgColor} border-b border-[#eef3fb]`}
-								>
-									<span className="text-sm">{meta.emoji}</span>
-									<span className={`text-sm font-bold ${meta.textColor}`}>
-										{level.replace("L", " Level")}
-									</span>
-								</div>
-
-								{/* Rows for this level */}
-								{levelRows.map((row, i) => {
-									const course = courses.find((c) => c.id === row.courseId);
-									if (!course) return null;
-
-									// Derive semester from schedule or default
-									const semester = course.schedule
-										?.toLowerCase()
-										.includes("1st")
-										? "1st Semester"
-										: course.schedule?.toLowerCase().includes("2nd")
-											? "2nd Semester"
-											: "1st Semester";
-
-									return (
-										<div
+					<>
+						<div className="overflow-x-auto">
+							<table className="min-w-[1080px] w-full border-collapse text-left">
+								<thead className="bg-[#f8fbff]">
+									<tr className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8395AF]">
+										<th className="px-5 py-4">Level</th>
+										<th className="px-5 py-4">Course</th>
+										<th className="px-5 py-4">Department</th>
+										<th className="px-5 py-4">Type</th>
+										<th className="px-5 py-4">Units</th>
+										<th className="px-5 py-4">Semester</th>
+										<th className="px-5 py-4">Lecturer</th>
+										<th className="px-5 py-4">Status</th>
+										<th className="px-5 py-4 text-right">Actions</th>
+									</tr>
+								</thead>
+								<tbody className="divide-y divide-[#dbe5f1]">
+									{paginatedRows.map((row) => (
+										<tr
 											key={`${row.courseId}-${row.level}`}
-											className={`grid min-w-[980px] grid-cols-[70px_110px_1fr_60px_90px_120px_140px_110px_40px]
-												px-6 py-4 items-center border-b border-[#f5f5f0] last:border-0
-												${i % 2 === 0 ? "bg-white" : "bg-[#fafafa]"} hover:bg-[#f7f9fd] transition-colors`}
+											className="bg-white transition hover:bg-[#f8fbff]"
 										>
-											{/* Level badge */}
-											<span
-												className={`text-[11px] font-bold px-2.5 py-1 rounded-full w-fit ${LEVEL_PILL[row.level]}`}
-											>
-												{row.level}
-											</span>
+											<td className="px-5 py-4">
+												<span className={levelPill(row.level)}>{row.level}</span>
+											</td>
+											<td className="px-5 py-4">
+												<p className="font-black text-[#06183A]">
+													{row.course.title}
+												</p>
+												<p className="mt-1 text-sm font-semibold text-[#60728f]">
+													{row.course.code}
+												</p>
+											</td>
+											<td className="px-5 py-4">
+												<p className="max-w-[14rem] text-sm font-black text-[#0D2B55]">
+													{row.course.department}
+												</p>
+											</td>
+											<td className="px-5 py-4">
+												<span className={typePill(row.course.type)}>
+													{row.course.type}
+												</span>
+											</td>
+											<td className="px-5 py-4">
+												<p className="text-sm font-black text-[#0D2B55]">
+													{row.course.units}
+												</p>
+											</td>
+											<td className="px-5 py-4">
+												<p className="text-sm font-bold text-[#60728f]">
+													{row.semester}
+												</p>
+											</td>
+											<td className="px-5 py-4">
+												<p className="max-w-[12rem] text-sm font-black text-[#0D2B55]">
+													{row.course.lecturer}
+												</p>
+											</td>
+											<td className="px-5 py-4">
+												<span className={statusPill(row.course.status)}>
+													{row.course.status}
+												</span>
+											</td>
+											<td className="px-5 py-4">
+												<div className="flex justify-end gap-2">
+													{canManageAllocations ? (
+														<button
+															type="button"
+															onClick={() => removeRow(row.courseId, row.level)}
+															className="inline-flex size-10 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white text-[#c54848] transition hover:border-[#c54848] hover:bg-red-50"
+															aria-label={`Remove ${row.course.code} from ${row.level}`}
+															title="Remove allocation"
+														>
+															<Trash2 className="size-4" />
+														</button>
+													) : (
+														<span className="rounded-full border border-[#dce6f2] bg-[#f8fbff] px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#6b7e9f]">
+															Locked
+														</span>
+													)}
+												</div>
+											</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
 
-											{/* Course code */}
-											<span className="text-sm font-bold text-[#1a2b52]">
-												{course.code}
-											</span>
-
-											{/* Course title */}
-											<span className="text-sm text-[#4a5a7a] pr-2">
-												{course.title}
-											</span>
-
-											{/* Units */}
-											<span className="text-sm text-[#4a5a7a]">
-												{course.units} U
-											</span>
-
-											{/* Type pill */}
-											<span
-												className={`text-[11px] font-semibold px-2.5 py-1 rounded-full w-fit
-												${TYPE_PILL[course.type] ?? "bg-gray-100 text-gray-600"}`}
-											>
-												{course.type.toLowerCase()}
-											</span>
-
-											{/* Semester */}
-											<span className="text-sm text-[#4a5a7a]">{semester}</span>
-
-											{/* Lecturer */}
-											<span className="text-sm text-[#4a5a7a]">
-												{course.lecturer}
-											</span>
-
-											{/* Status pill */}
-											<span
-												className={`text-[11px] font-semibold px-2.5 py-1 rounded-full w-fit
-												${
-													course.status === "Approved"
-														? "bg-emerald-50 text-emerald-600 border border-emerald-200"
-														: course.status === "Pending"
-															? "bg-amber-50 text-amber-600 border border-amber-200"
-															: "bg-red-50 text-red-600 border border-red-200"
-												}`}
-											>
-												{course.status.toLowerCase()}
-											</span>
-
-											{/* Remove */}
-											<button
-												onClick={() => removeRow(row.courseId, row.level)}
-												className="text-[#c0c8d8] hover:text-red-400 transition-colors text-base font-bold"
-												title="Remove allocation"
-											>
-												×
-											</button>
-										</div>
-									);
-								})}
+						<div className="flex flex-col gap-3 border-t border-[#dbe5f1] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+							<p className="text-sm font-semibold text-[#60728f]">
+								Rows per page: {PAGE_SIZE}
+							</p>
+							<div className="flex items-center gap-2">
+								<button
+									type="button"
+									onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+									disabled={safePage === 1}
+									className="h-10 rounded-2xl border border-[#d3dfed] bg-white px-4 text-sm font-black text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D] disabled:cursor-not-allowed disabled:opacity-40"
+								>
+									Previous
+								</button>
+								<button
+									type="button"
+									onClick={() =>
+										setCurrentPage((page) => Math.min(pageCount, page + 1))
+									}
+									disabled={safePage === pageCount}
+									className="h-10 rounded-2xl bg-[#0D2B55] px-4 text-sm font-black text-white transition hover:bg-[#123866] disabled:cursor-not-allowed disabled:opacity-40"
+								>
+									Next
+								</button>
 							</div>
-						);
-					})
+						</div>
+					</>
 				)}
 			</div>
 
-			{/* New Allocation modal */}
-			{showModal && (
+			{showModal ? (
 				<NewAllocationModal
 					courses={courses}
 					onAdd={addAllocation}
 					onClose={() => setShowModal(false)}
 				/>
-			)}
-		</div>
+			) : null}
+		</section>
 	);
 }
