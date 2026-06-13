@@ -1,4 +1,4 @@
-import type { Course } from "@/features/courses/types/course.types";
+import type { Course, CourseStatus } from "@/features/courses/types/course.types";
 import type {
 	CourseAllocationInput,
 	CourseAllocationUpdateInput,
@@ -60,6 +60,29 @@ export async function updateCourse(
 
 	if (!response.ok) {
 		throw new Error(await parseError(response, "Unable to update course."));
+	}
+
+	return response.json() as Promise<{ course: Course }>;
+}
+
+export async function updateCourseStatus(
+	collegeSlug: string,
+	courseId: string,
+	status: CourseStatus,
+	note?: string,
+) {
+	const params = new URLSearchParams({ collegeSlug });
+	const response = await fetch(
+		`/api/courses/catalogue/${encodeURIComponent(courseId)}/status?${params.toString()}`,
+		{
+			method: "PATCH",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ status, approvalNote: note }),
+		},
+	);
+
+	if (!response.ok) {
+		throw new Error(await parseError(response, "Unable to update course status."));
 	}
 
 	return response.json() as Promise<{ course: Course }>;

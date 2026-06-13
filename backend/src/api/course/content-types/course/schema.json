@@ -83,5 +83,19 @@
       "target": "api::course-timetable-slot.course-timetable-slot",
       "mappedBy": "course"
     }
-  }
+  },
+  "indexes": [
+    {
+      "name": "course_college_status_idx",
+      "columns": ["college_id", "status"]
+    },
+    {
+      "name": "course_college_code_status_idx",
+      "columns": ["college_id", "code", "status"]
+    },
+    {
+      "name": "course_college_approval_status_idx",
+      "columns": ["college_id", "approval_status", "status"]
+    }
+  ]
 }

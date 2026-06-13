@@ -14,6 +14,12 @@ export default {
 		},
 		{
 			method: "PATCH",
+			path: "/internal/course-catalogue/:id/status",
+			handler: "internal-course-catalogue.updateStatus",
+			config: { auth: false },
+		},
+		{
+			method: "PATCH",
 			path: "/internal/course-catalogue/:id",
 			handler: "internal-course-catalogue.update",
 			config: { auth: false },

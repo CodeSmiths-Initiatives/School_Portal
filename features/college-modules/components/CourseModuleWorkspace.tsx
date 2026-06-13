@@ -123,6 +123,8 @@ export default function CourseModuleWorkspace({
 	const canCreateCourse = can(permissions, ["courses.create"]);
 	const canUpdateCourse = can(permissions, ["courses.update"]);
 	const canDeleteCourse = can(permissions, ["courses.delete"]);
+	const canApproveCourse = can(permissions, ["courses.approve"]);
+	const canRejectCourse = can(permissions, ["courses.reject"]);
 	const canAssignCourse = can(permissions, ["courses.assign_staff"]);
 	const canManageTimetable = can(permissions, ["courses.update"], "any");
 	const canReviewCourses = can(
@@ -338,7 +340,13 @@ export default function CourseModuleWorkspace({
 							<HodApproval
 								courses={courses}
 								onUpdateStatus={updateCourseStatus}
+								onDefineNew={canCreateCourse ? addCourse : undefined}
+								onUpdateCourse={canUpdateCourse ? updateCourse : undefined}
+								onDeleteCourse={canDeleteCourse ? deleteCourse : undefined}
 								canReviewCourses={canReviewCourses}
+								canCreateCourse={canCreateCourse}
+								canApproveCourse={canApproveCourse}
+								canRejectCourse={canRejectCourse}
 							/>
 						) : null}
 					</section>

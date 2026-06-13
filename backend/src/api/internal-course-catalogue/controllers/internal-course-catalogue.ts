@@ -330,6 +330,15 @@ function parseCoursePayload(body: unknown) {
 	};
 }
 
+function parseCourseStatusPayload(body: unknown) {
+	const payload = asRecord(body);
+
+	return {
+		status: normalizeEnum(payload.status, COURSE_STATUSES, "Pending"),
+		approvalNote: asString(payload.approvalNote),
+	};
+}
+
 function parseAllocationPayload(body: unknown) {
 	const payload = asRecord(body);
 	const level = normalizeLevel(payload.level);
@@ -540,6 +549,53 @@ export default {
 			entityId: String(existing.id),
 			summary: `Updated course ${payload.code}`,
 			metadata: { collegeSlug, code: payload.code },
+		});
+
+		ctx.body = { course: mapCourse(course as Record<string, unknown>) };
+	},
+
+	async updateStatus(ctx: StrapiContext) {
+		if (!authorize(ctx)) {
+			return ctx.unauthorized("Course catalogue access is not authorized.");
+		}
+
+		const collegeSlug = asString(ctx.request.query?.collegeSlug);
+		const courseId = asString(ctx.params?.id);
+		const college = await findCollegeBySlug(collegeSlug);
+
+		if (!college?.id || !courseId) {
+			return ctx.badRequest("College slug and course id are required.");
+		}
+
+		const existing = await findCourseForCollege(courseId, college.id);
+
+		if (!existing?.id) {
+			return ctx.notFound?.("Course could not be found for this college.") ??
+				ctx.badRequest("Course could not be found for this college.");
+		}
+
+		const payload = parseCourseStatusPayload(ctx.request.body);
+		const course = await strapi.db.query("api::course.course").update({
+			where: { id: existing.id },
+			data: {
+				approvalStatus: payload.status,
+				approvalNote: payload.approvalNote,
+			},
+			populate: { department: true, college: true },
+		});
+		const action = payload.status === "Approved" ? "course.approved" : "course.rejected";
+
+		await createAuditLog({
+			collegeId: college.id,
+			action,
+			entityId: String(existing.id),
+			summary: `${payload.status} course ${asString(existing.code)}`,
+			metadata: {
+				collegeSlug,
+				courseId,
+				code: asString(existing.code),
+				approvalNote: payload.approvalNote,
+			},
 		});
 
 		ctx.body = { course: mapCourse(course as Record<string, unknown>) };

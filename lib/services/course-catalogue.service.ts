@@ -139,18 +139,15 @@ export async function updateCourseCatalogueStatus(
 	status: CourseStatus,
 	note?: string,
 ) {
-	const current = await getCourseCatalogue(collegeSlug);
-	const course = current.courses.find((item) => item.id === String(courseId));
+	const params = new URLSearchParams({ collegeSlug });
 
-	if (!course) {
-		throw new Error("Course could not be found for status update.");
-	}
-
-	return updateCourseCatalogueItem(collegeSlug, courseId, {
-		...course,
-		status,
-		approvalNote: note,
-	});
+	return internalFetch<{ course: Course }>(
+		`/api/internal/course-catalogue/${courseId}/status?${params.toString()}`,
+		{
+			method: "PATCH",
+			body: { status, approvalNote: note },
+		},
+	);
 }
 
 export async function deleteCourseCatalogueItem(

@@ -5,20 +5,37 @@ import {
 	CheckCircle2,
 	Eye,
 	Filter,
+	Pencil,
+	Plus,
 	Search,
 	ShieldQuestion,
 	Timer,
+	Trash2,
 	X,
 	XCircle,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { RowActionMenu } from "@/components/ui/row-action-menu";
 import type { Course, CourseStatus, CourseType } from "../types/course.types";
+import DefineNewCourse from "./DefineNewCourse";
 
 interface Props {
 	courses: Course[];
-	onUpdateStatus: (id: string, status: CourseStatus, note?: string) => void;
+	onUpdateStatus: (
+		id: string,
+		status: CourseStatus,
+		note?: string,
+	) => Promise<void> | void;
+	onDefineNew?: (course: Omit<Course, "id">) => Promise<void> | void;
+	onUpdateCourse?: (
+		id: string,
+		course: Omit<Course, "id">,
+	) => Promise<void> | void;
+	onDeleteCourse?: (id: string) => Promise<void> | void;
 	canReviewCourses?: boolean;
+	canCreateCourse?: boolean;
+	canApproveCourse?: boolean;
+	canRejectCourse?: boolean;
 }
 
 type StatusFilter = CourseStatus | "All Status";
@@ -87,12 +104,14 @@ function CourseViewModal({
 	course,
 	onClose,
 	onDecision,
-	canReviewCourses,
+	canApproveCourse,
+	canRejectCourse,
 }: {
 	course: Course | null;
 	onClose: () => void;
 	onDecision: (action: DecisionAction, course: Course) => void;
-	canReviewCourses: boolean;
+	canApproveCourse: boolean;
+	canRejectCourse: boolean;
 }) {
 	if (!course) {
 		return null;
@@ -156,27 +175,89 @@ function CourseViewModal({
 						>
 							Close
 						</button>
-						{canReviewCourses && course.status === "Pending" ? (
+						{course.status === "Pending" ? (
 							<>
-								<button
-									type="button"
-									onClick={() => onDecision("Rejected", course)}
-									className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-5 text-sm font-black text-red-700 transition hover:-translate-y-0.5 hover:bg-red-100"
-								>
-									<XCircle className="size-4" />
-									Reject
-								</button>
-								<button
-									type="button"
-									onClick={() => onDecision("Approved", course)}
-									className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 text-sm font-black text-white shadow-[0_12px_24px_rgba(22,128,60,0.18)] transition hover:-translate-y-0.5 hover:bg-emerald-700"
-								>
-									<CheckCircle2 className="size-4" />
-									Approve
-								</button>
+								{canRejectCourse ? (
+									<button
+										type="button"
+										onClick={() => onDecision("Rejected", course)}
+										className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-5 text-sm font-black text-red-700 transition hover:-translate-y-0.5 hover:bg-red-100"
+									>
+										<XCircle className="size-4" />
+										Reject
+									</button>
+								) : null}
+								{canApproveCourse ? (
+									<button
+										type="button"
+										onClick={() => onDecision("Approved", course)}
+										className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 text-sm font-black text-white shadow-[0_12px_24px_rgba(22,128,60,0.18)] transition hover:-translate-y-0.5 hover:bg-emerald-700"
+									>
+										<CheckCircle2 className="size-4" />
+										Approve
+									</button>
+								) : null}
 							</>
 						) : null}
 					</div>
+				</div>
+			</div>
+		</div>
+	);
+}
+
+function DefineCourseModal({
+	open,
+	onClose,
+	onSave,
+	course,
+}: {
+	open: boolean;
+	onClose: () => void;
+	onSave: (course: Omit<Course, "id">) => void;
+	course?: Course | null;
+}) {
+	if (!open) {
+		return null;
+	}
+
+	return (
+		<div className="fixed inset-0 z-50 flex items-center justify-center bg-[#06172f]/60 p-4 backdrop-blur-sm">
+			<div className="max-h-[90vh] w-full max-w-6xl overflow-hidden rounded-3xl border border-[#dbe5f1] bg-white shadow-[0_30px_80px_rgba(6,23,47,0.35)]">
+				<div className="flex items-start justify-between gap-4 border-b border-[#dbe5f1] bg-[#0D2B55] px-5 py-5 text-white sm:px-6">
+					<div>
+						<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#E4A11B]">
+							HOD Approval
+						</p>
+						<h2 className="mt-2 text-xl font-black sm:text-2xl">
+							{course ? "Edit course definition" : "New course definition"}
+						</h2>
+						<p className="mt-1 text-sm font-semibold text-[#c5d4e8]">
+							{course
+								? "Update the course details before review."
+								: "Create a course for the college approval queue."}
+						</p>
+					</div>
+					<button
+						type="button"
+						onClick={onClose}
+						className="flex size-10 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition hover:bg-white hover:text-[#0D2B55]"
+						aria-label="Close course form"
+					>
+						<X className="size-5" />
+					</button>
+				</div>
+
+				<div className="max-h-[calc(90vh-8rem)] overflow-y-auto p-5 sm:p-6">
+					<DefineNewCourse
+						initialCourse={course ?? undefined}
+						saveLabel={course ? "Save Changes" : "Submit for Approval"}
+						onSave={(nextCourse) => {
+							onSave(nextCourse);
+							onClose();
+						}}
+						onCancel={onClose}
+					/>
 				</div>
 			</div>
 		</div>
@@ -190,7 +271,7 @@ function ConfirmDecisionModal({
 }: {
 	target: DecisionTarget | null;
 	onClose: () => void;
-	onConfirm: (target: DecisionTarget, note: string) => void;
+	onConfirm: (target: DecisionTarget, note: string) => Promise<void> | void;
 }) {
 	const [note, setNote] = useState("");
 
@@ -248,8 +329,8 @@ function ConfirmDecisionModal({
 									Confirm before applying this action.
 								</p>
 								<p className="mt-1 text-sm leading-6 text-[#60728f]">
-									This updates the local UI state only. Backend approval workflows
-									can be connected later.
+									This updates the live college course record and writes the
+									review decision to the audit trail.
 								</p>
 							</div>
 						</div>
@@ -307,6 +388,8 @@ function HodRowActions({
 	open,
 	onToggle,
 	onView,
+	onEdit,
+	onDelete,
 	onApprove,
 	onReject,
 }: {
@@ -314,6 +397,8 @@ function HodRowActions({
 	open: boolean;
 	onToggle: () => void;
 	onView: () => void;
+	onEdit?: () => void;
+	onDelete?: () => void;
 	onApprove?: () => void;
 	onReject?: () => void;
 }) {
@@ -329,6 +414,25 @@ function HodRowActions({
 					icon: <Eye className="size-4" />,
 					onSelect: onView,
 				},
+				...(onEdit
+					? [
+							{
+								label: "Edit",
+								icon: <Pencil className="size-4" />,
+								onSelect: onEdit,
+							},
+						]
+					: []),
+				...(onDelete
+					? [
+							{
+								label: "Delete",
+								icon: <Trash2 className="size-4" />,
+								onSelect: onDelete,
+								className: "text-[#c54848] hover:bg-red-50",
+							},
+						]
+					: []),
 				...(onApprove
 					? [
 							{
@@ -357,12 +461,20 @@ function HodRowActions({
 export default function HodApproval({
 	courses,
 	onUpdateStatus,
+	onDefineNew,
+	onUpdateCourse,
+	onDeleteCourse,
 	canReviewCourses = true,
+	canCreateCourse = false,
+	canApproveCourse = canReviewCourses,
+	canRejectCourse = canReviewCourses,
 }: Props) {
 	const [statusFilter, setStatusFilter] = useState<StatusFilter>("All Status");
 	const [typeFilter, setTypeFilter] = useState<TypeFilter>("All Types");
 	const [searchQuery, setSearchQuery] = useState("");
 	const [viewCourse, setViewCourse] = useState<Course | null>(null);
+	const [defineOpen, setDefineOpen] = useState(false);
+	const [editCourse, setEditCourse] = useState<Course | null>(null);
 	const [decisionTarget, setDecisionTarget] = useState<DecisionTarget | null>(null);
 	const [openActionsId, setOpenActionsId] = useState<string | null>(null);
 
@@ -389,7 +501,7 @@ export default function HodApproval({
 			{
 				label: "Total Submitted",
 				value: courses.length,
-				note: "Current local queue",
+				note: "Current college queue",
 				icon: ShieldQuestion,
 			},
 		],
@@ -434,8 +546,8 @@ export default function HodApproval({
 		setDecisionTarget({ action, course });
 	}
 
-	function confirmDecision(target: DecisionTarget, note: string) {
-		onUpdateStatus(
+	async function confirmDecision(target: DecisionTarget, note: string) {
+		await onUpdateStatus(
 			target.course.id,
 			target.action,
 			note.trim() ||
@@ -458,12 +570,23 @@ export default function HodApproval({
 						</h2>
 						<p className="mt-2 max-w-3xl text-sm leading-7 text-[#556987]">
 							Review submitted course definitions, inspect each request, and
-							confirm approval or rejection before the local state changes.
+							confirm approval or rejection against live college data.
 						</p>
 					</div>
-					<span className="rounded-full border border-[#dce6f2] bg-white px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-[#6b7e9f]">
-						2025/2026 Session
-					</span>
+					{canCreateCourse && onDefineNew ? (
+						<button
+							type="button"
+							onClick={() => setDefineOpen(true)}
+							className="inline-flex h-12 items-center gap-2 rounded-2xl bg-[#0D2B55] px-5 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.18)] transition hover:-translate-y-0.5 hover:bg-[#123866]"
+						>
+							<Plus className="size-4" />
+							Define Course
+						</button>
+					) : (
+						<span className="rounded-full border border-[#dce6f2] bg-white px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-[#6b7e9f]">
+							2025/2026 Session
+						</span>
+					)}
 				</div>
 
 				<div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -637,8 +760,24 @@ export default function HodApproval({
 													setViewCourse(course);
 													closeActions();
 												}}
+												onEdit={
+													onUpdateCourse
+														? () => {
+																setEditCourse(course);
+																closeActions();
+															}
+														: undefined
+												}
+												onDelete={
+													onDeleteCourse
+														? () => {
+																onDeleteCourse(course.id);
+																closeActions();
+															}
+														: undefined
+												}
 												onApprove={
-													canReviewCourses && course.status === "Pending"
+													canApproveCourse && course.status === "Pending"
 														? () => {
 																requestDecision("Approved", course);
 																closeActions();
@@ -646,7 +785,7 @@ export default function HodApproval({
 														: undefined
 												}
 												onReject={
-													canReviewCourses && course.status === "Pending"
+													canRejectCourse && course.status === "Pending"
 														? () => {
 																requestDecision("Rejected", course);
 																closeActions();
@@ -667,13 +806,33 @@ export default function HodApproval({
 				course={viewCourse}
 				onClose={() => setViewCourse(null)}
 				onDecision={requestDecision}
-				canReviewCourses={canReviewCourses}
+				canApproveCourse={canApproveCourse}
+				canRejectCourse={canRejectCourse}
 			/>
 			<ConfirmDecisionModal
 				target={decisionTarget}
 				onClose={() => setDecisionTarget(null)}
 				onConfirm={confirmDecision}
 			/>
+			{onDefineNew ? (
+				<DefineCourseModal
+					open={defineOpen}
+					onClose={() => setDefineOpen(false)}
+					onSave={onDefineNew}
+				/>
+			) : null}
+			{onUpdateCourse ? (
+				<DefineCourseModal
+					open={Boolean(editCourse)}
+					course={editCourse}
+					onClose={() => setEditCourse(null)}
+					onSave={(course) => {
+						if (editCourse) {
+							onUpdateCourse(editCourse.id, course);
+						}
+					}}
+				/>
+			) : null}
 		</section>
 	);
 }

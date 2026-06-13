@@ -11,6 +11,7 @@ import {
 	loadCourseTimetable,
 	createTimetableSlot,
 	updateCourse as updateCourseRequest,
+	updateCourseStatus as updateCourseStatusRequest,
 	updateCourseAllocation,
 	updateTimetableSlot as updateTimetableSlotRequest,
 } from "@/features/courses/services/courseCatalogue.client";
@@ -96,11 +97,18 @@ export function usePortal(collegeSlug: string) {
   }
  
   async function updateCourseStatus(id: string, status: CourseStatus, note?: string) {
-    const currentCourse = courses.find((course) => course.id === id);
+    setIsMutating(true);
+    setError("");
 
-    if (!currentCourse) return;
-
-    await updateCourse(id, { ...currentCourse, status, approvalNote: note });
+    try {
+      const result = await updateCourseStatusRequest(collegeSlug, id, status, note);
+      setCourses(prev => prev.map(c => c.id === id ? result.course : c));
+    } catch (mutationError) {
+      setError(mutationError instanceof Error ? mutationError.message : "Unable to update course status.");
+      throw mutationError;
+    } finally {
+      setIsMutating(false);
+    }
   }
 
   async function updateCourse(id: string, course: Omit<Course, 'id'>) {
