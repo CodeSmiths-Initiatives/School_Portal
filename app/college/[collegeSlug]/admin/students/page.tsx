@@ -77,6 +77,7 @@ export default async function CollegeAdminStudentsPage({
 				students={studentPayload.students}
 				collegeName={collegeName}
 				collegeSlug={collegeSlug}
+				permissions={permissions}
 			/>
 		</RoleDashboardShell>
 	);

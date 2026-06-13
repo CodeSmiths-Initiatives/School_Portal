@@ -168,6 +168,7 @@ export const DEFAULT_DOMAIN_PERMISSIONS: Record<DashboardDomain, PermissionKey[]
 		"staff.assign_role",
 		"students.view",
 		"students.create",
+		"students.export",
 		"admissions.view",
 		"admissions.approve",
 		"courses.view",

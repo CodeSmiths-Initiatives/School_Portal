@@ -9,7 +9,8 @@ import {
 	UserRound,
 	X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { hasPermissions, type UserPermissionKey } from "@/lib/rbac";
 import type { AdmissionApplicationSummary } from "@/lib/services/admission-application.service";
 import type { CollegeAdminStudentRecord } from "@/lib/services/college-admin.service";
 
@@ -21,6 +22,7 @@ type CollegeStudentsWorkspaceProps = {
 	students: CollegeAdminStudentRecord[];
 	collegeName: string;
 	collegeSlug: string;
+	permissions: UserPermissionKey[];
 };
 
 const PAGE_SIZE = 20;
@@ -347,6 +349,7 @@ export default function CollegeStudentsWorkspace({
 	students,
 	collegeName,
 	collegeSlug,
+	permissions,
 }: CollegeStudentsWorkspaceProps) {
 	const applications = useMemo(
 		() =>
@@ -368,6 +371,12 @@ export default function CollegeStudentsWorkspace({
 	const [currentPage, setCurrentPage] = useState(1);
 	const [viewApplication, setViewApplication] =
 		useState<AdmissionApplicationSummary | null>(null);
+	const canViewStudentRecords = hasPermissions(permissions, ["students.view"], {
+		mode: "any",
+	});
+	const canExportStudentRecords = hasPermissions(permissions, ["students.export"], {
+		mode: "any",
+	});
 
 	const programmeOptions = useMemo(
 		() =>
@@ -412,10 +421,6 @@ export default function CollegeStudentsWorkspace({
 		});
 	}, [from, paymentStatus, programme, search, status, step, students, to]);
 
-	useEffect(() => {
-		setCurrentPage(1);
-	}, [from, paymentStatus, programme, search, status, step, to]);
-
 	const pageCount = Math.max(1, Math.ceil(filteredStudents.length / PAGE_SIZE));
 	const safePage = Math.min(currentPage, pageCount);
 	const paginatedStudents = filteredStudents.slice(
@@ -444,6 +449,12 @@ export default function CollegeStudentsWorkspace({
 		setProgramme("all");
 		setFrom("");
 		setTo("");
+		setCurrentPage(1);
+	}
+
+	function updateFilter<T>(setter: (value: T) => void, value: T) {
+		setter(value);
+		setCurrentPage(1);
 	}
 
 	function exportFiltered() {
@@ -500,7 +511,7 @@ export default function CollegeStudentsWorkspace({
 					<button
 						type="button"
 						onClick={exportFiltered}
-						disabled={filteredStudents.length === 0}
+						disabled={!canExportStudentRecords || filteredStudents.length === 0}
 						className="inline-flex h-12 items-center gap-2 rounded-2xl bg-[#0D2B55] px-5 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.18)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
 					>
 						<Download className="size-4" />
@@ -547,37 +558,37 @@ export default function CollegeStudentsWorkspace({
 						<Search className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[#7b8faa]" />
 						<input
 							value={search}
-							onChange={(event) => setSearch(event.target.value)}
+							onChange={(event) => updateFilter(setSearch, event.target.value)}
 							placeholder="Search name, email, admission ID"
 							className="h-12 w-full rounded-2xl border border-[#d3dfed] bg-[#f8fbff] pl-11 pr-4 text-sm font-semibold text-[#0D2B55] outline-none transition focus:border-[#2E86C1]"
 						/>
 					</label>
-					<select value={status} onChange={(event) => setStatus(event.target.value as StudentStatus)} className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]">
+					<select value={status} onChange={(event) => updateFilter(setStatus, event.target.value as StudentStatus)} className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]">
 						<option value="all">All application status</option>
 						{Object.entries(STATUS_LABELS).map(([value, label]) => (
 							<option key={value} value={value}>{label}</option>
 						))}
 					</select>
-					<select value={paymentStatus} onChange={(event) => setPaymentStatus(event.target.value as PaymentStatus)} className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]">
+					<select value={paymentStatus} onChange={(event) => updateFilter(setPaymentStatus, event.target.value as PaymentStatus)} className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]">
 						<option value="all">All payment status</option>
 						{Object.entries(PAYMENT_LABELS).map(([value, label]) => (
 							<option key={value} value={value}>{label}</option>
 						))}
 					</select>
-					<select value={step} onChange={(event) => setStep(event.target.value as StepStatus)} className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]">
+					<select value={step} onChange={(event) => updateFilter(setStep, event.target.value as StepStatus)} className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]">
 						<option value="all">All admission steps</option>
 						{Object.entries(STEP_LABELS).map(([value, label]) => (
 							<option key={value} value={value}>{label}</option>
 						))}
 					</select>
-					<select value={programme} onChange={(event) => setProgramme(event.target.value)} className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]">
+					<select value={programme} onChange={(event) => updateFilter(setProgramme, event.target.value)} className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]">
 						<option value="all">All programmes</option>
 						{programmeOptions.map((option) => (
 							<option key={option} value={option}>{option}</option>
 						))}
 					</select>
-					<input value={from} onChange={(event) => setFrom(event.target.value)} type="date" className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]" />
-					<input value={to} onChange={(event) => setTo(event.target.value)} type="date" className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]" />
+					<input value={from} onChange={(event) => updateFilter(setFrom, event.target.value)} type="date" className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]" />
+					<input value={to} onChange={(event) => updateFilter(setTo, event.target.value)} type="date" className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]" />
 				</div>
 			</div>
 
@@ -627,9 +638,8 @@ export default function CollegeStudentsWorkspace({
 								<tbody className="divide-y divide-[#dbe5f1]">
 									{paginatedStudents.map((student) => {
 										const application = student.application;
-										const hasAdmissionData = Boolean(
-											student.hasAdmissionData ||
-												hasSubmittedAdmissionData(application),
+										const canUseApplicationRecord = Boolean(
+											application && student.hasApplicationRecord,
 										);
 										const studentName = application
 											? getStudentName(application)
@@ -684,11 +694,13 @@ export default function CollegeStudentsWorkspace({
 														<button
 															type="button"
 															onClick={() =>
-																application && hasAdmissionData
+																application && canUseApplicationRecord
 																	? setViewApplication(application)
 																	: null
 															}
-															disabled={!application || !hasAdmissionData}
+															disabled={
+																!canViewStudentRecords || !canUseApplicationRecord
+															}
 															className="inline-flex size-10 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D] disabled:cursor-not-allowed disabled:opacity-40"
 															aria-label={`View ${studentName}`}
 															title="View"
@@ -698,11 +710,13 @@ export default function CollegeStudentsWorkspace({
 														<button
 															type="button"
 															onClick={() =>
-																application && hasAdmissionData
+																application && canUseApplicationRecord
 																	? printApplication(application, collegeName)
 																	: null
 															}
-															disabled={!application || !hasAdmissionData}
+															disabled={
+																!canViewStudentRecords || !canUseApplicationRecord
+															}
 															className="inline-flex size-10 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D] disabled:cursor-not-allowed disabled:opacity-40"
 															aria-label={`Print ${studentName}`}
 															title="Print"
@@ -712,11 +726,13 @@ export default function CollegeStudentsWorkspace({
 														<button
 															type="button"
 															onClick={() =>
-																application && hasAdmissionData
+																application && canUseApplicationRecord
 																	? exportApplication(application)
 																	: null
 															}
-															disabled={!application || !hasAdmissionData}
+															disabled={
+																!canExportStudentRecords || !canUseApplicationRecord
+															}
 															className="inline-flex size-10 items-center justify-center rounded-2xl bg-[#0D2B55] text-white transition hover:bg-[#123866] disabled:cursor-not-allowed disabled:opacity-40"
 															aria-label={`Export ${studentName}`}
 															title="Export"
