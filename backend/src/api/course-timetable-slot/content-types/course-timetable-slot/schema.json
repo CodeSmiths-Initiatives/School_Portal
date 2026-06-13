@@ -32,7 +32,7 @@
     },
     "level": {
       "type": "enumeration",
-      "enum": ["100L", "200L", "300L", "400L"],
+      "enum": ["Level100", "Level200", "Level300", "Level400"],
       "required": true
     },
     "status": {

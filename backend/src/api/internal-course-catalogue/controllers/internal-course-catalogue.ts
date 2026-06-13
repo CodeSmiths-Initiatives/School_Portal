@@ -14,6 +14,7 @@ type StrapiContext = {
 };
 
 type Level = "100L" | "200L" | "300L" | "400L";
+type StoredTimetableLevel = "Level100" | "Level200" | "Level300" | "Level400";
 type CourseType = "Core" | "Elective" | "Required" | "Borrowed" | "Carryover";
 type CourseStatus = "Pending" | "Approved" | "Rejected";
 type CourseMode = "On-Site" | "Online" | "Hybrid";
@@ -21,6 +22,15 @@ type CourseMode = "On-Site" | "Online" | "Hybrid";
 const DEV_INTERNAL_SECRET =
 	"iums-local-registration-secret-change-before-production";
 const LEVELS: Level[] = ["100L", "200L", "300L", "400L"];
+const TIMETABLE_LEVEL_STORAGE: Record<Level, StoredTimetableLevel> = {
+	"100L": "Level100",
+	"200L": "Level200",
+	"300L": "Level300",
+	"400L": "Level400",
+};
+const TIMETABLE_LEVEL_LABELS = Object.fromEntries(
+	Object.entries(TIMETABLE_LEVEL_STORAGE).map(([label, stored]) => [stored, label]),
+) as Record<StoredTimetableLevel, Level>;
 const COURSE_TYPES: CourseType[] = [
 	"Core",
 	"Elective",
@@ -90,6 +100,22 @@ function normalizeCode(value: unknown) {
 function normalizeLevel(value: unknown): Level | null {
 	const text = asString(value).toUpperCase();
 	return LEVELS.includes(text as Level) ? (text as Level) : null;
+}
+
+function normalizeTimetableLevel(value: unknown): Level | null {
+	const directLevel = normalizeLevel(value);
+	if (directLevel) return directLevel;
+
+	const storedLevel = asString(value);
+	return TIMETABLE_LEVEL_LABELS[storedLevel as StoredTimetableLevel] ?? null;
+}
+
+function mapTimetableLevelForStorage(level: Level) {
+	return TIMETABLE_LEVEL_STORAGE[level];
+}
+
+function getTimetableLevelLookup(level: Level) {
+	return [level, mapTimetableLevelForStorage(level)];
 }
 
 function normalizeLevels(value: unknown): Level[] {
@@ -190,7 +216,7 @@ function mapTimetableSlot(slot: Record<string, unknown>) {
 		time: normalizeTime(slot.time),
 		room: asString(slot.room),
 		mode: normalizeEnum(slot.mode, COURSE_MODES, "On-Site"),
-		level: normalizeLevel(slot.level) ?? "100L",
+		level: normalizeTimetableLevel(slot.level) ?? "100L",
 	};
 }
 
@@ -694,13 +720,14 @@ export default {
 				ctx.badRequest("Course could not be found for this college.");
 		}
 
+		const storedLevel = mapTimetableLevelForStorage(payload.level);
 		const duplicate = await strapi.db.query("api::course-timetable-slot.course-timetable-slot").findOne({
 			where: {
 				college: college.id,
 				course: course.id,
 				day: payload.day,
 				time: payload.time,
-				level: payload.level,
+				level: { $in: getTimetableLevelLookup(payload.level) },
 				status: { $ne: "archived" },
 			},
 		});
@@ -716,7 +743,7 @@ export default {
 				time: payload.time,
 				room: payload.room,
 				mode: payload.mode,
-				level: payload.level,
+				level: storedLevel,
 				status: "active",
 				college: college.id,
 				course: course.id,
@@ -768,13 +795,14 @@ export default {
 				ctx.badRequest("Course could not be found for this college.");
 		}
 
+		const storedLevel = mapTimetableLevelForStorage(payload.level);
 		const duplicate = await strapi.db.query("api::course-timetable-slot.course-timetable-slot").findOne({
 			where: {
 				college: college.id,
 				course: course.id,
 				day: payload.day,
 				time: payload.time,
-				level: payload.level,
+				level: { $in: getTimetableLevelLookup(payload.level) },
 				status: { $ne: "archived" },
 				id: { $ne: existing.id },
 			},
@@ -792,7 +820,7 @@ export default {
 				time: payload.time,
 				room: payload.room,
 				mode: payload.mode,
-				level: payload.level,
+				level: storedLevel,
 				course: course.id,
 			},
 			populate: { course: true, college: true },
