@@ -22,6 +22,14 @@ import type {
 interface Props {
 	courses: Course[];
 	canManageAllocations?: boolean;
+	onAddAllocation?: (courseId: string, level: Level) => Promise<void> | void;
+	onUpdateAllocation?: (
+		currentCourseId: string,
+		currentLevel: Level,
+		nextCourseId: string,
+		nextLevel: Level,
+	) => Promise<void> | void;
+	onDeleteAllocation?: (courseId: string, level: Level) => Promise<void> | void;
 }
 
 type AllocationRow = {
@@ -96,7 +104,7 @@ function NewAllocationModal({
 	initialRow,
 }: {
 	courses: Course[];
-	onAdd: (courseId: string, level: Level) => void;
+	onAdd: (courseId: string, level: Level) => Promise<void> | void;
 	onClose: () => void;
 	initialRow?: AllocationTableRow | null;
 }) {
@@ -107,6 +115,7 @@ function NewAllocationModal({
 	const [selectedLevel, setSelectedLevel] = useState<Level>(
 		initialRow?.level ?? "100L",
 	);
+	const [isSaving, setIsSaving] = useState(false);
 
 	return (
 		<div className="fixed inset-0 z-50 flex items-center justify-center bg-[#06172f]/60 p-4 backdrop-blur-sm">
@@ -181,19 +190,32 @@ function NewAllocationModal({
 						</button>
 						<button
 							type="button"
-							disabled={!selectedCourse}
-							onClick={() => {
+							disabled={!selectedCourse || isSaving}
+							onClick={async () => {
 								if (!selectedCourse) {
 									return;
 								}
 
-								onAdd(selectedCourse, selectedLevel);
-								onClose();
+								setIsSaving(true);
+								let saved = false;
+								try {
+									await onAdd(selectedCourse, selectedLevel);
+									saved = true;
+									onClose();
+								} finally {
+									if (!saved) {
+										setIsSaving(false);
+									}
+								}
 							}}
 							className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] px-5 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.18)] transition hover:bg-[#123866] disabled:cursor-not-allowed disabled:opacity-40"
 						>
 							<Plus className="size-4" />
-							{initialRow ? "Save Allocation" : "Add Allocation"}
+							{isSaving
+								? "Saving..."
+								: initialRow
+									? "Save Allocation"
+									: "Add Allocation"}
 						</button>
 					</div>
 				</div>
@@ -334,12 +356,10 @@ function AllocationRowActions({
 export default function AllocateToLevels({
 	courses,
 	canManageAllocations = true,
+	onAddAllocation,
+	onUpdateAllocation,
+	onDeleteAllocation,
 }: Props) {
-	const [rows, setRows] = useState<AllocationRow[]>(() =>
-		courses.flatMap((course) =>
-			course.levels.map((level) => ({ courseId: course.id, level })),
-		),
-	);
 	const [showModal, setShowModal] = useState(false);
 	const [viewRow, setViewRow] = useState<AllocationTableRow | null>(null);
 	const [editRow, setEditRow] = useState<AllocationTableRow | null>(null);
@@ -355,23 +375,17 @@ export default function AllocateToLevels({
 		useState<AllocationSemesterFilter>("All Semesters");
 	const [currentPage, setCurrentPage] = useState(1);
 
-	const courseById = useMemo(
-		() => new Map(courses.map((course) => [course.id, course])),
-		[courses],
-	);
-
 	const allocationRows = useMemo<AllocationTableRow[]>(
 		() =>
-			rows.flatMap((row) => {
-				const course = courseById.get(row.courseId);
-
-				if (!course) {
-					return [];
-				}
-
-				return [{ ...row, course, semester: getSemester(course) }];
-			}),
-		[courseById, rows],
+			courses.flatMap((course) =>
+				course.levels.map((level) => ({
+					courseId: course.id,
+					level,
+					course,
+					semester: getSemester(course),
+				})),
+			),
+		[courses],
 	);
 
 	const filteredRows = useMemo(
@@ -450,52 +464,45 @@ export default function AllocateToLevels({
 		setCurrentPage(1);
 	}
 
-	function addAllocation(courseId: string, level: Level) {
-		setRows((currentRows) => {
-			const exists = currentRows.some(
-				(row) => row.courseId === courseId && row.level === level,
-			);
+	async function addAllocation(courseId: string, level: Level) {
+		const exists = allocationRows.some(
+			(row) => row.courseId === courseId && row.level === level,
+		);
 
-			if (exists) {
-				return currentRows;
-			}
+		if (exists) {
+			return;
+		}
 
-			return [...currentRows, { courseId, level }];
-		});
+		await onAddAllocation?.(courseId, level);
 	}
 
-	function updateAllocation(
+	async function updateAllocation(
 		currentCourseId: string,
 		currentLevel: Level,
 		nextCourseId: string,
 		nextLevel: Level,
 	) {
-		setRows((currentRows) => {
-			const duplicate = currentRows.some(
-				(row) =>
-					row.courseId === nextCourseId &&
-					row.level === nextLevel &&
-					(row.courseId !== currentCourseId || row.level !== currentLevel),
-			);
+		const duplicate = allocationRows.some(
+			(row) =>
+				row.courseId === nextCourseId &&
+				row.level === nextLevel &&
+				(row.courseId !== currentCourseId || row.level !== currentLevel),
+		);
 
-			if (duplicate) {
-				return currentRows;
-			}
+		if (duplicate) {
+			return;
+		}
 
-			return currentRows.map((row) =>
-				row.courseId === currentCourseId && row.level === currentLevel
-					? { courseId: nextCourseId, level: nextLevel }
-					: row,
-			);
-		});
+		await onUpdateAllocation?.(
+			currentCourseId,
+			currentLevel,
+			nextCourseId,
+			nextLevel,
+		);
 	}
 
-	function removeRow(courseId: string, level: Level) {
-		setRows((currentRows) =>
-			currentRows.filter(
-				(row) => !(row.courseId === courseId && row.level === level),
-			),
-		);
+	async function removeRow(courseId: string, level: Level) {
+		await onDeleteAllocation?.(courseId, level);
 	}
 
 	function closeActions() {

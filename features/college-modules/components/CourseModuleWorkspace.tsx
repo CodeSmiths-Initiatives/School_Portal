@@ -103,6 +103,9 @@ export default function CourseModuleWorkspace({
 		updateCourse,
 		updateCourseStatus,
 		deleteCourse,
+		addAllocation,
+		updateAllocation,
+		removeAllocation,
 	} = usePortal(collegeSlug);
 	const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -310,6 +313,9 @@ export default function CourseModuleWorkspace({
 							<AllocateToLevels
 								courses={courses}
 								canManageAllocations={canAssignCourse}
+								onAddAllocation={addAllocation}
+								onUpdateAllocation={updateAllocation}
+								onDeleteAllocation={removeAllocation}
 							/>
 						) : null}
 

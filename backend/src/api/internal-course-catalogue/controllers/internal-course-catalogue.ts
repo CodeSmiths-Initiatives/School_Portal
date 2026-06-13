@@ -99,6 +99,14 @@ function normalizeLevels(value: unknown): Level[] {
 	return Array.from(new Set(levels));
 }
 
+function addLevel(levels: Level[], level: Level) {
+	return Array.from(new Set([...levels, level]));
+}
+
+function removeLevel(levels: Level[], level: Level) {
+	return levels.filter((item) => item !== level);
+}
+
 function normalizeEnum<T extends string>(
 	value: unknown,
 	options: readonly T[],
@@ -129,11 +137,14 @@ function getCourseId(course: Record<string, unknown>) {
 function mapCourse(course: Record<string, unknown>) {
 	const department = asRecord(course.department);
 	const rawLevels = normalizeLevels(course.levels);
-	const levels = rawLevels.length
+	const legacyLevel = normalizeLevel(`${asNumber(course.level, 100)}L`);
+	const levels = Array.isArray(course.levels)
 		? rawLevels
-		: normalizeLevel(`${asNumber(course.level, 100)}L`)
-			? [normalizeLevel(`${asNumber(course.level, 100)}L`) as Level]
-			: ["100L"];
+		: rawLevels.length
+			? rawLevels
+			: legacyLevel
+				? [legacyLevel]
+				: ["100L"];
 
 	return {
 		id: getCourseId(course),
@@ -165,6 +176,20 @@ async function findCourseForCollege(courseId: string, collegeId: number) {
 		where: {
 			$or: [{ documentId: courseId }, { id: asNumber(courseId) }],
 			college: collegeId,
+		},
+		populate: { department: true, college: true },
+	});
+}
+
+async function updateCourseLevels(
+	course: Record<string, unknown>,
+	levels: Level[],
+) {
+	return strapi.db.query("api::course.course").update({
+		where: { id: course.id },
+		data: {
+			levels,
+			level: mapLevelNumber(levels),
 		},
 		populate: { department: true, college: true },
 	});
@@ -239,6 +264,37 @@ function parseCoursePayload(body: unknown) {
 		approvalNote: asString(payload.approvalNote),
 		semester: mapSemester(payload.semester),
 	};
+}
+
+function parseAllocationPayload(body: unknown) {
+	const payload = asRecord(body);
+	const level = normalizeLevel(payload.level);
+	const nextLevel = normalizeLevel(payload.nextLevel);
+
+	return {
+		courseId: asString(payload.courseId),
+		level,
+		nextCourseId: asString(payload.nextCourseId),
+		nextLevel,
+	};
+}
+
+function getCourseLevels(course: Record<string, unknown>) {
+	const levels = normalizeLevels(course.levels);
+
+	if (Array.isArray(course.levels)) return levels;
+	if (levels.length) return levels;
+
+	const fallback = normalizeLevel(`${asNumber(course.level, 100)}L`);
+	return fallback ? [fallback] : [];
+}
+
+function isApprovedActiveCourse(course: Record<string, unknown>) {
+	return (
+		normalizeEnum(course.approvalStatus, COURSE_STATUSES, "Pending") ===
+			"Approved" &&
+		asString(course.status, "active") !== "archived"
+	);
 }
 
 export default {
@@ -446,5 +502,192 @@ export default {
 
 		ctx.status = 204;
 		ctx.body = null;
+	},
+
+	async createAllocation(ctx: StrapiContext) {
+		if (!authorize(ctx)) {
+			return ctx.unauthorized("Course allocation access is not authorized.");
+		}
+
+		const collegeSlug = asString(ctx.request.query?.collegeSlug);
+		const college = await findCollegeBySlug(collegeSlug);
+		const payload = parseAllocationPayload(ctx.request.body);
+
+		if (!college?.id || !payload.courseId || !payload.level) {
+			return ctx.badRequest("College slug, course id, and level are required.");
+		}
+
+		const course = (await findCourseForCollege(
+			payload.courseId,
+			college.id,
+		)) as Record<string, unknown> | null;
+
+		if (!course?.id) {
+			return ctx.notFound?.("Course could not be found for this college.") ??
+				ctx.badRequest("Course could not be found for this college.");
+		}
+
+		if (!isApprovedActiveCourse(course)) {
+			return ctx.badRequest("Only approved active courses can be allocated.");
+		}
+
+		const nextLevels = addLevel(getCourseLevels(course), payload.level);
+		const updatedCourse = await updateCourseLevels(course, nextLevels);
+
+		await createAuditLog({
+			collegeId: college.id,
+			action: "course-allocation.created",
+			entityId: String(course.id),
+			summary: `Allocated ${asString(course.code)} to ${payload.level}`,
+			metadata: { collegeSlug, courseId: payload.courseId, level: payload.level },
+		});
+
+		ctx.status = 201;
+		ctx.body = { course: mapCourse(updatedCourse as Record<string, unknown>) };
+	},
+
+	async updateAllocation(ctx: StrapiContext) {
+		if (!authorize(ctx)) {
+			return ctx.unauthorized("Course allocation access is not authorized.");
+		}
+
+		const collegeSlug = asString(ctx.request.query?.collegeSlug);
+		const college = await findCollegeBySlug(collegeSlug);
+		const payload = parseAllocationPayload(ctx.request.body);
+
+		if (
+			!college?.id ||
+			!payload.courseId ||
+			!payload.level ||
+			!payload.nextCourseId ||
+			!payload.nextLevel
+		) {
+			return ctx.badRequest(
+				"College slug, current allocation, and next allocation are required.",
+			);
+		}
+
+		const currentCourse = (await findCourseForCollege(
+			payload.courseId,
+			college.id,
+		)) as Record<string, unknown> | null;
+		const nextCourse = (await findCourseForCollege(
+			payload.nextCourseId,
+			college.id,
+		)) as Record<string, unknown> | null;
+
+		if (!currentCourse?.id || !nextCourse?.id) {
+			return ctx.notFound?.("Course allocation could not be found for this college.") ??
+				ctx.badRequest("Course allocation could not be found for this college.");
+		}
+
+		const currentLevels = getCourseLevels(currentCourse);
+		if (!currentLevels.includes(payload.level)) {
+			return ctx.notFound?.("Course allocation could not be found.") ??
+				ctx.badRequest("Course allocation could not be found.");
+		}
+
+		if (!isApprovedActiveCourse(nextCourse)) {
+			return ctx.badRequest("Only approved active courses can be allocated.");
+		}
+
+		if (
+			(payload.courseId !== payload.nextCourseId ||
+				payload.level !== payload.nextLevel) &&
+			getCourseLevels(nextCourse).includes(payload.nextLevel)
+		) {
+			return ctx.conflict?.("This allocation already exists.") ??
+				ctx.badRequest("This allocation already exists.");
+		}
+
+		let updatedCurrentCourse: unknown = currentCourse;
+		let updatedNextCourse: unknown = nextCourse;
+
+		if (payload.courseId === payload.nextCourseId) {
+			const nextLevels = addLevel(
+				removeLevel(currentLevels, payload.level),
+				payload.nextLevel,
+			);
+			updatedCurrentCourse = await updateCourseLevels(currentCourse, nextLevels);
+			updatedNextCourse = updatedCurrentCourse;
+		} else {
+			updatedCurrentCourse = await updateCourseLevels(
+				currentCourse,
+				removeLevel(currentLevels, payload.level),
+			);
+			updatedNextCourse = await updateCourseLevels(
+				nextCourse,
+				addLevel(getCourseLevels(nextCourse), payload.nextLevel),
+			);
+		}
+
+		await createAuditLog({
+			collegeId: college.id,
+			action: "course-allocation.updated",
+			entityId: String(currentCourse.id),
+			summary: `Moved allocation from ${asString(currentCourse.code)} ${payload.level} to ${asString(nextCourse.code)} ${payload.nextLevel}`,
+			metadata: {
+				collegeSlug,
+				courseId: payload.courseId,
+				level: payload.level,
+				nextCourseId: payload.nextCourseId,
+				nextLevel: payload.nextLevel,
+			},
+		});
+
+		ctx.body = {
+			courses: [
+				mapCourse(updatedCurrentCourse as Record<string, unknown>),
+				...(payload.courseId === payload.nextCourseId
+					? []
+					: [mapCourse(updatedNextCourse as Record<string, unknown>)]),
+			],
+		};
+	},
+
+	async deleteAllocation(ctx: StrapiContext) {
+		if (!authorize(ctx)) {
+			return ctx.unauthorized("Course allocation access is not authorized.");
+		}
+
+		const collegeSlug = asString(ctx.request.query?.collegeSlug);
+		const college = await findCollegeBySlug(collegeSlug);
+		const courseId = asString(ctx.request.query?.courseId);
+		const level = normalizeLevel(ctx.request.query?.level);
+
+		if (!college?.id || !courseId || !level) {
+			return ctx.badRequest("College slug, course id, and level are required.");
+		}
+
+		const course = (await findCourseForCollege(
+			courseId,
+			college.id,
+		)) as Record<string, unknown> | null;
+
+		if (!course?.id) {
+			return ctx.notFound?.("Course could not be found for this college.") ??
+				ctx.badRequest("Course could not be found for this college.");
+		}
+
+		const currentLevels = getCourseLevels(course);
+		if (!currentLevels.includes(level)) {
+			return ctx.notFound?.("Course allocation could not be found.") ??
+				ctx.badRequest("Course allocation could not be found.");
+		}
+
+		const updatedCourse = await updateCourseLevels(
+			course,
+			removeLevel(currentLevels, level),
+		);
+
+		await createAuditLog({
+			collegeId: college.id,
+			action: "course-allocation.deleted",
+			entityId: String(course.id),
+			summary: `Removed allocation ${asString(course.code)} from ${level}`,
+			metadata: { collegeSlug, courseId, level },
+		});
+
+		ctx.body = { course: mapCourse(updatedCourse as Record<string, unknown>) };
 	},
 };

@@ -1,5 +1,9 @@
 import type { Course } from "@/features/courses/types/course.types";
-import type { CourseCataloguePayload } from "@/lib/services/course-catalogue.service";
+import type {
+	CourseAllocationInput,
+	CourseAllocationUpdateInput,
+	CourseCataloguePayload,
+} from "@/lib/services/course-catalogue.service";
 
 async function parseError(response: Response, fallback: string) {
 	const payload = (await response.json().catch(() => null)) as
@@ -69,4 +73,66 @@ export async function deleteCourse(collegeSlug: string, courseId: string) {
 	if (!response.ok) {
 		throw new Error(await parseError(response, "Unable to delete course."));
 	}
+}
+
+export async function createCourseAllocation(
+	collegeSlug: string,
+	input: CourseAllocationInput,
+) {
+	const params = new URLSearchParams({ collegeSlug });
+	const response = await fetch(`/api/courses/allocations?${params.toString()}`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(input),
+	});
+
+	if (!response.ok) {
+		throw new Error(
+			await parseError(response, "Unable to create course allocation."),
+		);
+	}
+
+	return response.json() as Promise<{ course: Course }>;
+}
+
+export async function updateCourseAllocation(
+	collegeSlug: string,
+	input: CourseAllocationUpdateInput,
+) {
+	const params = new URLSearchParams({ collegeSlug });
+	const response = await fetch(`/api/courses/allocations?${params.toString()}`, {
+		method: "PATCH",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(input),
+	});
+
+	if (!response.ok) {
+		throw new Error(
+			await parseError(response, "Unable to update course allocation."),
+		);
+	}
+
+	return response.json() as Promise<{ courses: Course[] }>;
+}
+
+export async function deleteCourseAllocation(
+	collegeSlug: string,
+	input: CourseAllocationInput,
+) {
+	const params = new URLSearchParams({
+		collegeSlug,
+		courseId: input.courseId,
+		level: input.level,
+	});
+	const response = await fetch(`/api/courses/allocations?${params.toString()}`, {
+		method: "DELETE",
+	});
+
+	if (!response.ok) {
+		throw new Error(
+			await parseError(response, "Unable to delete course allocation."),
+		);
+	}
+
+	return response.json() as Promise<{ course: Course }>;
 }

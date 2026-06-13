@@ -16,6 +16,14 @@ export type CourseCataloguePayload = {
 };
 
 export type CourseMutationInput = Omit<Course, "id">;
+export type CourseAllocationInput = {
+	courseId: string;
+	level: Course["levels"][number];
+};
+export type CourseAllocationUpdateInput = CourseAllocationInput & {
+	nextCourseId: string;
+	nextLevel: Course["levels"][number];
+};
 
 function getStrapiBaseUrl() {
 	return (
@@ -142,6 +150,52 @@ export async function deleteCourseCatalogueItem(
 
 	return internalFetch<void>(
 		`/api/internal/course-catalogue/${courseId}?${params.toString()}`,
+		{ method: "DELETE" },
+	);
+}
+
+export async function createCourseAllocation(
+	collegeSlug: string,
+	input: CourseAllocationInput,
+) {
+	const params = new URLSearchParams({ collegeSlug });
+
+	return internalFetch<{ course: Course }>(
+		`/api/internal/course-allocations?${params.toString()}`,
+		{
+			method: "POST",
+			body: input,
+		},
+	);
+}
+
+export async function updateCourseAllocation(
+	collegeSlug: string,
+	input: CourseAllocationUpdateInput,
+) {
+	const params = new URLSearchParams({ collegeSlug });
+
+	return internalFetch<{ courses: Course[] }>(
+		`/api/internal/course-allocations?${params.toString()}`,
+		{
+			method: "PATCH",
+			body: input,
+		},
+	);
+}
+
+export async function deleteCourseAllocation(
+	collegeSlug: string,
+	input: CourseAllocationInput,
+) {
+	const params = new URLSearchParams({
+		collegeSlug,
+		courseId: input.courseId,
+		level: input.level,
+	});
+
+	return internalFetch<{ course: Course }>(
+		`/api/internal/course-allocations?${params.toString()}`,
 		{ method: "DELETE" },
 	);
 }

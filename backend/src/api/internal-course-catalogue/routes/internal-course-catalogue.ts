@@ -24,5 +24,23 @@ export default {
 			handler: "internal-course-catalogue.delete",
 			config: { auth: false },
 		},
+		{
+			method: "POST",
+			path: "/internal/course-allocations",
+			handler: "internal-course-catalogue.createAllocation",
+			config: { auth: false },
+		},
+		{
+			method: "PATCH",
+			path: "/internal/course-allocations",
+			handler: "internal-course-catalogue.updateAllocation",
+			config: { auth: false },
+		},
+		{
+			method: "DELETE",
+			path: "/internal/course-allocations",
+			handler: "internal-course-catalogue.deleteAllocation",
+			config: { auth: false },
+		},
 	],
 };

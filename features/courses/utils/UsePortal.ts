@@ -3,9 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import {
 	createCourse,
+	createCourseAllocation,
 	deleteCourse as deleteCourseRequest,
+	deleteCourseAllocation,
 	loadCourseCatalogue,
 	updateCourse as updateCourseRequest,
+	updateCourseAllocation,
 } from "@/features/courses/services/courseCatalogue.client";
 import type {
 	Course,
@@ -120,6 +123,73 @@ export function usePortal(collegeSlug: string) {
       setIsMutating(false);
     }
   }
+
+  function replaceCourses(nextCourses: Course[]) {
+    setCourses(prev => {
+      const byId = new Map(prev.map(course => [course.id, course]));
+
+      nextCourses.forEach(course => {
+        byId.set(course.id, course);
+      });
+
+      return Array.from(byId.values());
+    });
+  }
+
+  async function addAllocation(courseId: string, level: Level) {
+    setIsMutating(true);
+    setError("");
+
+    try {
+      const result = await createCourseAllocation(collegeSlug, { courseId, level });
+      replaceCourses([result.course]);
+    } catch (mutationError) {
+      setError(mutationError instanceof Error ? mutationError.message : "Unable to create course allocation.");
+      throw mutationError;
+    } finally {
+      setIsMutating(false);
+    }
+  }
+
+  async function updateAllocation(
+    courseId: string,
+    level: Level,
+    nextCourseId: string,
+    nextLevel: Level,
+  ) {
+    setIsMutating(true);
+    setError("");
+
+    try {
+      const result = await updateCourseAllocation(collegeSlug, {
+        courseId,
+        level,
+        nextCourseId,
+        nextLevel,
+      });
+      replaceCourses(result.courses);
+    } catch (mutationError) {
+      setError(mutationError instanceof Error ? mutationError.message : "Unable to update course allocation.");
+      throw mutationError;
+    } finally {
+      setIsMutating(false);
+    }
+  }
+
+  async function removeAllocation(courseId: string, level: Level) {
+    setIsMutating(true);
+    setError("");
+
+    try {
+      const result = await deleteCourseAllocation(collegeSlug, { courseId, level });
+      replaceCourses([result.course]);
+    } catch (mutationError) {
+      setError(mutationError instanceof Error ? mutationError.message : "Unable to delete course allocation.");
+      throw mutationError;
+    } finally {
+      setIsMutating(false);
+    }
+  }
  
   return {
     activePage, setActivePage,
@@ -132,6 +202,7 @@ export function usePortal(collegeSlug: string) {
     levelFilter, setLevelFilter,
     activeLevel, setActiveLevel,
     addCourse, updateCourse, updateCourseStatus, deleteCourse,
+    addAllocation, updateAllocation, removeAllocation,
   };
 }
  
