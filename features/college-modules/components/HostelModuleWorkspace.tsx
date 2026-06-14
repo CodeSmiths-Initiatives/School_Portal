@@ -38,9 +38,14 @@ import {
 	createHostelComplaintRecord,
 	createHostelRecord,
 	createHostelRoomRecord,
+	initializeHostelPayment,
 	loadHostelData,
 	reserveHostelBedRecord,
+	resumeHostelPaystackPayment,
+	updateHostelRecord,
+	updateHostelRoomRecord,
 	updateHostelComplaintRecord,
+	verifyHostelPayment,
 } from "@/features/college-modules/services/hostel.client";
 import type { HostelPayload } from "@/lib/services/hostel.service";
 
@@ -105,6 +110,7 @@ type HostelDraft = {
 
 type RoomItem = {
 	id: string;
+	recordId?: string;
 	hostel: string;
 	block: string;
 	floor: string;
@@ -663,6 +669,14 @@ const INITIAL_HOSTEL_PAYMENTS: HostelPaymentRecord[] = [
 	},
 ];
 
+void [
+	INITIAL_HOSTELS,
+	INITIAL_ROOMS,
+	INITIAL_ALLOCATIONS,
+	INITIAL_MAINTENANCE_REQUESTS,
+	INITIAL_HOSTEL_PAYMENTS,
+];
+
 const STATUS_LABELS: Record<HostelStatus, string> = {
 	available: "Available",
 	filling: "Filling",
@@ -910,6 +924,7 @@ function mapLiveRoom(room: HostelPayload["rooms"][number]): RoomItem {
 
 	return {
 		id: room.roomNumber,
+		recordId: room.id,
 		hostel: room.hostelName,
 		block: room.block || "Unassigned block",
 		floor: room.floor || "Unassigned floor",
@@ -1023,7 +1038,7 @@ function getHostelDraft(hostel?: HostelItem | null): HostelDraft {
 function getRoomDraft(room?: RoomItem | null): RoomDraft {
 	return {
 		id: room?.id ?? "",
-		hostel: room?.hostel ?? INITIAL_HOSTELS[0]?.name ?? "",
+		hostel: room?.hostel ?? "",
 		block: room?.block ?? "",
 		floor: room?.floor ?? "",
 		beds: room ? String(room.beds) : "",
@@ -1039,8 +1054,8 @@ function getAllocationDraft(allocation?: AllocationItem | null): AllocationDraft
 		matricNo: allocation?.matricNo ?? "",
 		level: allocation?.level ?? "ND 1",
 		gender: allocation?.gender ?? "Female",
-		hostel: allocation?.hostel ?? INITIAL_HOSTELS[0]?.name ?? "",
-		room: allocation?.room ?? INITIAL_ROOMS[0]?.id ?? "",
+		hostel: allocation?.hostel ?? "",
+		room: allocation?.room ?? "",
 		bed: allocation?.bed ?? "",
 		paymentStatus: allocation?.paymentStatus ?? "Pending",
 		status: allocation?.status ?? "Pending",
@@ -2013,12 +2028,16 @@ function StudentPaymentView({
 	allocation,
 	payment,
 	onPay,
+	isPaying,
+	paymentMessage,
 	onBrowse,
 	onAllocation,
 }: {
 	allocation: AllocationItem | null;
 	payment: HostelPaymentRecord | null;
 	onPay: () => void;
+	isPaying: boolean;
+	paymentMessage: string;
 	onBrowse: () => void;
 	onAllocation: () => void;
 }) {
@@ -2045,7 +2064,7 @@ function StudentPaymentView({
 		<SimplePanel
 			badge="Hostel Payment"
 			title="Accommodation payment"
-			description="Confirm the hostel fee after reserving a room and bed. This is UI-only for now."
+			description="Confirm the hostel fee after reserving a room and bed. Checkout opens securely through Paystack."
 		>
 			<div className="rounded-2xl border border-[#dbe5f1] bg-[#fbfdff] p-5">
 				<div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -2059,16 +2078,25 @@ function StudentPaymentView({
 						<p className="mt-1 text-sm text-[#60728f]">
 							Invoice {payment.invoiceNo} is currently {payment.paymentStatus.toLowerCase()}.
 						</p>
+						{paymentMessage ? (
+							<p className="mt-2 text-sm font-bold text-[#0D2B55]">
+								{paymentMessage}
+							</p>
+						) : null}
 					</div>
 					<div className="flex flex-col gap-2 sm:flex-row">
 						<button
 							type="button"
 							onClick={onPay}
-							disabled={payment.paymentStatus === "Paid"}
+							disabled={isPaying || payment.paymentStatus === "Paid"}
 							className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#0D2B55] px-5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-[#9fb0c6]"
 						>
 							<CreditCard className="size-4" />
-							{payment.paymentStatus === "Paid" ? "Payment Completed" : "Pay Hostel Fee"}
+							{payment.paymentStatus === "Paid"
+								? "Payment Completed"
+								: isPaying
+									? "Opening Paystack..."
+									: "Pay Hostel Fee"}
 						</button>
 						<button
 							type="button"
@@ -3837,7 +3865,6 @@ function AllocationsView({
 	hostels,
 	rooms,
 	permissions,
-	onCreate,
 	onView,
 	onEdit,
 }: {
@@ -3845,7 +3872,6 @@ function AllocationsView({
 	hostels: HostelItem[];
 	rooms: RoomItem[];
 	permissions: UserPermissionKey[];
-	onCreate: () => void;
 	onView: (allocation: AllocationItem) => void;
 	onEdit: (allocation: AllocationItem) => void;
 }) {
@@ -3943,15 +3969,7 @@ function AllocationsView({
 							and manage allocation records inside the hostel workspace.
 						</p>
 					</div>
-					<button
-						type="button"
-						onClick={onCreate}
-						disabled={!canAllocate}
-						className="inline-flex h-12 items-center gap-2 rounded-2xl bg-[#0D2B55] px-5 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.18)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
-					>
-						<Plus className="size-4" />
-						Create Allocation
-					</button>
+					{/* Create allocation is temporarily hidden while live allocation rules settle. */}
 				</div>
 
 				<div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -4954,19 +4972,21 @@ export default function HostelModuleWorkspace({
 	domain,
 }: HostelModuleWorkspaceProps) {
 	const isStudentDomain = domain === "student";
-	const [hostels, setHostels] = useState(INITIAL_HOSTELS);
-	const [rooms, setRooms] = useState(INITIAL_ROOMS);
-	const [allocations, setAllocations] = useState(INITIAL_ALLOCATIONS);
-	const [maintenanceRequests, setMaintenanceRequests] = useState(
-		INITIAL_MAINTENANCE_REQUESTS,
-	);
-	const [hostelPayments, setHostelPayments] = useState(INITIAL_HOSTEL_PAYMENTS);
+	const [hostels, setHostels] = useState<HostelItem[]>([]);
+	const [rooms, setRooms] = useState<RoomItem[]>([]);
+	const [allocations, setAllocations] = useState<AllocationItem[]>([]);
+	const [maintenanceRequests, setMaintenanceRequests] = useState<
+		MaintenanceRequestItem[]
+	>([]);
+	const [hostelPayments, setHostelPayments] = useState<HostelPaymentRecord[]>([]);
 	const [isLiveLoading, setIsLiveLoading] = useState(true);
 	const [liveError, setLiveError] = useState("");
+	const [isPayingHostel, setIsPayingHostel] = useState(false);
+	const [hostelPaymentMessage, setHostelPaymentMessage] = useState("");
 	const [activeView, setActiveView] = useState<HostelView>(
 		isStudentDomain ? "dashboard" : "manage",
 	);
-	const [selectedHostel, setSelectedHostel] = useState<HostelItem | null>(INITIAL_HOSTELS[0]);
+	const [selectedHostel, setSelectedHostel] = useState<HostelItem | null>(null);
 	const [selectedRoomId, setSelectedRoomId] = useState("");
 	const [selectedBed, setSelectedBed] = useState("");
 	const [studentAllocation, setStudentAllocation] = useState<AllocationItem | null>(null);
@@ -5033,18 +5053,16 @@ export default function HostelModuleWorkspace({
 			const nextComplaints = payload.complaints.map(mapLiveComplaint);
 			const nextPayments = payload.allocations.map(mapLivePayment);
 
-			if (nextHostels.length) {
-				setHostels(nextHostels);
-				setSelectedHostel((current) => {
-					if (!current) return nextHostels[0] ?? null;
-					return nextHostels.find((hostel) => hostel.id === current.id) ?? nextHostels[0] ?? null;
-				});
-			}
-
-			if (nextRooms.length) setRooms(nextRooms);
+			setHostels(nextHostels);
+			setSelectedHostel((current) => {
+				if (!nextHostels.length) return null;
+				if (!current) return nextHostels[0] ?? null;
+				return nextHostels.find((hostel) => hostel.id === current.id) ?? nextHostels[0] ?? null;
+			});
+			setRooms(nextRooms);
 			setAllocations(nextAllocations);
 			setMaintenanceRequests(nextComplaints);
-			if (nextPayments.length) setHostelPayments(nextPayments);
+			setHostelPayments(nextPayments);
 
 			if (isStudentDomain) {
 				const allocation = nextAllocations[0] ?? null;
@@ -5075,15 +5093,12 @@ export default function HostelModuleWorkspace({
 				const nextComplaints = payload.complaints.map(mapLiveComplaint);
 				const nextPayments = payload.allocations.map(mapLivePayment);
 
-				if (nextHostels.length) {
-					setHostels(nextHostels);
-					setSelectedHostel(nextHostels[0] ?? null);
-				}
-
-				if (nextRooms.length) setRooms(nextRooms);
+				setHostels(nextHostels);
+				setSelectedHostel(nextHostels[0] ?? null);
+				setRooms(nextRooms);
 				setAllocations(nextAllocations);
 				setMaintenanceRequests(nextComplaints);
-				if (nextPayments.length) setHostelPayments(nextPayments);
+				setHostelPayments(nextPayments);
 
 				if (isStudentDomain) {
 					setStudentAllocation(nextAllocations[0] ?? null);
@@ -5204,33 +5219,84 @@ export default function HostelModuleWorkspace({
 		setActiveView("payment");
 	}
 
-	function completeStudentPayment() {
-		const now = new Date().toISOString();
+	async function completeStudentPayment() {
+		if (!studentAllocation || !studentPayment || isPayingHostel) {
+			return;
+		}
 
-		setStudentPayment((current) =>
-			current
-				? {
-						...current,
-						paymentStatus: "Paid",
-						invoiceStatus: "Paid",
-						paidAt: now,
-						updatedAt: now,
-						note: "UI payment marked complete. Allocation is now confirmed.",
+		if (studentPayment.paymentStatus === "Paid") {
+			setActiveView("allocation");
+			return;
+		}
+
+		setIsPayingHostel(true);
+		setHostelPaymentMessage("Preparing secure Paystack checkout...");
+		setLiveError("");
+
+		try {
+			const payment = await initializeHostelPayment(collegeSlug, {
+				allocationId: studentAllocation.id,
+				email: studentPayment.matricNo.includes("@")
+					? studentPayment.matricNo
+					: `${studentAllocation.id}@hostel.local`,
+				amount: studentPayment.amount,
+				currency: studentPayment.currency,
+				channel: "card",
+			});
+
+			await resumeHostelPaystackPayment(payment.payment.accessCode, {
+				onSuccess: async (transaction) => {
+					const reference = transaction.reference ?? payment.payment.reference;
+					setHostelPaymentMessage("Payment received. Verifying with Paystack...");
+
+					try {
+						const result = await verifyHostelPayment(collegeSlug, {
+							allocationId: studentAllocation.id,
+							reference,
+							amount: studentPayment.amount,
+							currency: studentPayment.currency,
+						});
+						const nextAllocation = mapLiveAllocation(result.allocation);
+						const nextPayment = mapLivePayment(result.allocation);
+
+						setStudentAllocation(nextAllocation);
+						setStudentPayment(nextPayment);
+						await refreshLiveHostels();
+						setHostelPaymentMessage("Hostel payment verified.");
+						setActiveView("allocation");
+					} catch (error) {
+						setHostelPaymentMessage(
+							error instanceof Error
+								? error.message
+								: "Unable to verify hostel payment.",
+						);
+					} finally {
+						setIsPayingHostel(false);
 					}
-				: current,
-		);
-		setStudentAllocation((current) =>
-			current
-				? {
-						...current,
-						paymentStatus: "Paid",
-						status: "Allocated",
-						updatedAt: now,
-						note: "Payment completed and bed allocation confirmed.",
-					}
-				: current,
-		);
-		setActiveView("allocation");
+				},
+				onCancel: () => {
+					setHostelPaymentMessage(
+						"Payment was cancelled before completion. You can try again.",
+					);
+					setIsPayingHostel(false);
+				},
+				onError: (error) => {
+					setHostelPaymentMessage(
+						error instanceof Error
+							? error.message
+							: "Paystack could not start checkout.",
+					);
+					setIsPayingHostel(false);
+				},
+			});
+		} catch (error) {
+			setHostelPaymentMessage(
+				error instanceof Error
+					? error.message
+					: "Unable to start hostel payment.",
+			);
+			setIsPayingHostel(false);
+		}
 	}
 
 	async function submitStudentMaintenance(draft: StudentMaintenanceDraft) {
@@ -5336,6 +5402,33 @@ export default function HostelModuleWorkspace({
 			}
 		}
 
+		if (modalMode === "edit" && modalHostel) {
+			try {
+				await updateHostelRecord(collegeSlug, modalHostel.id, {
+					name: hostelDraft.name.trim(),
+					code: hostelDraft.name.trim(),
+					gender: hostelDraft.gender,
+					warden: hostelDraft.warden.trim(),
+					fee: Number(hostelDraft.fee.replace(/[^\d.]/g, "")) || 0,
+					currency: "NGN",
+					amenities: parseCsvList(hostelDraft.amenities),
+					status:
+						hostelDraft.status === "maintenance" ? "maintenance" : "active",
+				});
+				await refreshLiveHostels();
+				closeHostelModal();
+				return;
+			} catch (error) {
+				setLiveError(
+					error instanceof Error ? error.message : "Unable to update hostel.",
+				);
+				return;
+			} finally {
+				isSavingHostelRef.current = false;
+				setIsSavingHostel(false);
+			}
+		}
+
 		const nextHostel: HostelItem = {
 			id: modalHostel?.id ?? `hostel-${Date.now()}`,
 			name: hostelDraft.name.trim(),
@@ -5363,7 +5456,7 @@ export default function HostelModuleWorkspace({
 
 	function openCreateRoomModal() {
 		setModalRoom(null);
-		setRoomDraft(getRoomDraft());
+		setRoomDraft({ ...getRoomDraft(), hostel: hostels[0]?.name ?? "" });
 		setRoomModalMode("create");
 	}
 
@@ -5424,6 +5517,35 @@ export default function HostelModuleWorkspace({
 			}
 		}
 
+		if (roomModalMode === "edit" && modalRoom) {
+			try {
+				await updateHostelRoomRecord(
+					collegeSlug,
+					modalRoom.recordId ?? modalRoom.id,
+					{
+						roomNumber: roomDraft.id.trim().toUpperCase(),
+						block: roomDraft.block.trim(),
+						floor: roomDraft.floor.trim(),
+						capacity: Number(roomDraft.beds) || modalRoom.beds,
+						status:
+							roomDraft.status === "Maintenance" ? "maintenance" : "active",
+						wardenNote: roomDraft.wardenNote.trim(),
+					},
+				);
+				await refreshLiveHostels();
+				closeRoomModal();
+				return;
+			} catch (error) {
+				setLiveError(
+					error instanceof Error ? error.message : "Unable to update room.",
+				);
+				return;
+			} finally {
+				isSavingRoomRef.current = false;
+				setIsSavingRoom(false);
+			}
+		}
+
 		const beds = Math.max(0, Number(roomDraft.beds) || 0);
 		const available = Math.min(Math.max(0, Number(roomDraft.available) || 0), beds);
 		const status =
@@ -5449,12 +5571,6 @@ export default function HostelModuleWorkspace({
 				: current.map((room) => (room.id === modalRoom?.id ? nextRoom : room)),
 		);
 		closeRoomModal();
-	}
-
-	function openCreateAllocationModal() {
-		setModalAllocation(null);
-		setAllocationDraft(getAllocationDraft());
-		setAllocationModalMode("create");
 	}
 
 	function openAllocationModal(
@@ -5640,7 +5756,6 @@ export default function HostelModuleWorkspace({
 					hostels={hostels}
 					rooms={rooms}
 					permissions={permissions}
-					onCreate={openCreateAllocationModal}
 					onView={(allocation) => openAllocationModal(allocation, "view")}
 					onEdit={(allocation) => openAllocationModal(allocation, "edit")}
 				/>
@@ -5680,6 +5795,10 @@ export default function HostelModuleWorkspace({
 		}
 
 		if (activeView === "details") {
+			if (!activeHostel) {
+				return <BrowseView hostels={hostels} onView={viewHostel} onBook={bookHostel} />;
+			}
+
 			return (
 				<DetailsView
 					hostel={activeHostel}
@@ -5723,6 +5842,8 @@ export default function HostelModuleWorkspace({
 					allocation={studentAllocation}
 					payment={studentPayment}
 					onPay={completeStudentPayment}
+					isPaying={isPayingHostel}
+					paymentMessage={hostelPaymentMessage}
 					onBrowse={() => setActiveView("browse")}
 					onAllocation={() => setActiveView("allocation")}
 				/>

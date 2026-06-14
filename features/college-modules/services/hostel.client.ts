@@ -4,12 +4,30 @@ import type {
 	CreateHostelRoomInput,
 	Hostel,
 	HostelAllocation,
+	HostelBed,
 	HostelComplaint,
 	HostelRoom,
 	HostelPayload,
 	ReserveHostelBedInput,
+	UpdateHostelBedInput,
 	UpdateHostelComplaintInput,
+	UpdateHostelInput,
+	UpdateHostelRoomInput,
+	VerifyHostelPaymentInput,
 } from "@/lib/services/hostel.service";
+
+type HostelPaymentInitializeInput = {
+	allocationId: string;
+	email: string;
+	amount: number;
+	currency: string;
+	channel?: "card";
+};
+
+type HostelPaymentInitialization = {
+	accessCode: string;
+	reference: string;
+};
 
 async function parseError(response: Response, fallback: string) {
 	const payload = (await response.json().catch(() => null)) as
@@ -40,6 +58,24 @@ async function request<T>(
 	return response.json() as Promise<T>;
 }
 
+export async function resumeHostelPaystackPayment(
+	accessCode: string,
+	handlers: {
+		onSuccess: (transaction: { reference?: string; message?: string }) => void | Promise<void>;
+		onCancel: () => void;
+		onError: (error: unknown) => void;
+	},
+) {
+	const { default: PaystackPop } = await import("@paystack/inline-js");
+	const popup = new PaystackPop();
+
+	popup.resumeTransaction(accessCode, {
+		onSuccess: handlers.onSuccess,
+		onCancel: handlers.onCancel,
+		onError: handlers.onError,
+	});
+}
+
 export function loadHostelData(collegeSlug: string) {
 	const params = new URLSearchParams({ collegeSlug });
 	return request<HostelPayload>(`/api/hostels?${params.toString()}`);
@@ -53,6 +89,21 @@ export function createHostelRecord(collegeSlug: string, input: CreateHostelInput
 	});
 }
 
+export function updateHostelRecord(
+	collegeSlug: string,
+	hostelId: string,
+	input: UpdateHostelInput,
+) {
+	const params = new URLSearchParams({ collegeSlug });
+	return request<{ hostel: Hostel }>(
+		`/api/hostels/${hostelId}?${params.toString()}`,
+		{
+			method: "PATCH",
+			body: input,
+		},
+	);
+}
+
 export function createHostelRoomRecord(
 	collegeSlug: string,
 	input: CreateHostelRoomInput,
@@ -62,6 +113,36 @@ export function createHostelRoomRecord(
 		method: "POST",
 		body: input,
 	});
+}
+
+export function updateHostelRoomRecord(
+	collegeSlug: string,
+	roomId: string,
+	input: UpdateHostelRoomInput,
+) {
+	const params = new URLSearchParams({ collegeSlug });
+	return request<{ room: HostelRoom }>(
+		`/api/hostels/rooms/${roomId}?${params.toString()}`,
+		{
+			method: "PATCH",
+			body: input,
+		},
+	);
+}
+
+export function updateHostelBedRecord(
+	collegeSlug: string,
+	bedId: string,
+	input: UpdateHostelBedInput,
+) {
+	const params = new URLSearchParams({ collegeSlug });
+	return request<{ bed: HostelBed }>(
+		`/api/hostels/beds/${bedId}?${params.toString()}`,
+		{
+			method: "PATCH",
+			body: input,
+		},
+	);
 }
 
 export function reserveHostelBedRecord(
@@ -74,6 +155,37 @@ export function reserveHostelBedRecord(
 		{
 		method: "POST",
 		body: input,
+		},
+	);
+}
+
+export function initializeHostelPayment(
+	collegeSlug: string,
+	input: HostelPaymentInitializeInput,
+) {
+	const params = new URLSearchParams({ collegeSlug });
+	return request<{ payment: HostelPaymentInitialization }>(
+		`/api/hostels/payments/initialize?${params.toString()}`,
+		{
+			method: "POST",
+			body: input,
+		},
+	);
+}
+
+export function verifyHostelPayment(
+	collegeSlug: string,
+	input: Pick<
+		VerifyHostelPaymentInput,
+		"allocationId" | "reference" | "amount" | "currency"
+	>,
+) {
+	const params = new URLSearchParams({ collegeSlug });
+	return request<{ allocation: HostelAllocation }>(
+		`/api/hostels/payments/verify?${params.toString()}`,
+		{
+			method: "POST",
+			body: input,
 		},
 	);
 }

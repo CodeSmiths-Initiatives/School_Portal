@@ -13,9 +13,21 @@ export default {
 			config: { auth: false },
 		},
 		{
+			method: "PATCH",
+			path: "/internal/hostels/:id",
+			handler: "internal-hostel.updateHostel",
+			config: { auth: false },
+		},
+		{
 			method: "POST",
 			path: "/internal/hostel-rooms",
 			handler: "internal-hostel.createRoom",
+			config: { auth: false },
+		},
+		{
+			method: "PATCH",
+			path: "/internal/hostel-rooms/:id",
+			handler: "internal-hostel.updateRoom",
 			config: { auth: false },
 		},
 		{
@@ -28,6 +40,18 @@ export default {
 			method: "POST",
 			path: "/internal/hostel-reservations",
 			handler: "internal-hostel.reserve",
+			config: { auth: false },
+		},
+		{
+			method: "POST",
+			path: "/internal/hostel-payments/initialize",
+			handler: "internal-hostel.initializePayment",
+			config: { auth: false },
+		},
+		{
+			method: "POST",
+			path: "/internal/hostel-payments/verify",
+			handler: "internal-hostel.verifyPayment",
 			config: { auth: false },
 		},
 		{

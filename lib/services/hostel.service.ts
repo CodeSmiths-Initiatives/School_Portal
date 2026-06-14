@@ -139,6 +139,17 @@ export type CreateHostelRoomInput = {
 	wardenNote?: string;
 };
 
+export type UpdateHostelInput = Partial<CreateHostelInput>;
+
+export type UpdateHostelRoomInput = Partial<
+	Omit<CreateHostelRoomInput, "hostelId">
+>;
+
+export type UpdateHostelBedInput = {
+	status?: HostelBedStatus;
+	price?: number;
+};
+
 export type ReserveHostelBedInput = {
 	bedId: string;
 	studentId?: string;
@@ -146,6 +157,24 @@ export type ReserveHostelBedInput = {
 	studentEmail?: string;
 	studentIdentifier: string;
 	level?: string;
+};
+
+export type InitializeHostelPaymentInput = {
+	allocationId: string;
+	reference: string;
+	accessCode: string;
+	channel: string;
+};
+
+export type VerifyHostelPaymentInput = {
+	allocationId: string;
+	reference: string;
+	amount: number;
+	currency: string;
+	channel?: string;
+	paidAt?: string;
+	verifiedAt: string;
+	rawGatewayResponse?: unknown;
 };
 
 export type CreateHostelComplaintInput = {
@@ -246,6 +275,19 @@ export async function createHostel(
 	);
 }
 
+export async function updateHostel(
+	collegeSlug: string,
+	hostelId: string | number,
+	input: UpdateHostelInput,
+) {
+	const params = new URLSearchParams({ collegeSlug });
+
+	return internalFetch<{ hostel: Hostel }>(
+		`/api/internal/hostels/${hostelId}?${params.toString()}`,
+		{ method: "PATCH", body: input },
+	);
+}
+
 export async function createHostelRoom(
 	collegeSlug: string,
 	input: CreateHostelRoomInput,
@@ -258,6 +300,32 @@ export async function createHostelRoom(
 	);
 }
 
+export async function updateHostelRoom(
+	collegeSlug: string,
+	roomId: string | number,
+	input: UpdateHostelRoomInput,
+) {
+	const params = new URLSearchParams({ collegeSlug });
+
+	return internalFetch<{ room: HostelRoom }>(
+		`/api/internal/hostel-rooms/${roomId}?${params.toString()}`,
+		{ method: "PATCH", body: input },
+	);
+}
+
+export async function updateHostelBed(
+	collegeSlug: string,
+	bedId: string | number,
+	input: UpdateHostelBedInput,
+) {
+	const params = new URLSearchParams({ collegeSlug });
+
+	return internalFetch<{ bed: HostelBed }>(
+		`/api/internal/hostel-beds/${bedId}?${params.toString()}`,
+		{ method: "PATCH", body: input },
+	);
+}
+
 export async function reserveHostelBed(
 	collegeSlug: string,
 	input: ReserveHostelBedInput,
@@ -266,6 +334,30 @@ export async function reserveHostelBed(
 
 	return internalFetch<{ allocation: HostelAllocation }>(
 		`/api/internal/hostel-reservations?${params.toString()}`,
+		{ method: "POST", body: input },
+	);
+}
+
+export async function initializeHostelPaymentRecord(
+	collegeSlug: string,
+	input: InitializeHostelPaymentInput,
+) {
+	const params = new URLSearchParams({ collegeSlug });
+
+	return internalFetch<{ ok: true }>(
+		`/api/internal/hostel-payments/initialize?${params.toString()}`,
+		{ method: "POST", body: input },
+	);
+}
+
+export async function verifyHostelPaymentRecord(
+	collegeSlug: string,
+	input: VerifyHostelPaymentInput,
+) {
+	const params = new URLSearchParams({ collegeSlug });
+
+	return internalFetch<{ allocation: HostelAllocation }>(
+		`/api/internal/hostel-payments/verify?${params.toString()}`,
 		{ method: "POST", body: input },
 	);
 }

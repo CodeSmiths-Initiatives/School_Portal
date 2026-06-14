@@ -288,6 +288,11 @@ function createAllocationNumber(collegeCode: string) {
 	return `HST-${normalizeCode(collegeCode || "COL")}-${Date.now()}-${randomPart}`;
 }
 
+function createLedgerNumber(reference: string, type: string) {
+	const suffix = reference.split("-").slice(-1)[0] ?? reference.slice(-6);
+	return `LED-${type.toUpperCase()}-${Date.now()}-${suffix}`;
+}
+
 function parseHostelPayload(body: unknown) {
 	const payload = asRecord(body);
 	const name = asString(payload.name);
@@ -302,6 +307,28 @@ function parseHostelPayload(body: unknown) {
 		amenities: asArray(payload.amenities).map((item) => asString(item)).filter(Boolean),
 		status: normalizeEnum(payload.status, ["active", "inactive", "maintenance"] as const, "active"),
 	};
+}
+
+function parseHostelUpdatePayload(body: unknown) {
+	const payload = asRecord(body);
+	const data: Record<string, unknown> = {};
+
+	if ("name" in payload) data.name = asString(payload.name);
+	if ("code" in payload) data.code = normalizeCode(asString(payload.code));
+	if ("gender" in payload) {
+		data.gender = normalizeEnum(payload.gender, ["Female", "Male", "Mixed"] as const, "Mixed");
+	}
+	if ("warden" in payload) data.warden = asString(payload.warden);
+	if ("fee" in payload) data.fee = Math.max(0, asNumber(payload.fee));
+	if ("currency" in payload) data.currency = asString(payload.currency, "NGN").toUpperCase();
+	if ("amenities" in payload) {
+		data.amenities = asArray(payload.amenities).map((item) => asString(item)).filter(Boolean);
+	}
+	if ("status" in payload) {
+		data.status = normalizeEnum(payload.status, ["active", "inactive", "maintenance"] as const, "active");
+	}
+
+	return data;
 }
 
 function parseRoomPayload(body: unknown) {
@@ -319,6 +346,22 @@ function parseRoomPayload(body: unknown) {
 	};
 }
 
+function parseRoomUpdatePayload(body: unknown) {
+	const payload = asRecord(body);
+	const data: Record<string, unknown> = {};
+
+	if ("roomNumber" in payload) data.roomNumber = asString(payload.roomNumber).toUpperCase();
+	if ("block" in payload) data.block = asString(payload.block);
+	if ("floor" in payload) data.floor = asString(payload.floor);
+	if ("capacity" in payload) data.capacity = Math.max(1, asNumber(payload.capacity, 1));
+	if ("status" in payload) {
+		data.status = normalizeEnum(payload.status, ["active", "inactive", "maintenance"] as const, "active");
+	}
+	if ("wardenNote" in payload) data.wardenNote = asString(payload.wardenNote);
+
+	return data;
+}
+
 function parseReservePayload(body: unknown) {
 	const payload = asRecord(body);
 
@@ -332,6 +375,32 @@ function parseReservePayload(body: unknown) {
 			asString(payload.studentEmail),
 		),
 		level: asString(payload.level),
+	};
+}
+
+function parsePaymentInitializePayload(body: unknown) {
+	const payload = asRecord(body);
+
+	return {
+		allocationId: asString(payload.allocationId),
+		reference: asString(payload.reference),
+		accessCode: asString(payload.accessCode),
+		channel: asString(payload.channel, "card"),
+	};
+}
+
+function parsePaymentVerifyPayload(body: unknown) {
+	const payload = asRecord(body);
+
+	return {
+		allocationId: asString(payload.allocationId),
+		reference: asString(payload.reference),
+		amount: Math.max(0, asNumber(payload.amount)),
+		currency: asString(payload.currency, "NGN"),
+		channel: asString(payload.channel),
+		paidAt: asString(payload.paidAt),
+		verifiedAt: asString(payload.verifiedAt, new Date().toISOString()),
+		rawGatewayResponse: payload.rawGatewayResponse,
 	};
 }
 
@@ -383,7 +452,12 @@ async function listPayload(college: Record<string, unknown>, studentIdentifier?:
 			limit: studentIdentifier ? 20 : 1000,
 		}),
 		strapi.db.query("api::hostel-complaint.hostel-complaint").findMany({
-			where: { college: collegeId },
+			where: {
+				college: collegeId,
+				...(studentIdentifier
+					? { allocation: { studentIdentifier } }
+					: {}),
+			},
 			populate: { allocation: true, hostel: true, room: true, bed: true },
 			orderBy: [{ updatedAt: "desc" }],
 			limit: studentIdentifier ? 50 : 1000,
@@ -486,6 +560,50 @@ export default {
 		ctx.body = { hostel: mapHostel(hostel as Record<string, unknown>, []) };
 	},
 
+	async updateHostel(ctx: StrapiContext) {
+		if (!authorize(ctx)) {
+			return ctx.unauthorized("Hostel access is not authorized.");
+		}
+
+		const collegeSlug = asString(ctx.request.query?.collegeSlug);
+		const hostelId = asString(ctx.params?.id);
+		const college = await findCollegeBySlug(collegeSlug);
+		const payload = parseHostelUpdatePayload(ctx.request.body);
+
+		if (!college?.id || !hostelId) {
+			return ctx.badRequest("College slug and hostel id are required.");
+		}
+
+		const existing = await findHostelForCollege(hostelId, college.id);
+
+		if (!existing?.id) {
+			return ctx.notFound?.("Hostel could not be found for this college.") ??
+				ctx.badRequest("Hostel could not be found for this college.");
+		}
+
+		const hostel = await strapi.db.query("api::hostel.hostel").update({
+			where: { id: existing.id },
+			data: payload,
+		});
+
+		await createAuditLog({
+			collegeId: college.id,
+			entityType: "hostel",
+			action: "hostel.updated",
+			entityId: String(existing.id),
+			summary: `Updated hostel ${asString(hostel.name, asString(existing.name))}`,
+			metadata: { collegeSlug, hostelId },
+		});
+
+		const rooms = await strapi.db.query("api::hostel-room.hostel-room").findMany({
+			where: { college: college.id, hostel: existing.id, status: { $ne: "archived" } },
+			populate: { hostel: true, beds: true },
+			limit: 500,
+		});
+
+		ctx.body = { hostel: mapHostel(hostel as Record<string, unknown>, rooms as Record<string, unknown>[]) };
+	},
+
 	async createRoom(ctx: StrapiContext) {
 		if (!authorize(ctx)) {
 			return ctx.unauthorized("Hostel access is not authorized.");
@@ -582,6 +700,75 @@ export default {
 		});
 
 		ctx.status = 201;
+		ctx.body = { room: mapRoom(savedRoom as Record<string, unknown>) };
+	},
+
+	async updateRoom(ctx: StrapiContext) {
+		if (!authorize(ctx)) {
+			return ctx.unauthorized("Hostel access is not authorized.");
+		}
+
+		const collegeSlug = asString(ctx.request.query?.collegeSlug);
+		const roomId = asString(ctx.params?.id);
+		const college = await findCollegeBySlug(collegeSlug);
+		const payload = parseRoomUpdatePayload(ctx.request.body);
+
+		if (!college?.id || !roomId) {
+			return ctx.badRequest("College slug and room id are required.");
+		}
+
+		const existing = await findRoomForCollege(roomId, college.id);
+
+		if (!existing?.id) {
+			return ctx.notFound?.("Room could not be found for this college.") ??
+				ctx.badRequest("Room could not be found for this college.");
+		}
+
+		const previousBeds = asArray(existing.beds).map(asRecord);
+		const room = await strapi.db.query("api::hostel-room.hostel-room").update({
+			where: { id: existing.id },
+			data: payload,
+		});
+
+		const nextCapacity = asNumber(payload.capacity, asNumber(existing.capacity, previousBeds.length));
+		const hostel = asRecord(existing.hostel);
+		const bedPrice = asNumber(hostel.fee);
+
+		for (let index = previousBeds.length + 1; index <= nextCapacity; index += 1) {
+			await strapi.db.query("api::hostel-bed.hostel-bed").create({
+				data: {
+					label: `Bed ${index}`,
+					price: bedPrice,
+					currency: asString(hostel.currency, "NGN"),
+					status: payload.status === "maintenance" ? "maintenance" : "available",
+					college: college.id,
+					hostel: relationId(existing.hostel),
+					room: existing.id,
+				},
+			});
+		}
+
+		if (payload.status === "maintenance") {
+			await strapi.db.query("api::hostel-bed.hostel-bed").updateMany({
+				where: {
+					college: college.id,
+					room: existing.id,
+					status: { $in: ["available", "reserved"] },
+				},
+				data: { status: "maintenance" },
+			});
+		}
+
+		await createAuditLog({
+			collegeId: college.id,
+			entityType: "hostel-room",
+			action: "hostel-room.updated",
+			entityId: String(existing.id),
+			summary: `Updated room ${asString(room.roomNumber, asString(existing.roomNumber))}`,
+			metadata: { collegeSlug, roomId },
+		});
+
+		const savedRoom = await findRoomForCollege(String(existing.id), college.id);
 		ctx.body = { room: mapRoom(savedRoom as Record<string, unknown>) };
 	},
 
@@ -746,6 +933,221 @@ export default {
 		});
 
 		ctx.status = 201;
+		ctx.body = { allocation: mapAllocation(savedAllocation as Record<string, unknown>) };
+	},
+
+	async initializePayment(ctx: StrapiContext) {
+		if (!authorize(ctx)) {
+			return ctx.unauthorized("Hostel access is not authorized.");
+		}
+
+		const collegeSlug = asString(ctx.request.query?.collegeSlug);
+		const college = await findCollegeBySlug(collegeSlug);
+		const payload = parsePaymentInitializePayload(ctx.request.body);
+
+		if (!college?.id || !payload.allocationId || !payload.reference || !payload.accessCode) {
+			return ctx.badRequest("College, allocation, reference, and access code are required.");
+		}
+
+		const allocation = await strapi.db.query("api::hostel-allocation.hostel-allocation").findOne({
+			where: {
+				$or: [{ documentId: payload.allocationId }, { id: asNumber(payload.allocationId) }],
+				college: college.id,
+			},
+			populate: { invoice: true, student: true },
+		});
+
+		if (!allocation?.id) {
+			return ctx.notFound?.("Hostel allocation could not be found.") ??
+				ctx.badRequest("Hostel allocation could not be found.");
+		}
+
+		const invoice = asRecord(allocation.invoice);
+		const existing = await strapi.db.query("api::payment-transaction.payment-transaction").findOne({
+			where: { reference: payload.reference },
+		});
+
+		if (!existing?.id) {
+			await strapi.db.query("api::payment-transaction.payment-transaction").create({
+				data: {
+					reference: payload.reference,
+					gateway: "paystack",
+					accessCode: payload.accessCode,
+					channel: payload.channel,
+					amount: asNumber(invoice.amount),
+					currency: asString(invoice.currency, "NGN"),
+					status: "initialized",
+					gatewayStatus: "initialized",
+					gatewayMessage: "Paystack hostel checkout initialized",
+					metadata: {
+						collegeSlug,
+						allocationNumber: asString(allocation.allocationNumber),
+						invoiceNumber: asString(invoice.invoiceNumber),
+					},
+					college: college.id,
+					invoice: relationId(allocation.invoice),
+					payer: relationId(allocation.student),
+				},
+			});
+		}
+
+		await createAuditLog({
+			collegeId: college.id,
+			entityType: "hostel-payment",
+			action: "hostel-payment.initialized",
+			entityId: String(allocation.id),
+			summary: `Initialized hostel payment ${payload.reference}`,
+			metadata: { collegeSlug, allocationId: payload.allocationId },
+		});
+
+		ctx.body = { ok: true };
+	},
+
+	async verifyPayment(ctx: StrapiContext) {
+		if (!authorize(ctx)) {
+			return ctx.unauthorized("Hostel access is not authorized.");
+		}
+
+		const collegeSlug = asString(ctx.request.query?.collegeSlug);
+		const college = await findCollegeBySlug(collegeSlug);
+		const payload = parsePaymentVerifyPayload(ctx.request.body);
+
+		if (!college?.id || !payload.allocationId || !payload.reference || !payload.amount) {
+			return ctx.badRequest("College, allocation, reference, and amount are required.");
+		}
+
+		const allocation = await strapi.db.query("api::hostel-allocation.hostel-allocation").findOne({
+			where: {
+				$or: [{ documentId: payload.allocationId }, { id: asNumber(payload.allocationId) }],
+				college: college.id,
+			},
+			populate: { hostel: true, room: true, bed: true, invoice: true, student: true },
+		});
+
+		if (!allocation?.id) {
+			return ctx.notFound?.("Hostel allocation could not be found.") ??
+				ctx.badRequest("Hostel allocation could not be found.");
+		}
+
+		const invoice = asRecord(allocation.invoice);
+		const expectedAmount = Math.round(asNumber(invoice.amount) * 100);
+
+		if (expectedAmount !== payload.amount) {
+			return ctx.badRequest("Verified amount does not match the hostel invoice.");
+		}
+
+		if (asString(allocation.paymentStatus) === "paid" && asString(invoice.status) === "paid") {
+			ctx.body = { allocation: mapAllocation(allocation as Record<string, unknown>) };
+			return;
+		}
+
+		let transaction = await strapi.db.query("api::payment-transaction.payment-transaction").findOne({
+			where: { reference: payload.reference },
+		});
+
+		await strapi.db.transaction(async () => {
+			if (transaction?.id) {
+				transaction = await strapi.db.query("api::payment-transaction.payment-transaction").update({
+					where: { id: transaction.id },
+					data: {
+						status: "success",
+						gatewayStatus: "success",
+						gatewayMessage: "Paystack hostel transaction verified",
+						channel: payload.channel,
+						paidAt: payload.paidAt,
+						verifiedAt: payload.verifiedAt,
+						rawGatewayResponse: payload.rawGatewayResponse,
+					},
+				});
+			} else {
+				transaction = await strapi.db.query("api::payment-transaction.payment-transaction").create({
+					data: {
+						reference: payload.reference,
+						gateway: "paystack",
+						channel: payload.channel,
+						amount: payload.amount / 100,
+						currency: payload.currency,
+						status: "success",
+						gatewayStatus: "success",
+						gatewayMessage: "Paystack hostel transaction verified",
+						paidAt: payload.paidAt,
+						verifiedAt: payload.verifiedAt,
+						rawGatewayResponse: payload.rawGatewayResponse,
+						metadata: {
+							collegeSlug,
+							allocationNumber: asString(allocation.allocationNumber),
+							invoiceNumber: asString(invoice.invoiceNumber),
+						},
+						college: college.id,
+						invoice: relationId(allocation.invoice),
+						payer: relationId(allocation.student),
+					},
+				});
+			}
+
+			await strapi.db.query("api::payment-invoice.payment-invoice").update({
+				where: { id: relationId(allocation.invoice) },
+				data: {
+					status: "paid",
+					paidAt: payload.paidAt || payload.verifiedAt,
+				},
+			});
+
+			await strapi.db.query("api::hostel-allocation.hostel-allocation").update({
+				where: { id: allocation.id },
+				data: {
+					status: "allocated",
+					paymentStatus: "paid",
+					note: "Hostel payment verified through Paystack.",
+				},
+			});
+
+			await strapi.db.query("api::hostel-bed.hostel-bed").update({
+				where: { id: relationId(allocation.bed) },
+				data: {
+					status: "allocated",
+					reservedUntil: null,
+				},
+			});
+
+			await strapi.db.query("api::payment-ledger-entry.payment-ledger-entry").create({
+				data: {
+					entryNumber: createLedgerNumber(payload.reference, "payment"),
+					entryType: "payment",
+					direction: "credit",
+					amount: payload.amount / 100,
+					currency: payload.currency,
+					module: "hostel",
+					description: "Hostel payment verified",
+					reference: payload.reference,
+					postedAt: payload.verifiedAt,
+					metadata: {
+						collegeSlug,
+						channel: payload.channel,
+						paidAt: payload.paidAt,
+					},
+					college: college.id,
+					invoice: relationId(allocation.invoice),
+					transaction: transaction?.id,
+					payer: relationId(allocation.student),
+				},
+			});
+		});
+
+		const savedAllocation = await strapi.db.query("api::hostel-allocation.hostel-allocation").findOne({
+			where: { id: allocation.id },
+			populate: { hostel: true, room: true, bed: true, invoice: true },
+		});
+
+		await createAuditLog({
+			collegeId: college.id,
+			entityType: "hostel-payment",
+			action: "hostel-payment.verified",
+			entityId: String(allocation.id),
+			summary: `Verified hostel payment ${payload.reference}`,
+			metadata: { collegeSlug, invoiceNumber: asString(invoice.invoiceNumber) },
+		});
+
 		ctx.body = { allocation: mapAllocation(savedAllocation as Record<string, unknown>) };
 	},
 
