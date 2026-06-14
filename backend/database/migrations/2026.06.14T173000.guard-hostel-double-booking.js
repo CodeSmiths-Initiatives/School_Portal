@@ -12,7 +12,7 @@ async function hasTable(knex, db, tableName) {
   return schemaBuilder(knex, db).hasTable(tableName);
 }
 
-function qualifiedName(knex, db, name) {
+function qualifiedTableName(knex, db, name) {
   const schema = db.getSchemaName?.();
   if (!schema || knex.client.config.client === 'sqlite') {
     return name;
@@ -28,8 +28,7 @@ module.exports = {
     }
 
     const client = knex.client.config.client;
-    const indexName = qualifiedName(knex, db, ACTIVE_STUDENT_ALLOCATION_INDEX);
-    const tableName = qualifiedName(knex, db, HOSTEL_ALLOCATIONS_TABLE);
+    const tableName = qualifiedTableName(knex, db, HOSTEL_ALLOCATIONS_TABLE);
 
     if (client === 'pg' || client === 'postgres' || client === 'sqlite') {
       await knex.raw(
@@ -39,7 +38,7 @@ module.exports = {
           WHERE student_identifier IS NOT NULL
             AND status IN ('reserved', 'allocated')
         `,
-        [indexName, tableName],
+        [ACTIVE_STUDENT_ALLOCATION_INDEX, tableName],
       );
       return;
     }
@@ -47,14 +46,14 @@ module.exports = {
     if (client === 'mysql' || client === 'mysql2') {
       await knex.raw(
         'CREATE INDEX ?? ON ?? (student_identifier, status)',
-        [indexName, tableName],
+        [ACTIVE_STUDENT_ALLOCATION_INDEX, tableName],
       );
       return;
     }
 
     await knex.raw(
       'CREATE INDEX ?? ON ?? (student_identifier, status)',
-      [indexName, tableName],
+      [ACTIVE_STUDENT_ALLOCATION_INDEX, tableName],
     );
   },
 
@@ -66,9 +65,12 @@ module.exports = {
     const client = knex.client.config.client;
 
     if (client === 'pg' || client === 'postgres') {
-      await knex.raw('DROP INDEX IF EXISTS ??', [
-        qualifiedName(knex, db, ACTIVE_STUDENT_ALLOCATION_INDEX),
-      ]);
+      const schema = db.getSchemaName?.();
+      const indexName = schema
+        ? `${schema}.${ACTIVE_STUDENT_ALLOCATION_INDEX}`
+        : ACTIVE_STUDENT_ALLOCATION_INDEX;
+
+      await knex.raw('DROP INDEX IF EXISTS ??', [indexName]);
       return;
     }
 
