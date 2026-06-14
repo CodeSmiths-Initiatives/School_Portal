@@ -1,0 +1,91 @@
+{
+  "kind": "collectionType",
+  "collectionName": "hostel_allocations",
+  "info": {
+    "singularName": "hostel-allocation",
+    "pluralName": "hostel-allocations",
+    "displayName": "Hostel Allocation",
+    "description": "Student hostel reservation and allocation record."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "allocationNumber": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "studentName": {
+      "type": "string",
+      "required": true
+    },
+    "studentEmail": {
+      "type": "email"
+    },
+    "studentIdentifier": {
+      "type": "string"
+    },
+    "level": {
+      "type": "string"
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": ["reserved", "allocated", "cancelled", "expired"],
+      "default": "reserved",
+      "required": true
+    },
+    "paymentStatus": {
+      "type": "enumeration",
+      "enum": ["pending", "paid", "review", "failed"],
+      "default": "pending",
+      "required": true
+    },
+    "allocatedBy": {
+      "type": "string"
+    },
+    "note": {
+      "type": "text"
+    },
+    "college": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::college.college"
+    },
+    "student": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "hostel": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::hostel.hostel"
+    },
+    "room": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::hostel-room.hostel-room"
+    },
+    "bed": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::hostel-bed.hostel-bed"
+    },
+    "invoice": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::payment-invoice.payment-invoice"
+    }
+  },
+  "indexes": [
+    {
+      "name": "hostel_allocation_status_idx",
+      "columns": ["status", "payment_status"]
+    },
+    {
+      "name": "hostel_allocation_student_idx",
+      "columns": ["student_identifier", "status"]
+    }
+  ]
+}

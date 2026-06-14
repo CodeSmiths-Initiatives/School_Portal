@@ -1,0 +1,64 @@
+{
+  "kind": "collectionType",
+  "collectionName": "hostel_beds",
+  "info": {
+    "singularName": "hostel-bed",
+    "pluralName": "hostel-beds",
+    "displayName": "Hostel Bed",
+    "description": "Bookable bed space within a room."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "label": {
+      "type": "string",
+      "required": true
+    },
+    "price": {
+      "type": "decimal",
+      "default": 0,
+      "required": true
+    },
+    "currency": {
+      "type": "string",
+      "default": "NGN",
+      "required": true
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": ["available", "reserved", "allocated", "maintenance", "inactive"],
+      "default": "available",
+      "required": true
+    },
+    "reservedUntil": {
+      "type": "datetime"
+    },
+    "college": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::college.college"
+    },
+    "hostel": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::hostel.hostel"
+    },
+    "room": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::hostel-room.hostel-room",
+      "inversedBy": "beds"
+    }
+  },
+  "indexes": [
+    {
+      "name": "hostel_bed_status_idx",
+      "columns": ["status"]
+    },
+    {
+      "name": "hostel_bed_label_status_idx",
+      "columns": ["label", "status"]
+    }
+  ]
+}

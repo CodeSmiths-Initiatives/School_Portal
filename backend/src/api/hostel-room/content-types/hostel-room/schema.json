@@ -1,0 +1,62 @@
+{
+  "kind": "collectionType",
+  "collectionName": "hostel_rooms",
+  "info": {
+    "singularName": "hostel-room",
+    "pluralName": "hostel-rooms",
+    "displayName": "Hostel Room",
+    "description": "Room within a college hostel."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "roomNumber": {
+      "type": "string",
+      "required": true
+    },
+    "block": {
+      "type": "string"
+    },
+    "floor": {
+      "type": "string"
+    },
+    "capacity": {
+      "type": "integer",
+      "default": 0,
+      "required": true
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": ["active", "maintenance", "inactive", "archived"],
+      "default": "active",
+      "required": true
+    },
+    "wardenNote": {
+      "type": "text"
+    },
+    "college": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::college.college"
+    },
+    "hostel": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::hostel.hostel",
+      "inversedBy": "rooms"
+    },
+    "beds": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::hostel-bed.hostel-bed",
+      "mappedBy": "room"
+    }
+  },
+  "indexes": [
+    {
+      "name": "hostel_room_number_status_idx",
+      "columns": ["room_number", "status"]
+    }
+  ]
+}

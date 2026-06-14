@@ -73,6 +73,7 @@ export default async function CollegeModuleWorkspace({
 			<HostelModuleWorkspace
 				permissions={permissions}
 				collegeName={collegeName}
+				collegeSlug={collegeSlug}
 				domain={domain}
 			/>
 		);

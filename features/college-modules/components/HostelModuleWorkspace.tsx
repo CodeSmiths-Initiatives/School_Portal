@@ -19,7 +19,7 @@ import {
 	Wrench,
 	X,
 } from "lucide-react";
-import { useMemo, useState, type ElementType, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ElementType, type ReactNode } from "react";
 import { RowActionMenu } from "@/components/ui/row-action-menu";
 import type { DashboardDomain } from "@/lib/auth";
 import {
@@ -27,10 +27,20 @@ import {
 	type PermissionKey,
 	type UserPermissionKey,
 } from "@/lib/rbac";
+import {
+	createHostelComplaintRecord,
+	createHostelRecord,
+	createHostelRoomRecord,
+	loadHostelData,
+	reserveHostelBedRecord,
+	updateHostelComplaintRecord,
+} from "@/features/college-modules/services/hostel.client";
+import type { HostelPayload } from "@/lib/services/hostel.service";
 
 type HostelModuleWorkspaceProps = {
 	permissions: UserPermissionKey[];
 	collegeName: string;
+	collegeSlug: string;
 	domain: DashboardDomain;
 };
 
@@ -97,6 +107,7 @@ type RoomItem = {
 	status: RoomStatus;
 	wardenNote: string;
 	updatedAt: string;
+	bedIdsByLabel?: Record<string, string>;
 };
 
 type RoomDraft = {
@@ -853,6 +864,139 @@ function printHostelPaymentInvoice(payment: HostelPaymentRecord) {
 		</html>
 	`);
 	printWindow.document.close();
+}
+
+function statusFromLiveHostel(status: string, availableBeds: number): HostelStatus {
+	if (status === "maintenance") return "maintenance";
+	if (availableBeds <= 0) return "full";
+	if (availableBeds < 10) return "filling";
+	return "available";
+}
+
+function mapLiveHostel(hostel: HostelPayload["hostels"][number]): HostelItem {
+	return {
+		id: hostel.id,
+		name: hostel.name,
+		gender: hostel.gender,
+		warden: hostel.warden || "Not assigned",
+		totalBeds: hostel.totalBeds,
+		availableBeds: hostel.availableBeds,
+		fee: formatCurrency(hostel.fee, hostel.currency),
+		blocks: [],
+		amenities: hostel.amenities,
+		status: statusFromLiveHostel(hostel.status, hostel.availableBeds),
+		tag: hostel.availableBeds > 0 ? "Book Now" : "Full",
+		tone: hostel.gender === "Female" ? "rose" : hostel.gender === "Male" ? "teal" : "slate",
+		updatedAt: hostel.updatedAt || new Date().toISOString(),
+	};
+}
+
+function mapLiveRoom(room: HostelPayload["rooms"][number]): RoomItem {
+	const status: RoomStatus =
+		room.status === "maintenance"
+			? "Maintenance"
+			: room.available === 0
+				? "Full"
+				: room.available === room.capacity
+					? "Available"
+					: "Partial";
+
+	return {
+		id: room.roomNumber,
+		hostel: room.hostelName,
+		block: room.block || "Unassigned block",
+		floor: room.floor || "Unassigned floor",
+		beds: room.capacity || room.beds.length,
+		available: room.available,
+		occupied: room.occupied,
+		status,
+		wardenNote: room.wardenNote,
+		updatedAt: room.updatedAt || new Date().toISOString(),
+		bedIdsByLabel: Object.fromEntries(
+			room.beds
+				.filter((bed) => bed.status === "available")
+				.map((bed) => [bed.label, bed.id]),
+		),
+	};
+}
+
+function mapLiveAllocation(allocation: HostelPayload["allocations"][number]): AllocationItem {
+	return {
+		id: allocation.id,
+		studentName: allocation.studentName,
+		matricNo: allocation.studentIdentifier || allocation.studentEmail || "Student Profile",
+		level: allocation.level || "Current Level",
+		gender: "Mixed",
+		hostel: allocation.hostelName,
+		room: allocation.roomNumber,
+		bed: allocation.bedLabel,
+		paymentStatus:
+			allocation.paymentStatus === "paid"
+				? "Paid"
+				: allocation.paymentStatus === "review"
+					? "Review"
+					: "Pending",
+		status:
+			allocation.status === "allocated"
+				? "Allocated"
+				: allocation.status === "cancelled"
+					? "Cancelled"
+					: "Pending",
+		allocatedBy: allocation.allocatedBy || "Student self-service",
+		updatedAt: allocation.updatedAt || new Date().toISOString(),
+		note: allocation.note,
+	};
+}
+
+function mapLiveComplaint(complaint: HostelPayload["complaints"][number]): MaintenanceRequestItem {
+	return {
+		id: complaint.id,
+		studentName: complaint.studentName || "Student",
+		matricNo: complaint.studentIdentifier || "Student Profile",
+		hostel: complaint.hostelName,
+		room: complaint.roomNumber,
+		bed: complaint.bedLabel,
+		category: complaint.category,
+		issue: complaint.issue,
+		description: complaint.description,
+		priority: complaint.priority,
+		status: complaint.status,
+		assignedTo: complaint.assignedTo || "Maintenance Desk",
+		reportedAt: complaint.createdAt || complaint.updatedAt || new Date().toISOString(),
+		updatedAt: complaint.updatedAt || new Date().toISOString(),
+		resolutionNote: complaint.resolutionNote,
+	};
+}
+
+function mapLivePayment(allocation: HostelPayload["allocations"][number]): HostelPaymentRecord {
+	return {
+		id: allocation.invoiceNumber || allocation.id,
+		invoiceNo: allocation.invoiceNumber || "Hostel invoice",
+		reference: allocation.allocationNumber,
+		studentName: allocation.studentName,
+		matricNo: allocation.studentIdentifier || allocation.studentEmail || "Student Profile",
+		level: allocation.level || "Current Level",
+		hostel: allocation.hostelName,
+		room: allocation.roomNumber,
+		bed: allocation.bedLabel,
+		amount: allocation.amount,
+		currency: "NGN",
+		paymentStatus:
+			allocation.paymentStatus === "paid"
+				? "Paid"
+				: allocation.paymentStatus === "failed"
+					? "Failed"
+					: allocation.paymentStatus === "review"
+						? "Review"
+						: "Pending",
+		invoiceStatus: allocation.invoiceStatus === "paid" ? "Paid" : "Issued",
+		channel: "Card",
+		issuedAt: allocation.updatedAt || new Date().toISOString(),
+		paidAt: allocation.paymentStatus === "paid" ? allocation.updatedAt : undefined,
+		updatedAt: allocation.updatedAt || new Date().toISOString(),
+		verifiedBy: allocation.paymentStatus === "paid" ? "Gateway" : "Not verified",
+		note: allocation.note,
+	};
 }
 
 function getHostelDraft(hostel?: HostelItem | null): HostelDraft {
@@ -4785,6 +4929,7 @@ function AdminHostelView({
 export default function HostelModuleWorkspace({
 	permissions,
 	collegeName,
+	collegeSlug,
 	domain,
 }: HostelModuleWorkspaceProps) {
 	const isStudentDomain = domain === "student";
@@ -4794,7 +4939,9 @@ export default function HostelModuleWorkspace({
 	const [maintenanceRequests, setMaintenanceRequests] = useState(
 		INITIAL_MAINTENANCE_REQUESTS,
 	);
-	const [hostelPayments] = useState(INITIAL_HOSTEL_PAYMENTS);
+	const [hostelPayments, setHostelPayments] = useState(INITIAL_HOSTEL_PAYMENTS);
+	const [isLiveLoading, setIsLiveLoading] = useState(true);
+	const [liveError, setLiveError] = useState("");
 	const [activeView, setActiveView] = useState<HostelView>(
 		isStudentDomain ? "dashboard" : "manage",
 	);
@@ -4850,6 +4997,92 @@ export default function HostelModuleWorkspace({
 	});
 	const activeHostel = selectedHostel ?? hostels[0];
 
+	async function refreshLiveHostels() {
+		setLiveError("");
+
+		try {
+			const payload = await loadHostelData(collegeSlug);
+			const nextHostels = payload.hostels.map(mapLiveHostel);
+			const nextRooms = payload.rooms.map(mapLiveRoom);
+			const nextAllocations = payload.allocations.map(mapLiveAllocation);
+			const nextComplaints = payload.complaints.map(mapLiveComplaint);
+			const nextPayments = payload.allocations.map(mapLivePayment);
+
+			if (nextHostels.length) {
+				setHostels(nextHostels);
+				setSelectedHostel((current) => {
+					if (!current) return nextHostels[0] ?? null;
+					return nextHostels.find((hostel) => hostel.id === current.id) ?? nextHostels[0] ?? null;
+				});
+			}
+
+			if (nextRooms.length) setRooms(nextRooms);
+			setAllocations(nextAllocations);
+			setMaintenanceRequests(nextComplaints);
+			if (nextPayments.length) setHostelPayments(nextPayments);
+
+			if (isStudentDomain) {
+				const allocation = nextAllocations[0] ?? null;
+				setStudentAllocation(allocation);
+				setStudentPayment(nextPayments[0] ?? null);
+				setStudentMaintenanceRequests(nextComplaints);
+			}
+		} catch (error) {
+			setLiveError(
+				error instanceof Error
+					? error.message
+					: "Unable to load live hostel data.",
+			);
+		} finally {
+			setIsLiveLoading(false);
+		}
+	}
+
+	useEffect(() => {
+		let isMounted = true;
+
+		loadHostelData(collegeSlug)
+			.then((payload) => {
+				if (!isMounted) return;
+				const nextHostels = payload.hostels.map(mapLiveHostel);
+				const nextRooms = payload.rooms.map(mapLiveRoom);
+				const nextAllocations = payload.allocations.map(mapLiveAllocation);
+				const nextComplaints = payload.complaints.map(mapLiveComplaint);
+				const nextPayments = payload.allocations.map(mapLivePayment);
+
+				if (nextHostels.length) {
+					setHostels(nextHostels);
+					setSelectedHostel(nextHostels[0] ?? null);
+				}
+
+				if (nextRooms.length) setRooms(nextRooms);
+				setAllocations(nextAllocations);
+				setMaintenanceRequests(nextComplaints);
+				if (nextPayments.length) setHostelPayments(nextPayments);
+
+				if (isStudentDomain) {
+					setStudentAllocation(nextAllocations[0] ?? null);
+					setStudentPayment(nextPayments[0] ?? null);
+					setStudentMaintenanceRequests(nextComplaints);
+				}
+			})
+			.catch((error) => {
+				if (!isMounted) return;
+				setLiveError(
+					error instanceof Error
+						? error.message
+						: "Unable to load live hostel data.",
+				);
+			})
+			.finally(() => {
+				if (isMounted) setIsLiveLoading(false);
+			});
+
+		return () => {
+			isMounted = false;
+		};
+	}, [collegeSlug, isStudentDomain]);
+
 	function viewHostel(hostel: HostelItem) {
 		setSelectedHostel(hostel);
 		setActiveView("details");
@@ -4867,13 +5100,44 @@ export default function HostelModuleWorkspace({
 		setSelectedBed("");
 	}
 
-	function confirmStudentBooking() {
+	async function confirmStudentBooking() {
 		if (!selectedHostel || !selectedRoomId || !selectedBed) {
 			return;
 		}
 
 		const now = new Date().toISOString();
 		const amount = Number(selectedHostel.fee.replace(/[^\d]/g, "")) || 0;
+		const room = rooms.find(
+			(item) => item.hostel === selectedHostel.name && item.id === selectedRoomId,
+		);
+		const liveBedId = room?.bedIdsByLabel?.[selectedBed];
+
+		if (liveBedId) {
+			try {
+				const result = await reserveHostelBedRecord(collegeSlug, {
+					bedId: liveBedId,
+					studentName: "Current Student",
+					studentIdentifier: "Current Student",
+					level: "Current Level",
+				});
+				const nextAllocation = mapLiveAllocation(result.allocation);
+				const nextPayment = mapLivePayment(result.allocation);
+
+				setStudentAllocation(nextAllocation);
+				setStudentPayment(nextPayment);
+				await refreshLiveHostels();
+				setActiveView("payment");
+				return;
+			} catch (error) {
+				setLiveError(
+					error instanceof Error
+						? error.message
+						: "Unable to reserve this bed. Please choose another bed.",
+				);
+				return;
+			}
+		}
+
 		const nextAllocation: AllocationItem = {
 			id: "student-allocation-ui",
 			studentName: "Current Student",
@@ -4944,9 +5208,30 @@ export default function HostelModuleWorkspace({
 		setActiveView("allocation");
 	}
 
-	function submitStudentMaintenance(draft: StudentMaintenanceDraft) {
+	async function submitStudentMaintenance(draft: StudentMaintenanceDraft) {
 		if (!studentAllocation || studentPayment?.paymentStatus !== "Paid") {
 			return;
+		}
+
+		if (studentAllocation.id && studentAllocation.id !== "student-allocation-ui") {
+			try {
+				await createHostelComplaintRecord(collegeSlug, {
+					allocationId: studentAllocation.id,
+					category: draft.category,
+					issue: draft.issue.trim(),
+					description: draft.description.trim(),
+					priority: draft.priority,
+				});
+				await refreshLiveHostels();
+				return;
+			} catch (error) {
+				setLiveError(
+					error instanceof Error
+						? error.message
+						: "Unable to submit hostel complaint.",
+				);
+				return;
+			}
 		}
 
 		const now = new Date().toISOString();
@@ -4988,9 +5273,33 @@ export default function HostelModuleWorkspace({
 		setModalHostel(null);
 	}
 
-	function saveHostel() {
+	async function saveHostel() {
 		if (!canSaveHostel || !hostelDraft.name.trim()) {
 			return;
+		}
+
+		if (modalMode === "create") {
+			try {
+				await createHostelRecord(collegeSlug, {
+					name: hostelDraft.name.trim(),
+					code: hostelDraft.name.trim(),
+					gender: hostelDraft.gender,
+					warden: hostelDraft.warden.trim(),
+					fee: Number(hostelDraft.fee.replace(/[^\d.]/g, "")) || 0,
+					currency: "NGN",
+					amenities: parseCsvList(hostelDraft.amenities),
+					status:
+						hostelDraft.status === "maintenance" ? "maintenance" : "active",
+				});
+				await refreshLiveHostels();
+				closeHostelModal();
+				return;
+			} catch (error) {
+				setLiveError(
+					error instanceof Error ? error.message : "Unable to create hostel.",
+				);
+				return;
+			}
 		}
 
 		const nextHostel: HostelItem = {
@@ -5010,11 +5319,9 @@ export default function HostelModuleWorkspace({
 		};
 
 		setHostels((current) =>
-			modalMode === "create"
-				? [...current, nextHostel]
-				: current.map((hostel) =>
-						hostel.id === nextHostel.id ? nextHostel : hostel,
-					),
+			current.map((hostel) =>
+				hostel.id === nextHostel.id ? nextHostel : hostel,
+			),
 		);
 		setSelectedHostel(nextHostel);
 		closeHostelModal();
@@ -5037,9 +5344,36 @@ export default function HostelModuleWorkspace({
 		setModalRoom(null);
 	}
 
-	function saveRoom() {
+	async function saveRoom() {
 		if (!canSaveRoom || !roomDraft.id.trim() || !roomDraft.hostel.trim()) {
 			return;
+		}
+
+		if (roomModalMode === "create") {
+			const hostel = hostels.find((item) => item.name === roomDraft.hostel.trim());
+
+			if (hostel) {
+				try {
+					await createHostelRoomRecord(collegeSlug, {
+						hostelId: hostel.id,
+						roomNumber: roomDraft.id.trim().toUpperCase(),
+						block: roomDraft.block.trim(),
+						floor: roomDraft.floor.trim(),
+						capacity: Number(roomDraft.beds) || 0,
+						status:
+							roomDraft.status === "Maintenance" ? "maintenance" : "active",
+						wardenNote: roomDraft.wardenNote.trim(),
+					});
+					await refreshLiveHostels();
+					closeRoomModal();
+					return;
+				} catch (error) {
+					setLiveError(
+						error instanceof Error ? error.message : "Unable to create room.",
+					);
+					return;
+				}
+			}
 		}
 
 		const beds = Math.max(0, Number(roomDraft.beds) || 0);
@@ -5140,13 +5474,34 @@ export default function HostelModuleWorkspace({
 		setModalMaintenanceRequest(null);
 	}
 
-	function saveMaintenanceRequest() {
+	async function saveMaintenanceRequest() {
 		if (
 			!canSaveMaintenance ||
 			!modalMaintenanceRequest ||
 			!maintenanceDraft.assignedTo.trim()
 		) {
 			return;
+		}
+
+		if (modalMaintenanceRequest.id && !modalMaintenanceRequest.id.startsWith("mnt-")) {
+			try {
+				await updateHostelComplaintRecord(collegeSlug, modalMaintenanceRequest.id, {
+					status: maintenanceDraft.status,
+					priority: maintenanceDraft.priority,
+					assignedTo: maintenanceDraft.assignedTo.trim(),
+					resolutionNote: maintenanceDraft.resolutionNote.trim(),
+				});
+				await refreshLiveHostels();
+				closeMaintenanceModal();
+				return;
+			} catch (error) {
+				setLiveError(
+					error instanceof Error
+						? error.message
+						: "Unable to update hostel complaint.",
+				);
+				return;
+			}
 		}
 
 		const nextRequest: MaintenanceRequestItem = {
@@ -5355,6 +5710,16 @@ export default function HostelModuleWorkspace({
 	return (
 		<div className="rounded-[1.5rem] border border-[#dbe5f1] bg-white p-3 shadow-sm sm:p-4 xl:p-5">
 			<div className="space-y-5">
+				{isLiveLoading ? (
+					<div className="rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] px-4 py-3 text-sm font-bold text-[#0D2B55]">
+						Loading live hostel data...
+					</div>
+				) : null}
+				{liveError ? (
+					<div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+						{liveError}
+					</div>
+				) : null}
 				<HostelTabs
 					activeView={activeView}
 					permissions={permissions}

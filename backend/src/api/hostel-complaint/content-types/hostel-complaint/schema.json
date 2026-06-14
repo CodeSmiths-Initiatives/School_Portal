@@ -1,0 +1,80 @@
+{
+  "kind": "collectionType",
+  "collectionName": "hostel_complaints",
+  "info": {
+    "singularName": "hostel-complaint",
+    "pluralName": "hostel-complaints",
+    "displayName": "Hostel Complaint",
+    "description": "Maintenance complaint raised against an allocated bed."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "category": {
+      "type": "string",
+      "required": true
+    },
+    "issue": {
+      "type": "string",
+      "required": true
+    },
+    "description": {
+      "type": "text"
+    },
+    "priority": {
+      "type": "enumeration",
+      "enum": ["Low", "Medium", "High", "Critical"],
+      "default": "Medium",
+      "required": true
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": ["Open", "In Progress", "Resolved", "Escalated"],
+      "default": "Open",
+      "required": true
+    },
+    "assignedTo": {
+      "type": "string"
+    },
+    "resolutionNote": {
+      "type": "text"
+    },
+    "college": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::college.college"
+    },
+    "student": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "allocation": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::hostel-allocation.hostel-allocation"
+    },
+    "hostel": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::hostel.hostel"
+    },
+    "room": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::hostel-room.hostel-room"
+    },
+    "bed": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::hostel-bed.hostel-bed"
+    }
+  },
+  "indexes": [
+    {
+      "name": "hostel_complaint_status_idx",
+      "columns": ["status", "priority"]
+    }
+  ]
+}

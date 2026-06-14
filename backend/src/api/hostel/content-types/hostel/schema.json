@@ -1,0 +1,72 @@
+{
+  "kind": "collectionType",
+  "collectionName": "hostels",
+  "info": {
+    "singularName": "hostel",
+    "pluralName": "hostels",
+    "displayName": "Hostel",
+    "description": "College-scoped hostel residence."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "code": {
+      "type": "string",
+      "required": true
+    },
+    "gender": {
+      "type": "enumeration",
+      "enum": ["Female", "Male", "Mixed"],
+      "default": "Mixed",
+      "required": true
+    },
+    "warden": {
+      "type": "string"
+    },
+    "fee": {
+      "type": "decimal",
+      "default": 0,
+      "required": true
+    },
+    "currency": {
+      "type": "string",
+      "default": "NGN",
+      "required": true
+    },
+    "amenities": {
+      "type": "json"
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": ["active", "inactive", "maintenance", "archived"],
+      "default": "active",
+      "required": true
+    },
+    "college": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::college.college"
+    },
+    "rooms": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::hostel-room.hostel-room",
+      "mappedBy": "hostel"
+    }
+  },
+  "indexes": [
+    {
+      "name": "hostel_code_status_idx",
+      "columns": ["code", "status"]
+    },
+    {
+      "name": "hostel_status_idx",
+      "columns": ["status"]
+    }
+  ]
+}
