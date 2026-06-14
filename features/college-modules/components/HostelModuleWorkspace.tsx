@@ -13,9 +13,6 @@ import {
 	Eye,
 	Filter,
 	Home,
-	Menu,
-	PanelLeftClose,
-	PanelLeftOpen,
 	Plus,
 	ReceiptText,
 	Search,
@@ -417,19 +414,15 @@ function HostelCard({
 	);
 }
 
-function HostelAside({
+function HostelTabs({
 	activeView,
-	collapsed,
 	permissions,
 	domain,
-	onToggle,
 	onSelect,
 }: {
 	activeView: HostelView;
-	collapsed: boolean;
 	permissions: UserPermissionKey[];
 	domain: DashboardDomain;
-	onToggle: () => void;
 	onSelect: (view: HostelView) => void;
 }) {
 	const menu =
@@ -448,58 +441,37 @@ function HostelAside({
 				key={item.view}
 				type="button"
 				onClick={() => onSelect(item.view)}
-				title={collapsed ? item.label : undefined}
-				className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-bold transition ${
+				className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-bold transition ${
 					active
-						? "border border-[#d8a13a]/40 bg-[#fff7e8] text-[#B7770D]"
-						: "text-[#314461] hover:bg-[#f4f8fd]"
-				} ${collapsed ? "justify-center" : ""}`}
+						? "border-[#d8a13a]/60 bg-[#fff7e8] text-[#B7770D] shadow-sm"
+						: "border-transparent text-[#314461] hover:border-[#dbe5f1] hover:bg-[#f4f8fd]"
+				}`}
 			>
 				<Icon className="size-4.5 shrink-0" />
-				<span className={collapsed ? "sr-only" : ""}>{item.label}</span>
+				<span>{item.label}</span>
 			</button>
 		);
 	}
 
 	return (
-		<aside
-			className={`h-fit shrink-0 transition-all duration-300 lg:sticky lg:top-0 ${
-				collapsed ? "lg:w-[4.75rem]" : "lg:w-60"
-			}`}
-		>
-			<div className="overflow-hidden rounded-2xl border border-[#dbe5f1] bg-white shadow-sm">
-				<div className="flex items-center justify-between bg-[#0D2B55] px-3 py-3 text-white">
-					<div className={`min-w-0 ${collapsed ? "hidden" : "block"}`}>
-						<p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#E4A11B]">
-							Hostel Menu
-						</p>
-					</div>
-					<button
-						type="button"
-						onClick={onToggle}
-						className="inline-flex size-9 items-center justify-center rounded-xl border border-white/12 bg-white/8 text-white transition hover:bg-white/15"
-						aria-label={collapsed ? "Expand hostel menu" : "Collapse hostel menu"}
-					>
-						{collapsed ? (
-							<PanelLeftOpen className="size-4" />
-						) : (
-							<PanelLeftClose className="size-4" />
-						)}
-					</button>
-				</div>
-
-				<nav className="space-y-2 p-3">
-					<p
-						className={`px-2 pt-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#8395AF] ${
-							collapsed ? "sr-only" : ""
-						}`}
-					>
-						{domain === "student" ? "Student" : "Admin"}
+		<div className="rounded-2xl border border-[#dbe5f1] bg-white p-3 shadow-sm">
+			<div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+				<div>
+					<p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#B7770D]">
+						Hostel
 					</p>
-					<div className="space-y-1">{menu.map(renderItem)}</div>
+					<p className="mt-1 text-sm font-bold text-[#0D2B55]">
+						{domain === "student" ? "Student accommodation" : "Admin accommodation"}
+					</p>
+				</div>
+				<nav
+					aria-label="Hostel views"
+					className="flex gap-2 overflow-x-auto pb-1"
+				>
+					{menu.map(renderItem)}
 				</nav>
 			</div>
-		</aside>
+		</div>
 	);
 }
 
@@ -1522,7 +1494,6 @@ export default function HostelModuleWorkspace({
 	const [activeView, setActiveView] = useState<HostelView>(
 		isStudentDomain ? "dashboard" : "manage",
 	);
-	const [menuCollapsed, setMenuCollapsed] = useState(false);
 	const [selectedHostel, setSelectedHostel] = useState<HostelItem | null>(INITIAL_HOSTELS[0]);
 	const [modalMode, setModalMode] = useState<HostelModalMode | null>(null);
 	const [modalHostel, setModalHostel] = useState<HostelItem | null>(null);
@@ -1664,39 +1635,18 @@ export default function HostelModuleWorkspace({
 
 	return (
 		<div className="rounded-[1.5rem] border border-[#dbe5f1] bg-white p-3 shadow-sm sm:p-4 xl:p-5">
-			<div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-[#dbe5f1] bg-white px-4 py-3 shadow-sm lg:hidden">
-				<div>
-					<p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#B7770D]">
-						Hostel
-					</p>
-					<p className="text-sm font-bold text-[#0D2B55]">Campus accommodation</p>
-				</div>
-				<button
-					type="button"
-					onClick={() => setMenuCollapsed((value) => !value)}
-					className="inline-flex size-10 items-center justify-center rounded-xl bg-[#0D2B55] text-white"
-					aria-label="Toggle hostel menu"
-				>
-					<Menu className="size-5" />
-				</button>
-			</div>
-
-			<div className="grid items-start gap-5 lg:grid-cols-[auto_minmax(0,1fr)]">
-				<div className={`${menuCollapsed ? "hidden lg:block" : "block"}`}>
-					<HostelAside
-						activeView={activeView}
-						collapsed={menuCollapsed}
-						permissions={permissions}
-						domain={domain}
-						onToggle={() => setMenuCollapsed((value) => !value)}
-						onSelect={(view) => {
-							setActiveView(view);
-							if (view === "booking") {
-								setSelectedHostel(null);
-							}
-						}}
-					/>
-				</div>
+			<div className="space-y-5">
+				<HostelTabs
+					activeView={activeView}
+					permissions={permissions}
+					domain={domain}
+					onSelect={(view) => {
+						setActiveView(view);
+						if (view === "booking") {
+							setSelectedHostel(null);
+						}
+					}}
+				/>
 
 				<main className="min-w-0">{renderView()}</main>
 			</div>
