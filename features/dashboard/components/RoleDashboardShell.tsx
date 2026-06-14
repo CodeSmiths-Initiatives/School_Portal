@@ -57,6 +57,17 @@ export type DashboardReportPoint = {
   amount: string;
 };
 
+export type DashboardReportFilterOption = {
+  label: string;
+  href: string;
+  isActive?: boolean;
+};
+
+export type DashboardReportFilter = {
+  label: string;
+  options: DashboardReportFilterOption[];
+};
+
 export type DashboardReportPanel = {
   badge: string;
   title: string;
@@ -64,6 +75,7 @@ export type DashboardReportPanel = {
   summary: string;
   variant?: "bar" | "line" | "area" | "ranked";
   points: DashboardReportPoint[];
+  filters?: DashboardReportFilter[];
 };
 
 export type DashboardPaymentReport = {
@@ -124,6 +136,7 @@ const MENU_ICON_MAP = {
 
 const STAT_ICONS = [LayoutDashboard, BookOpen, CircleDollarSign, Users];
 const HIGHLIGHT_ICONS = [FolderKanban, BadgeCheck, Bell, CalendarRange];
+const BAR_COLORS = ["#2E86C1", "#B7770D", "#0D2B55", "#3F8F6B", "#7A5C99", "#C05A3A"];
 
 export default function RoleDashboardShell({
   badge,
@@ -275,6 +288,36 @@ export default function RoleDashboardShell({
                         {reportPanel.summary}
                       </div>
                     </div>
+
+                    {reportPanel.filters?.length ? (
+                      <div className="mt-5 grid gap-3 lg:grid-cols-2">
+                        {reportPanel.filters.map((filter) => (
+                          <div
+                            key={filter.label}
+                            className="rounded-2xl border border-[#e2eaf4] bg-[#fbfdff] p-3"
+                          >
+                            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#7d90aa]">
+                              {filter.label}
+                            </p>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {filter.options.map((option) => (
+                                <Link
+                                  key={`${filter.label}-${option.label}`}
+                                  href={option.href}
+                                  className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+                                    option.isActive
+                                      ? "border-[#0D2B55] bg-[#0D2B55] text-white"
+                                      : "border-[#dbe5f1] bg-white text-[#4f6788] hover:border-[#B7770D] hover:text-[#0D2B55]"
+                                  }`}
+                                >
+                                  {option.label}
+                                </Link>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
 
                     <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_16rem]">
                       <div className="rounded-2xl border border-[#e2eaf4] bg-[linear-gradient(180deg,#fbfdff_0%,#f5f9fe_100%)] p-4">
@@ -442,23 +485,28 @@ export default function RoleDashboardShell({
                             ))}
                           </div>
                         ) : (
-                          <div className="flex h-52 items-end gap-3">
+                          <div className="flex h-56 items-end gap-3">
                             {reportPanel.points.map((point, index) => (
                               <div
                                 key={`${point.label}-${index}-bar`}
                                 className="flex min-w-0 flex-1 flex-col items-center gap-3"
                               >
-                                <div className="flex h-40 w-full items-end">
+                                <div className="flex h-40 w-full items-end rounded-xl border border-[#e6eef8] bg-white px-1.5 pb-1.5">
                                   <div
-                                    className="w-full rounded-t-2xl bg-[linear-gradient(180deg,#2E86C1_0%,#0D2B55_100%)] shadow-[0_12px_24px_rgba(46,134,193,0.18)]"
-                                    style={{ height: `${point.value}%` }}
+                                    className="w-full rounded-t-xl shadow-[0_12px_24px_rgba(13,43,85,0.14)]"
+                                    style={{
+                                      height: `${point.value}%`,
+                                      background: `linear-gradient(180deg, ${
+                                        BAR_COLORS[index % BAR_COLORS.length]
+                                      } 0%, #0D2B55 100%)`,
+                                    }}
                                   />
                                 </div>
-                                <div className="text-center">
-                                  <p className="text-sm font-semibold text-[#17305f]">
+                                <div className="min-h-14 text-center">
+                                  <p className="text-xs font-semibold text-[#17305f] sm:text-sm">
                                     {point.amount}
                                   </p>
-                                  <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7d90aa]">
+                                  <p className="mt-1 break-words text-[10px] font-semibold uppercase tracking-[0.14em] text-[#7d90aa] sm:text-[11px]">
                                     {point.label}
                                   </p>
                                 </div>

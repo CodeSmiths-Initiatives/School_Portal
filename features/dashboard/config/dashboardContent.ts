@@ -1,5 +1,6 @@
 import type {
 	DashboardActivity,
+	DashboardReportFilter,
 	DashboardHighlight,
 	DashboardPaymentReport,
 	DashboardQuickLink,
@@ -26,6 +27,11 @@ type DashboardContentBundle = {
 	reportPanel?: DashboardReportPanel;
 	paymentReports?: DashboardPaymentReport[];
 	tenantContext?: DashboardTenantContext;
+};
+
+type ReportFilterInput = {
+	filters?: DashboardReportFilter[];
+	activeFilterSummary?: string;
 };
 
 function formatNumber(value: number) {
@@ -330,6 +336,7 @@ export function createStaffDashboardContent(
 export function createCollegeAdminDashboardContent(
 	collegeSlug: string,
 	report?: CollegeAdminReportPayload | null,
+	options?: ReportFilterInput,
 ): DashboardContentBundle {
 	const staffDashboardPath = `/college/${collegeSlug}/staff/dashboard`;
 	const summary = report?.summary;
@@ -342,7 +349,7 @@ export function createCollegeAdminDashboardContent(
 		summary?.totalApplications ?? 0,
 	);
 	const monthlyPayments = report?.charts.monthlyPayments ?? [];
-	const monthlyPaymentPoints = scalePoints(monthlyPayments.slice(-4)).map(
+	const monthlyPaymentPoints = scalePoints(monthlyPayments.slice(-6)).map(
 		(point) => ({
 			label: point.label,
 			value: point.value,
@@ -454,11 +461,12 @@ export function createCollegeAdminDashboardContent(
 		],
 		reportPanel: {
 			badge: "College Payments",
-			title: "Monthly collections trend",
+			title: "Collections by selected period",
 			description:
-				"Live month-by-month collection movement for this college, paired with pending payment value and invoice volume.",
-			summary: `${formatNumber(summary?.totalInvoices ?? 0)} invoices`,
-			variant: "area",
+				"Filtered collection movement for this college, paired with pending payment value and invoice volume.",
+			summary: options?.activeFilterSummary ?? `${formatNumber(summary?.totalInvoices ?? 0)} invoices`,
+			variant: "bar",
+			filters: options?.filters,
 			points:
 				monthlyPaymentPoints.length > 0
 					? monthlyPaymentPoints
@@ -490,6 +498,8 @@ export function createCollegeAdminDashboardContent(
 export function createSuperadminDashboardContent(input?: {
 	reportData?: SuperadminReportData | null;
 	colleges?: ProvisionedCollege[];
+	filters?: DashboardReportFilter[];
+	activeFilterSummary?: string;
 }): DashboardContentBundle {
 	const rows = input?.reportData?.rows ?? [];
 	const totals = sumSuperadminRows(rows);
@@ -610,11 +620,14 @@ export function createSuperadminDashboardContent(input?: {
 		],
 		reportPanel: {
 			badge: "Executive Report",
-			title: "Top revenue colleges",
+			title: "Revenue by selected colleges",
 			description:
-				"Live college comparison for revenue concentration, student payment activity, and executive follow-up.",
-			summary: `${formatNumber(rows.length)} college row${rows.length === 1 ? "" : "s"}`,
-			variant: "ranked",
+				"Filtered college comparison for revenue concentration, student payment activity, and executive follow-up.",
+			summary:
+				input?.activeFilterSummary ??
+				`${formatNumber(rows.length)} college row${rows.length === 1 ? "" : "s"}`,
+			variant: "bar",
+			filters: input?.filters,
 			points:
 				revenuePoints.length > 0
 					? revenuePoints
