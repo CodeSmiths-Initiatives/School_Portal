@@ -291,7 +291,6 @@ const INITIAL_HOSTELS: HostelItem[] = [
 
 const STUDENT_MENU: HostelMenuItem[] = [
 	{ label: "Dashboard", view: "dashboard", icon: Building2 },
-	{ label: "Browse Hostels", view: "browse", icon: Search },
 	{ label: "My Allocation", view: "allocation", icon: BedDouble },
 	{ label: "Hostel Payment", view: "payment", icon: CreditCard },
 	{ label: "Maintenance", view: "maintenance", icon: Wrench },
