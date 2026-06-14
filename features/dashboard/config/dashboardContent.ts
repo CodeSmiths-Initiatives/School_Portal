@@ -94,6 +94,29 @@ function scalePoints<T extends { value: number }>(points: T[]) {
 	}));
 }
 
+function scaleTrendPoints<T extends { value: number }>(points: T[]) {
+	if (points.length === 0) {
+		return [];
+	}
+
+	const values = points.map((point) => point.value);
+	const min = Math.min(...values);
+	const max = Math.max(...values);
+	const spread = max - min;
+
+	if (spread === 0) {
+		return points.map((point) => ({
+			...point,
+			value: point.value > 0 ? 58 : 12,
+		}));
+	}
+
+	return points.map((point) => ({
+		...point,
+		value: Math.round(14 + ((point.value - min) / spread) * 76),
+	}));
+}
+
 export function formatCollegeName(collegeSlug: string) {
 	return collegeSlug
 		.split("-")
@@ -349,7 +372,7 @@ export function createCollegeAdminDashboardContent(
 		summary?.totalApplications ?? 0,
 	);
 	const monthlyPayments = report?.charts.monthlyPayments ?? [];
-	const monthlyPaymentPoints = scalePoints(monthlyPayments.slice(-6)).map(
+	const monthlyPaymentPoints = scaleTrendPoints(monthlyPayments.slice(-6)).map(
 		(point) => ({
 			label: point.label,
 			value: point.value,
@@ -465,7 +488,7 @@ export function createCollegeAdminDashboardContent(
 			description:
 				"Filtered collection movement for this college, paired with pending payment value and invoice volume.",
 			summary: options?.activeFilterSummary ?? `${formatNumber(summary?.totalInvoices ?? 0)} invoices`,
-			variant: "bar",
+			variant: "line",
 			filters: options?.filters,
 			points:
 				monthlyPaymentPoints.length > 0

@@ -434,7 +434,13 @@ export default function RoleDashboardShell({
                                 })}
                               </svg>
                             </div>
-                            <div className="mt-3 grid grid-cols-4 gap-2">
+                            <div
+                              className="mt-3 grid gap-2"
+                              style={{
+                                gridTemplateColumns:
+                                  "repeat(auto-fit, minmax(5rem, 1fr))",
+                              }}
+                            >
                               {reportPanel.points.map((point, index) => (
                                 <div
                                   key={`${point.label}-${index}-axis`}
