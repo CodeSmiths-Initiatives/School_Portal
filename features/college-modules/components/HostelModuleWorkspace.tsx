@@ -4,9 +4,6 @@ import {
 	ArrowRight,
 	BedDouble,
 	Building2,
-	CalendarDays,
-	CheckCircle2,
-	CircleDollarSign,
 	CreditCard,
 	Download,
 	DoorOpen,
@@ -199,53 +196,26 @@ type HostelMenuItem = {
 
 const PAGE_SIZE = 20;
 
-const HOSTEL_STATS = [
-	{
-		label: "Available Hostels",
-		value: "6",
-		description: "Female 3, Male 2, Mixed 1",
-		icon: Building2,
-	},
-	{
-		label: "Beds Available",
-		value: "246",
-		description: "Out of 800 total bed spaces",
-		icon: BedDouble,
-	},
-	{
-		label: "Hostel Fee",
-		value: "NGN 45,000",
-		description: "Default session charge",
-		icon: CircleDollarSign,
-	},
-	{
-		label: "Booking Deadline",
-		value: "Jan 31",
-		description: "15 days remaining",
-		icon: CalendarDays,
-	},
-];
-
 const BOOKING_STEPS = [
 	{
-		title: "Pay hostel fee",
-		description: "Pay the hostel accommodation fee for the session.",
-		icon: ReceiptText,
-	},
-	{
 		title: "Choose hostel",
-		description: "Browse and select your preferred hostel.",
+		description: "Review available halls and select the preferred hostel.",
 		icon: Home,
 	},
 	{
-		title: "Pick a bed",
-		description: "Select from available beds in your preferred room.",
+		title: "Book a bed",
+		description: "Pick from available rooms and reserve the bed space.",
 		icon: BedDouble,
 	},
 	{
-		title: "Get allocated",
-		description: "Receive your official hostel allocation record.",
-		icon: CheckCircle2,
+		title: "Pay hostel fee",
+		description: "Pay the accommodation fee after the bed is reserved.",
+		icon: ReceiptText,
+	},
+	{
+		title: "Raise maintenance",
+		description: "Report room issues after allocation when support is needed.",
+		icon: Wrench,
 	},
 ];
 
@@ -946,29 +916,6 @@ function parseCsvList(value: string) {
 		.filter(Boolean);
 }
 
-function HostelStatCard({ stat }: { stat: (typeof HOSTEL_STATS)[number] }) {
-	const Icon = stat.icon;
-
-	return (
-		<div className="rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] p-4">
-			<div className="flex items-start justify-between gap-3">
-				<div>
-					<p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8395AF]">
-						{stat.label}
-					</p>
-					<p className="mt-2 text-3xl font-black text-[#0D2B55]">{stat.value}</p>
-					<p className="mt-1 text-xs font-semibold leading-relaxed text-[#60728f]">
-						{stat.description}
-					</p>
-				</div>
-				<div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-[#eef6ff] text-[#2E86C1]">
-					<Icon className="size-5" />
-				</div>
-			</div>
-		</div>
-	);
-}
-
 function BookingStepCard({
 	step,
 	index,
@@ -1135,6 +1082,8 @@ function DashboardView({
 	onBrowse,
 	onView,
 	onBook,
+	onPayment,
+	onMaintenance,
 }: {
 	collegeName: string;
 	hostels: HostelItem[];
@@ -1142,35 +1091,335 @@ function DashboardView({
 	onBrowse: () => void;
 	onView: (hostel: HostelItem) => void;
 	onBook: (hostel: HostelItem) => void;
+	onPayment: () => void;
+	onMaintenance: () => void;
 }) {
+	const [listView, setListView] = useState<"table" | "cards">("table");
+	const [search, setSearch] = useState("");
+	const [status, setStatus] = useState<HostelStatus | "all">("all");
+	const [gender, setGender] = useState<HostelGender | "all">("all");
+	const [openActionsId, setOpenActionsId] = useState<string | number | null>(null);
+	const stats = useMemo(
+		() => ({
+			totalHostels: hostels.length,
+			bookableHostels: hostels.filter((hostel) => hostel.status !== "full").length,
+			availableBeds: hostels.reduce((total, hostel) => total + hostel.availableBeds, 0),
+			totalBeds: hostels.reduce((total, hostel) => total + hostel.totalBeds, 0),
+		}),
+		[hostels],
+	);
+	const filteredHostels = useMemo(() => {
+		const normalizedSearch = search.trim().toLowerCase();
+
+		return hostels.filter((hostel) => {
+			const haystack = [
+				hostel.name,
+				hostel.gender,
+				hostel.warden,
+				hostel.status,
+				hostel.fee,
+				...hostel.blocks,
+				...hostel.amenities,
+			]
+				.join(" ")
+				.toLowerCase();
+
+			return (
+				(!normalizedSearch || haystack.includes(normalizedSearch)) &&
+				(status === "all" || hostel.status === status) &&
+				(gender === "all" || hostel.gender === gender)
+			);
+		});
+	}, [gender, hostels, search, status]);
+
+	function clearFilters() {
+		setSearch("");
+		setStatus("all");
+		setGender("all");
+	}
+
 	return (
-		<div className="space-y-5">
-			<div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-				<div>
-					<p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#B7770D]">
-						{collegeName}
-					</p>
-					<h2 className="mt-2 text-2xl font-bold text-[#0D2B55]">
-						Welcome back
-					</h2>
-					<p className="mt-1 text-sm text-[#60728f]">
-						2026/2027 session bed space booking is now open.
-					</p>
+		<section className="space-y-5">
+			<div className="rounded-3xl border border-[#d7e2f0] bg-white p-5 shadow-[0_18px_45px_rgba(13,43,85,0.08)] sm:p-6">
+				<div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+					<div>
+						<p className="text-[11px] font-black uppercase tracking-[0.28em] text-[#B7770D]">
+							{collegeName}
+						</p>
+						<h2 className="mt-2 text-2xl font-black text-[#06183A]">
+							Student hostel dashboard
+						</h2>
+						<p className="mt-2 max-w-3xl text-sm leading-7 text-[#556987]">
+							Choose a hostel, confirm available beds, book a bed space, pay the
+							hostel fee, and raise a maintenance request when residence support
+							is needed.
+						</p>
+					</div>
+					<div className="flex flex-col gap-2 sm:flex-row">
+						<button
+							type="button"
+							onClick={onPayment}
+							className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-[#d3dfed] bg-white px-5 text-sm font-black text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+						>
+							<CreditCard className="size-4" />
+							Pay Fee
+						</button>
+						<button
+							type="button"
+							onClick={onApply}
+							className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] px-5 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.18)] transition hover:-translate-y-0.5 hover:bg-[#123866]"
+						>
+							<BedDouble className="size-4" />
+							Book Bed
+						</button>
+					</div>
 				</div>
-				<button
-					type="button"
-					onClick={onApply}
-					className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#0D2B55] px-5 text-sm font-bold text-white shadow-sm transition hover:bg-[#173f77]"
-				>
-					<Home className="size-4" />
-					Book a Bed Space
-				</button>
+
+				<div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+					{[
+						["Total Hostels", stats.totalHostels],
+						["Bookable Hostels", stats.bookableHostels],
+						["Beds Available", stats.availableBeds],
+						["Total Capacity", stats.totalBeds],
+					].map(([label, value]) => (
+						<div
+							key={label}
+							className="rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] p-4"
+						>
+							<p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8395AF]">
+								{label}
+							</p>
+							<p className="mt-2 text-3xl font-black text-[#0D2B55]">{value}</p>
+						</div>
+					))}
+				</div>
 			</div>
 
-			<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-				{HOSTEL_STATS.map((stat) => (
-					<HostelStatCard key={stat.label} stat={stat} />
-				))}
+			<div className="rounded-3xl border border-[#d7e2f0] bg-white p-4 shadow-[0_18px_45px_rgba(13,43,85,0.08)] sm:p-5">
+				<div className="flex flex-wrap items-center justify-between gap-3">
+					<div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.24em] text-[#B7770D]">
+						<Filter className="size-4" />
+						Filters
+					</div>
+					<div className="flex flex-wrap items-center gap-2">
+						<div className="inline-flex rounded-2xl border border-[#d3dfed] bg-[#f8fbff] p-1">
+							{[
+								["table", "Table"],
+								["cards", "Cards"],
+							].map(([value, label]) => (
+								<button
+									key={value}
+									type="button"
+									onClick={() => setListView(value as "table" | "cards")}
+									className={`h-9 rounded-xl px-4 text-xs font-black uppercase tracking-[0.12em] transition ${
+										listView === value
+											? "bg-[#0D2B55] text-white shadow-sm"
+											: "text-[#60728f] hover:text-[#0D2B55]"
+									}`}
+								>
+									{label}
+								</button>
+							))}
+						</div>
+						<button
+							type="button"
+							onClick={clearFilters}
+							className="inline-flex h-10 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white px-4 text-xs font-black uppercase tracking-[0.12em] text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+						>
+							Reset filters
+						</button>
+					</div>
+				</div>
+				<div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+					<label className="relative xl:col-span-2">
+						<Search className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[#7b8faa]" />
+						<input
+							value={search}
+							onChange={(event) => setSearch(event.target.value)}
+							placeholder="Search hostel, warden, block, or amenity"
+							className="h-12 w-full rounded-2xl border border-[#d3dfed] bg-[#f8fbff] pl-11 pr-4 text-sm font-semibold text-[#0D2B55] outline-none transition focus:border-[#2E86C1]"
+						/>
+					</label>
+					<select
+						value={status}
+						onChange={(event) => setStatus(event.target.value as HostelStatus | "all")}
+						className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+					>
+						<option value="all">All status</option>
+						{Object.entries(STATUS_LABELS).map(([value, label]) => (
+							<option key={value} value={value}>
+								{label}
+							</option>
+						))}
+					</select>
+					<select
+						value={gender}
+						onChange={(event) => setGender(event.target.value as HostelGender | "all")}
+						className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+					>
+						<option value="all">All hostel types</option>
+						{GENDER_OPTIONS.map((option) => (
+							<option key={option} value={option}>
+								{option}
+							</option>
+						))}
+					</select>
+				</div>
+			</div>
+
+			<div className="rounded-3xl border border-[#d7e2f0] bg-white shadow-[0_18px_45px_rgba(13,43,85,0.08)]">
+				<div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#dbe5f1] px-4 py-4 sm:px-5">
+					<div>
+						<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#B7770D]">
+							{listView === "table" ? "Hostel Table" : "Hostel Cards"}
+						</p>
+						<p className="mt-1 text-sm font-semibold text-[#60728f]">
+							Showing {filteredHostels.length} of {hostels.length} hostels
+						</p>
+					</div>
+					<button
+						type="button"
+						onClick={onMaintenance}
+						className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-black text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+					>
+						<Wrench className="size-4" />
+						Maintenance
+					</button>
+				</div>
+
+				{filteredHostels.length === 0 ? (
+					<div className="p-8 text-center">
+						<div className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#eef4fb] text-[#2E86C1]">
+							<Building2 className="size-6" />
+						</div>
+						<h3 className="mt-4 text-lg font-black text-[#06183A]">
+							No hostels found
+						</h3>
+						<p className="mt-2 text-sm text-[#60728f]">
+							Adjust the filters to find an available bed space.
+						</p>
+					</div>
+				) : listView === "table" ? (
+					<div className="overflow-x-auto">
+						<table className="min-w-[980px] w-full border-collapse text-left">
+							<thead className="bg-[#f8fbff]">
+								<tr className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8395AF]">
+									<th className="px-5 py-4">Hostel</th>
+									<th className="px-5 py-4">Type</th>
+									<th className="px-5 py-4">Availability</th>
+									<th className="px-5 py-4">Fee</th>
+									<th className="px-5 py-4">Status</th>
+									<th className="px-5 py-4">Updated</th>
+									<th className="px-5 py-4 text-right">Actions</th>
+								</tr>
+							</thead>
+							<tbody className="divide-y divide-[#dbe5f1]">
+								{filteredHostels.map((hostel) => (
+									<tr key={hostel.id} className="bg-white transition hover:bg-[#f8fbff]">
+										<td className="px-5 py-4">
+											<p className="font-black text-[#06183A]">{hostel.name}</p>
+											<p className="mt-1 max-w-[18rem] break-words text-sm font-semibold text-[#60728f]">
+												{hostel.warden}
+											</p>
+										</td>
+										<td className="px-5 py-4">
+											<p className="text-sm font-black text-[#0D2B55]">
+												{hostel.gender}
+											</p>
+										</td>
+										<td className="px-5 py-4">
+											<p className="text-sm font-black text-[#0D2B55]">
+												{hostel.availableBeds} / {hostel.totalBeds} beds
+											</p>
+											<p className="mt-1 max-w-[16rem] truncate text-xs font-bold text-[#60728f]">
+												{hostel.blocks.join(", ")}
+											</p>
+										</td>
+										<td className="px-5 py-4">
+											<p className="text-sm font-black text-[#0D2B55]">{hostel.fee}</p>
+										</td>
+										<td className="px-5 py-4">
+											<span className={`rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${getStatusClass(hostel.status)}`}>
+												{STATUS_LABELS[hostel.status]}
+											</span>
+										</td>
+										<td className="px-5 py-4">
+											<p className="text-sm font-bold text-[#60728f]">
+												{formatDate(hostel.updatedAt)}
+											</p>
+										</td>
+										<td className="px-5 py-4">
+											<RowActionMenu
+												label={`Open actions for ${hostel.name}`}
+												open={openActionsId === hostel.id}
+												onOpenChange={(open) => setOpenActionsId(open ? hostel.id : null)}
+												menuClassName="z-[160]"
+												width={216}
+												items={[
+													{
+														label: "View Details",
+														icon: <Eye className="size-4" />,
+														onSelect: () => {
+															onView(hostel);
+															setOpenActionsId(null);
+														},
+													},
+													{
+														label: "Book Bed",
+														icon: <BedDouble className="size-4" />,
+														disabled: hostel.status === "full",
+														onSelect: () => {
+															onBook(hostel);
+															setOpenActionsId(null);
+														},
+													},
+													{
+														label: "Pay Hostel Fee",
+														icon: <CreditCard className="size-4" />,
+														onSelect: () => {
+															onPayment();
+															setOpenActionsId(null);
+														},
+													},
+													{
+														label: "Maintenance",
+														icon: <Wrench className="size-4" />,
+														onSelect: () => {
+															onMaintenance();
+															setOpenActionsId(null);
+														},
+													},
+												]}
+											/>
+										</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
+				) : (
+					<div className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">
+						{filteredHostels.map((hostel) => (
+							<HostelCard
+								key={hostel.id}
+								hostel={hostel}
+								onView={onView}
+								onBook={onBook}
+							/>
+						))}
+					</div>
+				)}
+			</div>
+
+			<div>
+				<h3 className="mb-3 text-sm font-bold text-[#0D2B55]">
+					Hostel Booking Flow
+				</h3>
+				<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+					{BOOKING_STEPS.map((step, index) => (
+						<BookingStepCard key={step.title} step={step} index={index} />
+					))}
+				</div>
 			</div>
 
 			<div className="rounded-2xl border border-[#f0cb7c] bg-[#fff8e8] p-4">
@@ -1181,60 +1430,25 @@ function DashboardView({
 						</div>
 						<div>
 							<p className="text-sm font-bold text-[#7a4a00]">
-								Bed Space Booking Now Open - 2026/2027
+								Bed space booking is open for 2026/2027
 							</p>
 							<p className="mt-1 text-sm leading-relaxed text-[#8a650d]">
-								Complete your payment first, then select your preferred hall,
-								block, room, and bed number.
+								Start from an available hostel, reserve a bed, complete payment,
+								then use maintenance only when an allocated room needs attention.
 							</p>
 						</div>
 					</div>
 					<button
 						type="button"
-						onClick={onApply}
-						className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#B7770D] px-5 text-sm font-bold text-white shadow-sm transition hover:bg-[#986006]"
-					>
-						Apply Now
-						<ArrowRight className="size-4" />
-					</button>
-				</div>
-			</div>
-
-			<div>
-				<h3 className="mb-3 text-sm font-bold text-[#0D2B55]">
-					How to Get a Bed Space
-				</h3>
-				<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-					{BOOKING_STEPS.map((step, index) => (
-						<BookingStepCard key={step.title} step={step} index={index} />
-					))}
-				</div>
-			</div>
-
-			<div>
-				<div className="mb-3 flex items-center justify-between gap-3">
-					<h3 className="text-sm font-bold text-[#0D2B55]">Featured Hostels</h3>
-					<button
-						type="button"
 						onClick={onBrowse}
-						className="inline-flex items-center gap-1 text-sm font-bold text-[#B7770D]"
+						className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#B7770D] px-5 text-sm font-bold text-white shadow-sm transition hover:bg-[#986006]"
 					>
 						Browse All
 						<ArrowRight className="size-4" />
 					</button>
 				</div>
-				<div className="grid gap-4 xl:grid-cols-3">
-					{hostels.slice(0, 3).map((hostel) => (
-						<HostelCard
-							key={hostel.id}
-							hostel={hostel}
-							onView={onView}
-							onBook={onBook}
-						/>
-					))}
-				</div>
 			</div>
-		</div>
+		</section>
 	);
 }
 
@@ -4670,6 +4884,8 @@ export default function HostelModuleWorkspace({
 				onBrowse={() => setActiveView("browse")}
 				onView={viewHostel}
 				onBook={bookHostel}
+				onPayment={() => setActiveView("payment")}
+				onMaintenance={() => setActiveView("maintenance")}
 			/>
 		);
 	}
