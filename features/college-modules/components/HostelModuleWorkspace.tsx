@@ -1003,7 +1003,7 @@ function HostelCard({
 						className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-[#d7e2f0] bg-white px-4 text-sm font-bold text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
 					>
 						<Eye className="size-4" />
-						View Details
+						View Data
 					</button>
 					<button
 						type="button"
@@ -1012,7 +1012,7 @@ function HostelCard({
 						className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[#0f9d6a] px-4 text-sm font-bold text-white shadow-sm transition hover:bg-[#0b8158] disabled:cursor-not-allowed disabled:bg-[#a6d9c4]"
 					>
 						<BedDouble className="size-4" />
-						{canBook ? "Book Now" : "Full"}
+						{canBook ? "Book Hostel" : "Full"}
 					</button>
 				</div>
 			</div>
@@ -1148,15 +1148,15 @@ function DashboardView({
 				<div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
 					<div>
 						<p className="text-[11px] font-black uppercase tracking-[0.28em] text-[#B7770D]">
-							{collegeName}
+							Hostel Analytics
 						</p>
 						<h2 className="mt-2 text-2xl font-black text-[#06183A]">
 							Student hostel dashboard
 						</h2>
 						<p className="mt-2 max-w-3xl text-sm leading-7 text-[#556987]">
-							Choose a hostel, confirm available beds, book a bed space, pay the
-							hostel fee, and raise a maintenance request when residence support
-							is needed.
+							Review {collegeName} hostel options, confirm available beds, book
+							a bed space, pay the hostel fee, and raise a maintenance request
+							when residence support is needed.
 						</p>
 					</div>
 					<div className="flex flex-col gap-2 sm:flex-row">
@@ -1198,25 +1198,6 @@ function DashboardView({
 						Filters
 					</div>
 					<div className="flex flex-wrap items-center gap-2">
-						<div className="inline-flex rounded-2xl border border-[#d3dfed] bg-[#f8fbff] p-1">
-							{[
-								["table", "Table"],
-								["cards", "Cards"],
-							].map(([value, label]) => (
-								<button
-									key={value}
-									type="button"
-									onClick={() => setListView(value as "table" | "cards")}
-									className={`h-9 rounded-xl px-4 text-xs font-black uppercase tracking-[0.12em] transition ${
-										listView === value
-											? "bg-[#0D2B55] text-white shadow-sm"
-											: "text-[#60728f] hover:text-[#0D2B55]"
-									}`}
-								>
-									{label}
-								</button>
-							))}
-						</div>
 						<button
 							type="button"
 							onClick={clearFilters}
@@ -1267,20 +1248,47 @@ function DashboardView({
 				<div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#dbe5f1] px-4 py-4 sm:px-5">
 					<div>
 						<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#B7770D]">
-							{listView === "table" ? "Hostel Table" : "Hostel Cards"}
+							Hostel Options
 						</p>
 						<p className="mt-1 text-sm font-semibold text-[#60728f]">
 							Showing {filteredHostels.length} of {hostels.length} hostels
 						</p>
 					</div>
-					<button
-						type="button"
-						onClick={onMaintenance}
-						className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-black text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
-					>
-						<Wrench className="size-4" />
-						Maintenance
-					</button>
+					<div className="flex flex-wrap items-center gap-2">
+						<div
+							className="inline-flex rounded-2xl border border-[#d3dfed] bg-[#f8fbff] p-1"
+							role="tablist"
+							aria-label="Hostel result views"
+						>
+							{[
+								["table", "Responsive Table"],
+								["cards", "Hostel Cards"],
+							].map(([value, label]) => (
+								<button
+									key={value}
+									type="button"
+									role="tab"
+									aria-selected={listView === value}
+									onClick={() => setListView(value as "table" | "cards")}
+									className={`h-10 rounded-xl px-4 text-xs font-black uppercase tracking-[0.12em] transition ${
+										listView === value
+											? "bg-[#0D2B55] text-white shadow-sm"
+											: "text-[#60728f] hover:text-[#0D2B55]"
+									}`}
+								>
+									{label}
+								</button>
+							))}
+						</div>
+						<button
+							type="button"
+							onClick={onMaintenance}
+							className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-black text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+						>
+							<Wrench className="size-4" />
+							Maintenance
+						</button>
+					</div>
 				</div>
 
 				{filteredHostels.length === 0 ? (
@@ -1296,7 +1304,7 @@ function DashboardView({
 						</p>
 					</div>
 				) : listView === "table" ? (
-					<div className="overflow-x-auto">
+					<div role="tabpanel" className="overflow-x-auto">
 						<table className="min-w-[980px] w-full border-collapse text-left">
 							<thead className="bg-[#f8fbff]">
 								<tr className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8395AF]">
@@ -1344,16 +1352,16 @@ function DashboardView({
 												{formatDate(hostel.updatedAt)}
 											</p>
 										</td>
-										<td className="px-5 py-4">
+										<td className="px-5 py-4 text-right">
 											<RowActionMenu
 												label={`Open actions for ${hostel.name}`}
 												open={openActionsId === hostel.id}
 												onOpenChange={(open) => setOpenActionsId(open ? hostel.id : null)}
-												menuClassName="z-[160]"
+												menuClassName="z-[999]"
 												width={216}
 												items={[
 													{
-														label: "View Details",
+														label: "View Data",
 														icon: <Eye className="size-4" />,
 														onSelect: () => {
 															onView(hostel);
@@ -1361,7 +1369,7 @@ function DashboardView({
 														},
 													},
 													{
-														label: "Book Bed",
+														label: "Book Hostel",
 														icon: <BedDouble className="size-4" />,
 														disabled: hostel.status === "full",
 														onSelect: () => {
@@ -1386,7 +1394,7 @@ function DashboardView({
 						</table>
 					</div>
 				) : (
-					<div className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">
+					<div role="tabpanel" className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">
 						{filteredHostels.map((hostel) => (
 							<HostelCard
 								key={hostel.id}
