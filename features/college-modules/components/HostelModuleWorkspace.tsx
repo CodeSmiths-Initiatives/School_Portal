@@ -19,7 +19,14 @@ import {
 	Wrench,
 	X,
 } from "lucide-react";
-import { useEffect, useMemo, useState, type ElementType, type ReactNode } from "react";
+import {
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+	type ElementType,
+	type ReactNode,
+} from "react";
 import { RowActionMenu } from "@/components/ui/row-action-menu";
 import type { DashboardDomain } from "@/lib/auth";
 import {
@@ -3636,6 +3643,7 @@ function RoomModal({
 	draft,
 	hostels,
 	canSave,
+	isSaving,
 	onClose,
 	onDraftChange,
 	onSave,
@@ -3645,9 +3653,10 @@ function RoomModal({
 	draft: RoomDraft;
 	hostels: HostelItem[];
 	canSave: boolean;
+	isSaving: boolean;
 	onClose: () => void;
 	onDraftChange: (draft: RoomDraft) => void;
-	onSave: () => void;
+	onSave: () => Promise<void>;
 }) {
 	if (!mode) {
 		return null;
@@ -3803,11 +3812,17 @@ function RoomModal({
 							<button
 								type="button"
 								onClick={onSave}
-								disabled={!canSave || !draft.id.trim() || !draft.hostel.trim()}
+								disabled={
+									isSaving || !canSave || !draft.id.trim() || !draft.hostel.trim()
+								}
 								className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] px-5 py-3 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.18)] transition hover:-translate-y-0.5 hover:bg-[#123866] disabled:cursor-not-allowed disabled:opacity-50"
 							>
 								{mode === "create" ? <Plus className="size-4" /> : <Edit3 className="size-4" />}
-								{mode === "create" ? "Create room" : "Save room"}
+								{isSaving
+									? "Saving..."
+									: mode === "create"
+										? "Create room"
+										: "Save room"}
 							</button>
 						)}
 					</div>
@@ -4434,6 +4449,7 @@ function HostelModal({
 	hostel,
 	draft,
 	canSave,
+	isSaving,
 	onClose,
 	onDraftChange,
 	onSave,
@@ -4442,9 +4458,10 @@ function HostelModal({
 	hostel: HostelItem | null;
 	draft: HostelDraft;
 	canSave: boolean;
+	isSaving: boolean;
 	onClose: () => void;
 	onDraftChange: (draft: HostelDraft) => void;
-	onSave: () => void;
+	onSave: () => Promise<void>;
 }) {
 	if (!mode) {
 		return null;
@@ -4595,11 +4612,15 @@ function HostelModal({
 							<button
 								type="button"
 								onClick={onSave}
-								disabled={!canSave || !draft.name.trim()}
+								disabled={isSaving || !canSave || !draft.name.trim()}
 								className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] px-5 py-3 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.18)] transition hover:-translate-y-0.5 hover:bg-[#123866] disabled:cursor-not-allowed disabled:opacity-50"
 							>
 								{mode === "create" ? <Plus className="size-4" /> : <Edit3 className="size-4" />}
-								{mode === "create" ? "Create hostel" : "Save hostel"}
+								{isSaving
+									? "Saving..."
+									: mode === "create"
+										? "Create hostel"
+										: "Save hostel"}
 							</button>
 						)}
 					</div>
@@ -4956,9 +4977,13 @@ export default function HostelModuleWorkspace({
 	const [modalMode, setModalMode] = useState<HostelModalMode | null>(null);
 	const [modalHostel, setModalHostel] = useState<HostelItem | null>(null);
 	const [hostelDraft, setHostelDraft] = useState<HostelDraft>(getHostelDraft());
+	const [isSavingHostel, setIsSavingHostel] = useState(false);
+	const isSavingHostelRef = useRef(false);
 	const [roomModalMode, setRoomModalMode] = useState<RoomModalMode | null>(null);
 	const [modalRoom, setModalRoom] = useState<RoomItem | null>(null);
 	const [roomDraft, setRoomDraft] = useState<RoomDraft>(getRoomDraft());
+	const [isSavingRoom, setIsSavingRoom] = useState(false);
+	const isSavingRoomRef = useRef(false);
 	const [allocationModalMode, setAllocationModalMode] =
 		useState<AllocationModalMode | null>(null);
 	const [modalAllocation, setModalAllocation] = useState<AllocationItem | null>(null);
@@ -5269,14 +5294,20 @@ export default function HostelModuleWorkspace({
 	}
 
 	function closeHostelModal() {
+		isSavingHostelRef.current = false;
+		setIsSavingHostel(false);
 		setModalMode(null);
 		setModalHostel(null);
 	}
 
 	async function saveHostel() {
-		if (!canSaveHostel || !hostelDraft.name.trim()) {
+		if (!canSaveHostel || !hostelDraft.name.trim() || isSavingHostelRef.current) {
 			return;
 		}
+
+		isSavingHostelRef.current = true;
+		setIsSavingHostel(true);
+		setLiveError("");
 
 		if (modalMode === "create") {
 			try {
@@ -5299,6 +5330,9 @@ export default function HostelModuleWorkspace({
 					error instanceof Error ? error.message : "Unable to create hostel.",
 				);
 				return;
+			} finally {
+				isSavingHostelRef.current = false;
+				setIsSavingHostel(false);
 			}
 		}
 
@@ -5340,14 +5374,25 @@ export default function HostelModuleWorkspace({
 	}
 
 	function closeRoomModal() {
+		isSavingRoomRef.current = false;
+		setIsSavingRoom(false);
 		setRoomModalMode(null);
 		setModalRoom(null);
 	}
 
 	async function saveRoom() {
-		if (!canSaveRoom || !roomDraft.id.trim() || !roomDraft.hostel.trim()) {
+		if (
+			!canSaveRoom ||
+			!roomDraft.id.trim() ||
+			!roomDraft.hostel.trim() ||
+			isSavingRoomRef.current
+		) {
 			return;
 		}
+
+		isSavingRoomRef.current = true;
+		setIsSavingRoom(true);
+		setLiveError("");
 
 		if (roomModalMode === "create") {
 			const hostel = hostels.find((item) => item.name === roomDraft.hostel.trim());
@@ -5372,6 +5417,9 @@ export default function HostelModuleWorkspace({
 						error instanceof Error ? error.message : "Unable to create room.",
 					);
 					return;
+				} finally {
+					isSavingRoomRef.current = false;
+					setIsSavingRoom(false);
 				}
 			}
 		}
@@ -5747,6 +5795,7 @@ export default function HostelModuleWorkspace({
 				hostel={modalHostel}
 				draft={hostelDraft}
 				canSave={canSaveHostel}
+				isSaving={isSavingHostel}
 				onClose={closeHostelModal}
 				onDraftChange={setHostelDraft}
 				onSave={saveHostel}
@@ -5757,6 +5806,7 @@ export default function HostelModuleWorkspace({
 				draft={roomDraft}
 				hostels={hostels}
 				canSave={canSaveRoom}
+				isSaving={isSavingRoom}
 				onClose={closeRoomModal}
 				onDraftChange={setRoomDraft}
 				onSave={saveRoom}

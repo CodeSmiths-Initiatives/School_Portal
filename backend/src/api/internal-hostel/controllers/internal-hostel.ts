@@ -450,13 +450,28 @@ export default {
 		});
 
 		if (duplicate?.id) {
-			return ctx.conflict?.("A hostel with this code already exists.") ??
-				ctx.badRequest("A hostel with this code already exists.");
+			ctx.body = { hostel: mapHostel(duplicate as Record<string, unknown>, []) };
+			return;
 		}
 
-		const hostel = await strapi.db.query("api::hostel.hostel").create({
-			data: { ...payload, college: college.id },
-		});
+		let hostel;
+
+		try {
+			hostel = await strapi.db.query("api::hostel.hostel").create({
+				data: { ...payload, college: college.id },
+			});
+		} catch (error) {
+			const existing = await strapi.db.query("api::hostel.hostel").findOne({
+				where: { college: college.id, code: payload.code, status: { $ne: "archived" } },
+			});
+
+			if (existing?.id) {
+				ctx.body = { hostel: mapHostel(existing as Record<string, unknown>, []) };
+				return;
+			}
+
+			throw error;
+		}
 
 		await createAuditLog({
 			collegeId: college.id,
@@ -501,36 +516,58 @@ export default {
 		});
 
 		if (duplicate?.id) {
-			return ctx.conflict?.("This room already exists in the selected hostel.") ??
-				ctx.badRequest("This room already exists in the selected hostel.");
+			const existingRoom = await findRoomForCollege(String(duplicate.id), college.id);
+			ctx.body = { room: mapRoom(existingRoom as Record<string, unknown>) };
+			return;
 		}
 
-		const room = await strapi.db.query("api::hostel-room.hostel-room").create({
-			data: {
-				roomNumber: payload.roomNumber,
-				block: payload.block,
-				floor: payload.floor,
-				capacity: payload.capacity,
-				status: payload.status,
-				wardenNote: payload.wardenNote,
-				college: college.id,
-				hostel: hostel.id,
-			},
-		});
+		let room;
 		const bedPrice = payload.price || asNumber(hostel.fee);
 
-		for (let index = 1; index <= payload.capacity; index += 1) {
-			await strapi.db.query("api::hostel-bed.hostel-bed").create({
+		try {
+			room = await strapi.db.query("api::hostel-room.hostel-room").create({
 				data: {
-					label: `Bed ${index}`,
-					price: bedPrice,
-					currency: asString(hostel.currency, "NGN"),
-					status: payload.status === "maintenance" ? "maintenance" : "available",
+					roomNumber: payload.roomNumber,
+					block: payload.block,
+					floor: payload.floor,
+					capacity: payload.capacity,
+					status: payload.status,
+					wardenNote: payload.wardenNote,
 					college: college.id,
 					hostel: hostel.id,
-					room: room.id,
 				},
 			});
+
+			for (let index = 1; index <= payload.capacity; index += 1) {
+				await strapi.db.query("api::hostel-bed.hostel-bed").create({
+					data: {
+						label: `Bed ${index}`,
+						price: bedPrice,
+						currency: asString(hostel.currency, "NGN"),
+						status: payload.status === "maintenance" ? "maintenance" : "available",
+						college: college.id,
+						hostel: hostel.id,
+						room: room.id,
+					},
+				});
+			}
+		} catch (error) {
+			const existing = await strapi.db.query("api::hostel-room.hostel-room").findOne({
+				where: {
+					college: college.id,
+					hostel: hostel.id,
+					roomNumber: payload.roomNumber,
+					status: { $ne: "archived" },
+				},
+			});
+
+			if (existing?.id) {
+				const existingRoom = await findRoomForCollege(String(existing.id), college.id);
+				ctx.body = { room: mapRoom(existingRoom as Record<string, unknown>) };
+				return;
+			}
+
+			throw error;
 		}
 
 		const savedRoom = await findRoomForCollege(String(room.id), college.id);
