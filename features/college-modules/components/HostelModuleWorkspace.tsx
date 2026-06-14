@@ -290,6 +290,7 @@ const INITIAL_HOSTELS: HostelItem[] = [
 ];
 
 const STUDENT_MENU: HostelMenuItem[] = [
+	{ label: "Dashboard", view: "dashboard", icon: Building2 },
 	{ label: "Browse Hostels", view: "browse", icon: Search },
 	{ label: "My Allocation", view: "allocation", icon: BedDouble },
 	{ label: "Hostel Payment", view: "payment", icon: CreditCard },
@@ -4796,7 +4797,7 @@ export default function HostelModuleWorkspace({
 	);
 	const [hostelPayments] = useState(INITIAL_HOSTEL_PAYMENTS);
 	const [activeView, setActiveView] = useState<HostelView>(
-		isStudentDomain ? "browse" : "manage",
+		isStudentDomain ? "dashboard" : "manage",
 	);
 	const [selectedHostel, setSelectedHostel] = useState<HostelItem | null>(INITIAL_HOSTELS[0]);
 	const [selectedRoomId, setSelectedRoomId] = useState("");
