@@ -7,7 +7,9 @@ import {
   Building2,
   CalendarRange,
   CircleDollarSign,
+  ClipboardList,
   FileBarChart2,
+  Filter,
   FolderKanban,
   GraduationCap,
   LayoutDashboard,
@@ -60,8 +62,14 @@ export type DashboardReportPanel = {
   title: string;
   description: string;
   summary: string;
-  variant?: "bar" | "line";
+  variant?: "bar" | "line" | "area" | "ranked";
   points: DashboardReportPoint[];
+};
+
+export type DashboardPaymentReport = {
+  title: string;
+  description: string;
+  filters: string[];
 };
 
 export type DashboardTenantContext = {
@@ -84,6 +92,7 @@ type RoleDashboardShellProps = {
   activity: DashboardActivity[];
   quickLinks: DashboardQuickLink[];
   reportPanel?: DashboardReportPanel;
+  paymentReports?: DashboardPaymentReport[];
   tenantContext?: DashboardTenantContext;
   children?: React.ReactNode;
   showOverviewContent?: boolean;
@@ -130,6 +139,7 @@ export default function RoleDashboardShell({
   activity,
   quickLinks,
   reportPanel,
+  paymentReports,
   tenantContext,
   children,
   showOverviewContent = true,
@@ -268,7 +278,7 @@ export default function RoleDashboardShell({
 
                     <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_16rem]">
                       <div className="rounded-2xl border border-[#e2eaf4] bg-[linear-gradient(180deg,#fbfdff_0%,#f5f9fe_100%)] p-4">
-                        {reportPanel.variant === "line" ? (
+                        {reportPanel.variant === "line" || reportPanel.variant === "area" ? (
                           <div className="h-52">
                             <div className="relative h-40 overflow-hidden rounded-2xl border border-[#e2eaf4] bg-white">
                               <div className="absolute inset-x-0 top-1/4 border-t border-dashed border-[#dbe5f1]" />
@@ -317,7 +327,11 @@ export default function RoleDashboardShell({
                                       return `${x},${y}`;
                                     })
                                     .join(" ")} 300,140`}
-                                  fill="url(#tenant-line-fill)"
+                                  fill={
+                                    reportPanel.variant === "area"
+                                      ? "url(#tenant-line-fill)"
+                                      : "transparent"
+                                  }
                                 />
                                 <polyline
                                   points={reportPanel.points
@@ -336,8 +350,8 @@ export default function RoleDashboardShell({
                                     })
                                     .join(" ")}
                                   fill="none"
-                                  stroke="#0D2B55"
-                                  strokeWidth="4"
+                                  stroke={reportPanel.variant === "area" ? "#2E86C1" : "#0D2B55"}
+                                  strokeWidth={reportPanel.variant === "area" ? "5" : "4"}
                                   strokeLinecap="round"
                                   strokeLinejoin="round"
                                 />
@@ -352,15 +366,27 @@ export default function RoleDashboardShell({
                                     140 -
                                     (Math.min(point.value, 100) / 100) * 112;
                                   return (
-                                    <circle
-                                      key={`${point.label}-${index}-dot`}
-                                      cx={x}
-                                      cy={y}
-                                      r="5"
-                                      fill="#B7770D"
-                                      stroke="white"
-                                      strokeWidth="3"
-                                    />
+                                    <g key={`${point.label}-${index}-dot`}>
+                                      {reportPanel.variant === "area" ? (
+                                        <line
+                                          x1={x}
+                                          x2={x}
+                                          y1={y}
+                                          y2="140"
+                                          stroke="#B7770D"
+                                          strokeOpacity="0.22"
+                                          strokeWidth="3"
+                                        />
+                                      ) : null}
+                                      <circle
+                                        cx={x}
+                                        cy={y}
+                                        r={reportPanel.variant === "area" ? "6" : "5"}
+                                        fill="#B7770D"
+                                        stroke="white"
+                                        strokeWidth="3"
+                                      />
+                                    </g>
                                   );
                                 })}
                               </svg>
@@ -380,6 +406,40 @@ export default function RoleDashboardShell({
                                 </div>
                               ))}
                             </div>
+                          </div>
+                        ) : reportPanel.variant === "ranked" ? (
+                          <div className="space-y-4">
+                            {reportPanel.points.map((point, index) => (
+                              <div
+                                key={`${point.label}-${index}-ranked`}
+                                className="rounded-2xl border border-[#dbe5f1] bg-white p-4"
+                              >
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="flex min-w-0 items-center gap-3">
+                                    <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#0D2B55] text-sm font-bold text-white">
+                                      {index + 1}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className="truncate text-sm font-bold text-[#0D2B55]">
+                                        {point.label}
+                                      </p>
+                                      <p className="mt-1 text-xs font-semibold text-[#60728f]">
+                                        Revenue rank
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <p className="shrink-0 text-sm font-bold text-[#B7770D]">
+                                    {point.amount}
+                                  </p>
+                                </div>
+                                <div className="mt-3 h-3 overflow-hidden rounded-full bg-[#e6eef8]">
+                                  <div
+                                    className="h-full rounded-full bg-[linear-gradient(90deg,#B7770D_0%,#2E86C1_58%,#0D2B55_100%)]"
+                                    style={{ width: `${point.value}%` }}
+                                  />
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         ) : (
                           <div className="flex h-52 items-end gap-3">
@@ -423,6 +483,57 @@ export default function RoleDashboardShell({
                           </div>
                         ))}
                       </div>
+                    </div>
+                  </section>
+                ) : null}
+
+                {paymentReports?.length ? (
+                  <section className="rounded-2xl border border-[#dbe5f1] bg-white p-5 shadow-sm">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#B7770D]">
+                          Payment Reports
+                        </p>
+                        <h2 className="mt-2 text-xl font-bold text-[#0D2B55]">
+                          Useful payment views to add next
+                        </h2>
+                      </div>
+                      <div className="flex items-center gap-2 rounded-full border border-[#dbe5f1] bg-[#f8fbff] px-4 py-2 text-xs font-semibold text-[#4f6788]">
+                        <Filter className="size-3.5" />
+                        Filter-ready
+                      </div>
+                    </div>
+                    <div className="mt-5 grid gap-4 lg:grid-cols-3">
+                      {paymentReports.map((report) => (
+                        <article
+                          key={report.title}
+                          className="rounded-2xl border border-[#e2eaf4] bg-[#fbfdff] p-4"
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#edf4fb] text-[#2E86C1]">
+                              <ClipboardList className="size-4.5" />
+                            </div>
+                            <div>
+                              <h3 className="text-base font-semibold text-[#17305f]">
+                                {report.title}
+                              </h3>
+                              <p className="mt-2 text-sm leading-relaxed text-[#60728f]">
+                                {report.description}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            {report.filters.map((filter) => (
+                              <span
+                                key={`${report.title}-${filter}`}
+                                className="rounded-full border border-[#dbe5f1] bg-white px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-[#60728f]"
+                              >
+                                {filter}
+                              </span>
+                            ))}
+                          </div>
+                        </article>
+                      ))}
                     </div>
                   </section>
                 ) : null}

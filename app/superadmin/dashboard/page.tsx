@@ -37,6 +37,7 @@ export default async function SuperadminDashboardPage() {
 			activity={dashboard.activity}
 			quickLinks={dashboard.quickLinks}
 			reportPanel={dashboard.reportPanel}
+			paymentReports={dashboard.paymentReports}
 			tenantContext={dashboard.tenantContext}
 		/>
 	);

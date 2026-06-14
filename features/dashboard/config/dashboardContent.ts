@@ -1,6 +1,7 @@
 import type {
 	DashboardActivity,
 	DashboardHighlight,
+	DashboardPaymentReport,
 	DashboardQuickLink,
 	DashboardReportPanel,
 	DashboardStat,
@@ -23,6 +24,7 @@ type DashboardContentBundle = {
 	activity: DashboardActivity[];
 	quickLinks: DashboardQuickLink[];
 	reportPanel?: DashboardReportPanel;
+	paymentReports?: DashboardPaymentReport[];
 	tenantContext?: DashboardTenantContext;
 };
 
@@ -456,12 +458,32 @@ export function createCollegeAdminDashboardContent(
 			description:
 				"Live month-by-month collection movement for this college, paired with pending payment value and invoice volume.",
 			summary: `${formatNumber(summary?.totalInvoices ?? 0)} invoices`,
-			variant: "line",
+			variant: "area",
 			points:
 				monthlyPaymentPoints.length > 0
 					? monthlyPaymentPoints
 					: [{ label: "Current", value: 8, amount: formatCurrency(totalPaid) }],
 		},
+		paymentReports: [
+			{
+				title: "Collections by month",
+				description:
+					"Area trend for paid value, pending value, and invoice count so bursary can spot slow collection periods.",
+				filters: ["Date range", "Status", "Module"],
+			},
+			{
+				title: "Outstanding invoices",
+				description:
+					"Age unpaid invoices by programme, student level, and payment category for follow-up queues.",
+				filters: ["Programme", "Level", "Age band"],
+			},
+			{
+				title: "Verification activity",
+				description:
+					"Show verified, failed, and pending transactions with gateway reference and cashier action history.",
+				filters: ["Gateway", "Verifier", "Reference"],
+			},
+		],
 	};
 }
 
@@ -592,11 +614,31 @@ export function createSuperadminDashboardContent(input?: {
 			description:
 				"Live college comparison for revenue concentration, student payment activity, and executive follow-up.",
 			summary: `${formatNumber(rows.length)} college row${rows.length === 1 ? "" : "s"}`,
-			variant: "bar",
+			variant: "ranked",
 			points:
 				revenuePoints.length > 0
 					? revenuePoints
 					: [{ label: "Live", value: 8, amount: formatCurrency(totals.revenue) }],
 		},
+		paymentReports: [
+			{
+				title: "College revenue ranking",
+				description:
+					"Rank colleges by collected revenue, unpaid value, completion rate, and transaction volume.",
+				filters: ["College", "Date range", "Status"],
+			},
+			{
+				title: "Payment completion mix",
+				description:
+					"Compare paid versus unpaid records across colleges to identify campuses needing intervention.",
+				filters: ["College status", "Module", "Payment state"],
+			},
+			{
+				title: "Reconciliation exceptions",
+				description:
+					"List gateway successes without matching ledger entries, duplicate references, and stale pending invoices.",
+				filters: ["Gateway", "Exception", "Age band"],
+			},
+		],
 	};
 }
