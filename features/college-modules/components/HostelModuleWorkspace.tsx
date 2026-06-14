@@ -53,6 +53,9 @@ type RoomModalMode = "create" | "view" | "edit";
 type RoomStatus = "Available" | "Partial" | "Full" | "Maintenance";
 type AllocationModalMode = "create" | "view" | "edit";
 type AllocationStatus = "Pending" | "Allocated" | "Paid" | "Review" | "Cancelled";
+type MaintenanceModalMode = "view" | "manage";
+type MaintenanceStatus = "Open" | "In Progress" | "Resolved" | "Escalated";
+type MaintenancePriority = "Low" | "Medium" | "High" | "Critical";
 
 type HostelItem = {
 	id: string;
@@ -134,6 +137,31 @@ type AllocationDraft = {
 	status: AllocationStatus;
 	allocatedBy: string;
 	note: string;
+};
+
+type MaintenanceRequestItem = {
+	id: string;
+	studentName: string;
+	matricNo: string;
+	hostel: string;
+	room: string;
+	bed: string;
+	category: string;
+	issue: string;
+	description: string;
+	priority: MaintenancePriority;
+	status: MaintenanceStatus;
+	assignedTo: string;
+	reportedAt: string;
+	updatedAt: string;
+	resolutionNote: string;
+};
+
+type MaintenanceRequestDraft = {
+	status: MaintenanceStatus;
+	priority: MaintenancePriority;
+	assignedTo: string;
+	resolutionNote: string;
 };
 
 type HostelMenuItem = {
@@ -285,6 +313,12 @@ const ADMIN_MENU: HostelMenuItem[] = [
 		icon: ShieldCheck,
 		requiredPermissions: ["hostels.allocate"],
 	},
+	{
+		label: "Maintenance",
+		view: "maintenance",
+		icon: Wrench,
+		requiredPermissions: ["hostels.view"],
+	},
 ];
 
 const INITIAL_ROOMS: RoomItem[] = [
@@ -425,6 +459,79 @@ const INITIAL_ALLOCATIONS: AllocationItem[] = [
 	},
 ];
 
+const INITIAL_MAINTENANCE_REQUESTS: MaintenanceRequestItem[] = [
+	{
+		id: "mnt-001",
+		studentName: "Ibrahim Fatimah",
+		matricNo: "KASU/ND/25/0142",
+		hostel: "Moremi Hall",
+		room: "A101",
+		bed: "Bed 3",
+		category: "Door and security",
+		issue: "Broken door lock",
+		description:
+			"The door lock is loose and does not close properly after evening roll call.",
+		priority: "High",
+		status: "In Progress",
+		assignedTo: "Maintenance Desk",
+		reportedAt: "2026-01-16T08:20:00.000Z",
+		updatedAt: "2026-01-16T11:05:00.000Z",
+		resolutionNote: "Technician assigned; replacement lock requested from store.",
+	},
+	{
+		id: "mnt-002",
+		studentName: "Adeyemi Blessing",
+		matricNo: "KASU/HND/25/0088",
+		hostel: "Queen Hall",
+		room: "C201",
+		bed: "Bed 1",
+		category: "Plumbing",
+		issue: "Leaking bathroom ceiling",
+		description:
+			"Water drops from the bathroom ceiling after morning water pumping.",
+		priority: "Critical",
+		status: "Escalated",
+		assignedTo: "Works Unit",
+		reportedAt: "2026-01-15T07:40:00.000Z",
+		updatedAt: "2026-01-15T13:15:00.000Z",
+		resolutionNote: "Escalated because the room is already marked for readiness review.",
+	},
+	{
+		id: "mnt-003",
+		studentName: "Okafor Chidi",
+		matricNo: "KASU/ND/25/0231",
+		hostel: "Awolowo Hall",
+		room: "B101",
+		bed: "Bed 2",
+		category: "Electrical",
+		issue: "Faulty wall socket",
+		description: "The socket beside bed 2 sparks when a charger is plugged in.",
+		priority: "Medium",
+		status: "Resolved",
+		assignedTo: "Electrical Unit",
+		reportedAt: "2026-01-14T10:10:00.000Z",
+		updatedAt: "2026-01-14T16:25:00.000Z",
+		resolutionNote: "Socket replaced and tested by the electrical unit.",
+	},
+	{
+		id: "mnt-004",
+		studentName: "Salihu Musa",
+		matricNo: "KASU/ND/25/0305",
+		hostel: "Awolowo Hall",
+		room: "B102",
+		bed: "Bed 4",
+		category: "Furniture",
+		issue: "Damaged reading chair",
+		description: "The reading chair assigned to bed 4 has a cracked support leg.",
+		priority: "Low",
+		status: "Open",
+		assignedTo: "Unassigned",
+		reportedAt: "2026-01-13T18:45:00.000Z",
+		updatedAt: "2026-01-13T18:45:00.000Z",
+		resolutionNote: "",
+	},
+];
+
 const STATUS_LABELS: Record<HostelStatus, string> = {
 	available: "Available",
 	filling: "Filling",
@@ -445,6 +552,18 @@ const PAYMENT_STATUSES: AllocationItem["paymentStatus"][] = [
 	"Paid",
 	"Review",
 ];
+const MAINTENANCE_STATUSES: MaintenanceStatus[] = [
+	"Open",
+	"In Progress",
+	"Resolved",
+	"Escalated",
+];
+const MAINTENANCE_PRIORITIES: MaintenancePriority[] = [
+	"Low",
+	"Medium",
+	"High",
+	"Critical",
+];
 
 function getHostelToneClass(tone: HostelItem["tone"]) {
 	if (tone === "rose") return "bg-[#d92672]";
@@ -456,11 +575,17 @@ function getStatusClass(status: HostelStatus | string) {
 	const normalized = status.toLowerCase();
 	if (normalized === "available") return "border-emerald-200 bg-emerald-50 text-emerald-700";
 	if (normalized === "allocated" || normalized === "paid") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+	if (normalized === "resolved") return "border-emerald-200 bg-emerald-50 text-emerald-700";
 	if (normalized === "filling" || normalized === "partial") return "border-amber-200 bg-amber-50 text-amber-700";
 	if (normalized === "pending" || normalized === "review") return "border-amber-200 bg-amber-50 text-amber-700";
+	if (normalized === "open" || normalized === "in progress") return "border-amber-200 bg-amber-50 text-amber-700";
 	if (normalized === "full") return "border-red-200 bg-red-50 text-red-700";
 	if (normalized === "cancelled") return "border-red-200 bg-red-50 text-red-700";
+	if (normalized === "escalated" || normalized === "critical") return "border-red-200 bg-red-50 text-red-700";
 	if (normalized === "maintenance") return "border-sky-200 bg-sky-50 text-sky-700";
+	if (normalized === "high") return "border-orange-200 bg-orange-50 text-orange-700";
+	if (normalized === "medium") return "border-sky-200 bg-sky-50 text-sky-700";
+	if (normalized === "low") return "border-slate-200 bg-slate-50 text-slate-700";
 	return "border-slate-200 bg-slate-50 text-slate-700";
 }
 
@@ -515,6 +640,17 @@ function getAllocationDraft(allocation?: AllocationItem | null): AllocationDraft
 		status: allocation?.status ?? "Pending",
 		allocatedBy: allocation?.allocatedBy ?? "",
 		note: allocation?.note ?? "",
+	};
+}
+
+function getMaintenanceDraft(
+	request?: MaintenanceRequestItem | null,
+): MaintenanceRequestDraft {
+	return {
+		status: request?.status ?? "Open",
+		priority: request?.priority ?? "Medium",
+		assignedTo: request?.assignedTo ?? "",
+		resolutionNote: request?.resolutionNote ?? "",
 	};
 }
 
@@ -1111,7 +1247,7 @@ function PaymentView() {
 	);
 }
 
-function MaintenanceView() {
+function StudentMaintenanceView() {
 	return (
 		<SimplePanel
 			badge="Maintenance"
@@ -1157,6 +1293,578 @@ function MaintenanceView() {
 				</div>
 			</div>
 		</SimplePanel>
+	);
+}
+
+function AdminMaintenanceView({
+	requests,
+	allocations,
+	hostels,
+	permissions,
+	onView,
+	onManage,
+	onViewAllocation,
+}: {
+	requests: MaintenanceRequestItem[];
+	allocations: AllocationItem[];
+	hostels: HostelItem[];
+	permissions: UserPermissionKey[];
+	onView: (request: MaintenanceRequestItem) => void;
+	onManage: (request: MaintenanceRequestItem) => void;
+	onViewAllocation: (request: MaintenanceRequestItem) => void;
+}) {
+	const [search, setSearch] = useState("");
+	const [status, setStatus] = useState<MaintenanceStatus | "all">("all");
+	const [priority, setPriority] = useState<MaintenancePriority | "all">("all");
+	const [hostelFilter, setHostelFilter] = useState<string>("all");
+	const [currentPage, setCurrentPage] = useState(1);
+	const [openActionsId, setOpenActionsId] = useState<string | number | null>(null);
+	const canManage = hasPermissions(permissions, ["hostels.update"], { mode: "any" });
+	const stats = useMemo(
+		() => ({
+			total: requests.length,
+			open: requests.filter((request) => request.status === "Open").length,
+			inProgress: requests.filter((request) => request.status === "In Progress").length,
+			critical: requests.filter((request) =>
+				request.priority === "Critical" || request.status === "Escalated",
+			).length,
+		}),
+		[requests],
+	);
+	const hostelOptions = useMemo(
+		() =>
+			Array.from(
+				new Set([
+					...hostels.map((hostel) => hostel.name),
+					...requests.map((request) => request.hostel),
+				]),
+			)
+				.filter(Boolean)
+				.sort((left, right) => left.localeCompare(right)),
+		[hostels, requests],
+	);
+	const filteredRequests = useMemo(() => {
+		const normalizedSearch = search.trim().toLowerCase();
+
+		return requests.filter((request) => {
+			const haystack = [
+				request.studentName,
+				request.matricNo,
+				request.hostel,
+				request.room,
+				request.bed,
+				request.category,
+				request.issue,
+				request.description,
+				request.priority,
+				request.status,
+				request.assignedTo,
+				request.resolutionNote,
+			]
+				.join(" ")
+				.toLowerCase();
+
+			return (
+				(!normalizedSearch || haystack.includes(normalizedSearch)) &&
+				(status === "all" || request.status === status) &&
+				(priority === "all" || request.priority === priority) &&
+				(hostelFilter === "all" || request.hostel === hostelFilter)
+			);
+		});
+	}, [hostelFilter, priority, requests, search, status]);
+	const pageCount = Math.max(1, Math.ceil(filteredRequests.length / PAGE_SIZE));
+	const safePage = Math.min(currentPage, pageCount);
+	const paginatedRequests = filteredRequests.slice(
+		(safePage - 1) * PAGE_SIZE,
+		safePage * PAGE_SIZE,
+	);
+
+	function updateFilter<T>(setter: (value: T) => void, value: T) {
+		setter(value);
+		setCurrentPage(1);
+	}
+
+	function clearFilters() {
+		setSearch("");
+		setStatus("all");
+		setPriority("all");
+		setHostelFilter("all");
+		setCurrentPage(1);
+	}
+
+	return (
+		<section className="space-y-5">
+			<div className="rounded-3xl border border-[#d7e2f0] bg-white p-5 shadow-[0_18px_45px_rgba(13,43,85,0.08)] sm:p-6">
+				<div className="flex flex-wrap items-start justify-between gap-4">
+					<div>
+						<p className="text-[11px] font-black uppercase tracking-[0.28em] text-[#B7770D]">
+							Maintenance Analytics
+						</p>
+						<h2 className="mt-2 text-2xl font-black text-[#06183A]">
+							Student maintenance requests
+						</h2>
+						<p className="mt-2 max-w-3xl text-sm leading-7 text-[#556987]">
+							Review student room issues, assign follow-up owners, and connect each
+							request back to the hostel allocation record.
+						</p>
+					</div>
+					<div className="rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] px-4 py-3 text-sm font-black text-[#0D2B55]">
+						{allocations.length} allocation records linked
+					</div>
+				</div>
+
+				<div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+					{[
+						["Total Requests", stats.total],
+						["Open", stats.open],
+						["In Progress", stats.inProgress],
+						["Critical / Escalated", stats.critical],
+					].map(([label, value]) => (
+						<div
+							key={label}
+							className="rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] p-4"
+						>
+							<p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8395AF]">
+								{label}
+							</p>
+							<p className="mt-2 text-3xl font-black text-[#0D2B55]">{value}</p>
+						</div>
+					))}
+				</div>
+			</div>
+
+			<div className="rounded-3xl border border-[#d7e2f0] bg-white p-4 shadow-[0_18px_45px_rgba(13,43,85,0.08)] sm:p-5">
+				<div className="flex flex-wrap items-center justify-between gap-3">
+					<div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.24em] text-[#B7770D]">
+						<Filter className="size-4" />
+						Filters
+					</div>
+					<button
+						type="button"
+						onClick={clearFilters}
+						className="inline-flex h-10 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white px-4 text-xs font-black uppercase tracking-[0.12em] text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+					>
+						Reset filters
+					</button>
+				</div>
+				<div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_13rem_13rem_13rem]">
+					<label className="relative">
+						<Search className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[#7b8faa]" />
+						<input
+							value={search}
+							onChange={(event) => updateFilter(setSearch, event.target.value)}
+							placeholder="Search student, issue, room, or assignee"
+							className="h-12 w-full rounded-2xl border border-[#d3dfed] bg-[#f8fbff] pl-11 pr-4 text-sm font-semibold text-[#0D2B55] outline-none transition focus:border-[#2E86C1]"
+						/>
+					</label>
+					<select
+						value={hostelFilter}
+						onChange={(event) => updateFilter(setHostelFilter, event.target.value)}
+						className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+					>
+						<option value="all">All hostels</option>
+						{hostelOptions.map((option) => (
+							<option key={option} value={option}>
+								{option}
+							</option>
+						))}
+					</select>
+					<select
+						value={status}
+						onChange={(event) =>
+							updateFilter(setStatus, event.target.value as MaintenanceStatus | "all")
+						}
+						className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+					>
+						<option value="all">All status</option>
+						{MAINTENANCE_STATUSES.map((option) => (
+							<option key={option} value={option}>
+								{option}
+							</option>
+						))}
+					</select>
+					<select
+						value={priority}
+						onChange={(event) =>
+							updateFilter(
+								setPriority,
+								event.target.value as MaintenancePriority | "all",
+							)
+						}
+						className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+					>
+						<option value="all">All priority</option>
+						{MAINTENANCE_PRIORITIES.map((option) => (
+							<option key={option} value={option}>
+								{option}
+							</option>
+						))}
+					</select>
+				</div>
+			</div>
+
+			<div className="overflow-hidden rounded-3xl border border-[#d7e2f0] bg-white shadow-[0_18px_45px_rgba(13,43,85,0.08)]">
+				<div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#dbe5f1] px-4 py-4 sm:px-5">
+					<div>
+						<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#B7770D]">
+							Maintenance Table
+						</p>
+						<p className="mt-1 text-sm font-semibold text-[#60728f]">
+							Showing {paginatedRequests.length} of {filteredRequests.length} requests
+						</p>
+					</div>
+					<div className="flex items-center gap-2 rounded-full border border-[#dbe5f1] bg-[#f8fbff] px-4 py-2 text-xs font-black text-[#0D2B55]">
+						Page {safePage} of {pageCount}
+					</div>
+				</div>
+
+				{filteredRequests.length === 0 ? (
+					<div className="p-8 text-center">
+						<div className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#eef4fb] text-[#2E86C1]">
+							<Wrench className="size-6" />
+						</div>
+						<h3 className="mt-4 text-lg font-black text-[#06183A]">
+							No maintenance requests found
+						</h3>
+						<p className="mt-2 text-sm text-[#60728f]">
+							Adjust the filters to review student maintenance requests.
+						</p>
+					</div>
+				) : (
+					<>
+						<div className="overflow-x-auto">
+							<table className="min-w-[1220px] w-full border-collapse text-left">
+								<thead className="bg-[#f8fbff]">
+									<tr className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8395AF]">
+										<th className="px-5 py-4">Student</th>
+										<th className="px-5 py-4">Location</th>
+										<th className="px-5 py-4">Issue</th>
+										<th className="px-5 py-4">Priority</th>
+										<th className="px-5 py-4">Status</th>
+										<th className="px-5 py-4">Assigned To</th>
+										<th className="px-5 py-4">Last Updated</th>
+										<th className="px-5 py-4 text-right">Actions</th>
+									</tr>
+								</thead>
+								<tbody className="divide-y divide-[#dbe5f1]">
+									{paginatedRequests.map((request) => (
+										<tr key={request.id} className="bg-white transition hover:bg-[#f8fbff]">
+											<td className="px-5 py-4">
+												<p className="font-black text-[#06183A]">{request.studentName}</p>
+												<p className="mt-1 max-w-[14rem] break-words text-sm font-semibold text-[#60728f]">
+													{request.matricNo}
+												</p>
+											</td>
+											<td className="px-5 py-4">
+												<p className="max-w-[14rem] text-sm font-black text-[#0D2B55]">
+													{request.hostel}
+												</p>
+												<p className="mt-1 text-xs font-bold text-[#60728f]">
+													{request.room} / {request.bed}
+												</p>
+											</td>
+											<td className="px-5 py-4">
+												<p className="max-w-[16rem] break-words text-sm font-black text-[#0D2B55]">
+													{request.issue}
+												</p>
+												<p className="mt-1 text-xs font-bold text-[#60728f]">
+													{request.category}
+												</p>
+											</td>
+											<td className="px-5 py-4">
+												<span className={`rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${getStatusClass(request.priority)}`}>
+													{request.priority}
+												</span>
+											</td>
+											<td className="px-5 py-4">
+												<span className={`rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${getStatusClass(request.status)}`}>
+													{request.status}
+												</span>
+											</td>
+											<td className="px-5 py-4 text-sm font-bold text-[#60728f]">
+												{request.assignedTo}
+											</td>
+											<td className="px-5 py-4">
+												<p className="text-sm font-bold text-[#60728f]">
+													{formatDate(request.updatedAt)}
+												</p>
+											</td>
+											<td className="px-5 py-4">
+												<RowActionMenu
+													label={`Open actions for maintenance request ${request.id}`}
+													open={openActionsId === request.id}
+													onOpenChange={(open) => setOpenActionsId(open ? request.id : null)}
+													menuClassName="z-[140]"
+													width={216}
+													items={[
+														{
+															label: "View",
+															icon: <Eye className="size-4" />,
+															onSelect: () => {
+																onView(request);
+																setOpenActionsId(null);
+															},
+														},
+														{
+															label: "Manage Request",
+															icon: <Edit3 className="size-4" />,
+															disabled: !canManage,
+															className: "text-[#0D2B55] hover:bg-[#eef4fb]",
+															onSelect: () => {
+																onManage(request);
+																setOpenActionsId(null);
+															},
+														},
+														{
+															label: "View Allocation",
+															icon: <ShieldCheck className="size-4" />,
+															onSelect: () => {
+																onViewAllocation(request);
+																setOpenActionsId(null);
+															},
+														},
+													]}
+												/>
+											</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
+
+						<div className="flex flex-col gap-3 border-t border-[#dbe5f1] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+							<p className="text-sm font-semibold text-[#60728f]">
+								Rows per page: {PAGE_SIZE}
+							</p>
+							<div className="flex items-center gap-2">
+								<button
+									type="button"
+									onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+									disabled={safePage === 1}
+									className="h-10 rounded-2xl border border-[#d3dfed] bg-white px-4 text-sm font-black text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D] disabled:cursor-not-allowed disabled:opacity-40"
+								>
+									Previous
+								</button>
+								<button
+									type="button"
+									onClick={() => setCurrentPage((page) => Math.min(pageCount, page + 1))}
+									disabled={safePage === pageCount}
+									className="h-10 rounded-2xl bg-[#0D2B55] px-4 text-sm font-black text-white transition hover:bg-[#123866] disabled:cursor-not-allowed disabled:opacity-40"
+								>
+									Next
+								</button>
+							</div>
+						</div>
+					</>
+				)}
+			</div>
+		</section>
+	);
+}
+
+function MaintenanceRequestModal({
+	mode,
+	request,
+	draft,
+	canSave,
+	onClose,
+	onDraftChange,
+	onSave,
+	onViewAllocation,
+}: {
+	mode: MaintenanceModalMode | null;
+	request: MaintenanceRequestItem | null;
+	draft: MaintenanceRequestDraft;
+	canSave: boolean;
+	onClose: () => void;
+	onDraftChange: (draft: MaintenanceRequestDraft) => void;
+	onSave: () => void;
+	onViewAllocation: (request: MaintenanceRequestItem) => void;
+}) {
+	if (!mode || !request) {
+		return null;
+	}
+
+	const isView = mode === "view";
+
+	return (
+		<div className="fixed inset-0 z-[150] flex items-center justify-center bg-[#06172f]/60 p-4 backdrop-blur-sm">
+			<div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-3xl border border-[#dbe5f1] bg-white shadow-[0_30px_80px_rgba(6,23,47,0.35)]">
+				<div className="flex items-start justify-between gap-4 border-b border-[#dbe5f1] bg-[#0D2B55] px-5 py-5 text-white sm:px-6">
+					<div>
+						<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#E4A11B]">
+							Manage Maintenance
+						</p>
+						<h2 className="mt-2 text-xl font-black sm:text-2xl">
+							{isView ? "Maintenance request details" : "Update maintenance request"}
+						</h2>
+						<p className="mt-1 text-sm font-semibold text-[#c5d4e8]">
+							{request.studentName} - {request.room}
+						</p>
+					</div>
+					<button
+						type="button"
+						onClick={onClose}
+						className="flex size-10 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition hover:bg-white hover:text-[#0D2B55]"
+						aria-label="Close maintenance request modal"
+					>
+						<X className="size-5" />
+					</button>
+				</div>
+
+				<div className="max-h-[calc(90vh-8rem)] overflow-y-auto p-5 sm:p-6">
+					<div className="grid gap-3 md:grid-cols-3">
+						{[
+							["Student", request.studentName],
+							["Matric No", request.matricNo],
+							["Hostel", request.hostel],
+							["Room / Bed", `${request.room} / ${request.bed}`],
+							["Category", request.category],
+							["Reported", formatDate(request.reportedAt)],
+						].map(([label, value]) => (
+							<div
+								key={label as string}
+								className="rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] p-4"
+							>
+								<p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8395AF]">
+									{label as string}
+								</p>
+								<p className="mt-2 break-words text-sm font-black text-[#0D2B55]">
+									{value as ReactNode}
+								</p>
+							</div>
+						))}
+					</div>
+
+					<div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+						<div className="rounded-2xl border border-[#dbe5f1] bg-white p-4">
+							<p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8395AF]">
+								Student Request
+							</p>
+							<h3 className="mt-2 text-lg font-black text-[#06183A]">
+								{request.issue}
+							</h3>
+							<p className="mt-2 text-sm font-semibold leading-6 text-[#60728f]">
+								{request.description}
+							</p>
+						</div>
+
+						<div className="rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] p-4">
+							<p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8395AF]">
+								Current State
+							</p>
+							<div className="mt-3 flex flex-wrap gap-2">
+								<span className={`rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${getStatusClass(request.priority)}`}>
+									{request.priority}
+								</span>
+								<span className={`rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${getStatusClass(request.status)}`}>
+									{request.status}
+								</span>
+							</div>
+							<p className="mt-4 text-sm font-bold text-[#0D2B55]">
+								{request.assignedTo}
+							</p>
+							<p className="mt-1 text-xs font-semibold text-[#60728f]">
+								Last updated {formatDate(request.updatedAt)}
+							</p>
+						</div>
+					</div>
+
+					{isView ? (
+						<div className="mt-5 rounded-2xl border border-[#dbe5f1] bg-white p-4">
+							<p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8395AF]">
+								Resolution Note
+							</p>
+							<p className="mt-2 text-sm font-semibold leading-6 text-[#60728f]">
+								{request.resolutionNote || "No resolution note has been recorded."}
+							</p>
+						</div>
+					) : (
+						<div className="mt-5 grid gap-3 md:grid-cols-2">
+							<select
+								value={draft.status}
+								onChange={(event) =>
+									onDraftChange({
+										...draft,
+										status: event.target.value as MaintenanceStatus,
+									})
+								}
+								className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+							>
+								{MAINTENANCE_STATUSES.map((option) => (
+									<option key={option} value={option}>
+										{option}
+									</option>
+								))}
+							</select>
+							<select
+								value={draft.priority}
+								onChange={(event) =>
+									onDraftChange({
+										...draft,
+										priority: event.target.value as MaintenancePriority,
+									})
+								}
+								className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+							>
+								{MAINTENANCE_PRIORITIES.map((option) => (
+									<option key={option} value={option}>
+										{option} priority
+									</option>
+								))}
+							</select>
+							<input
+								value={draft.assignedTo}
+								onChange={(event) =>
+									onDraftChange({ ...draft, assignedTo: event.target.value })
+								}
+								placeholder="Assigned team or staff"
+								className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1] md:col-span-2"
+							/>
+							<textarea
+								value={draft.resolutionNote}
+								onChange={(event) =>
+									onDraftChange({ ...draft, resolutionNote: event.target.value })
+								}
+								placeholder="Resolution or follow-up note"
+								className="min-h-28 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 py-3 text-sm font-semibold text-[#0D2B55] outline-none focus:border-[#2E86C1] md:col-span-2"
+							/>
+						</div>
+					)}
+
+					<div className="sticky bottom-0 mt-5 flex flex-col gap-3 border-t border-[#dbe5f1] bg-white/95 pt-4 backdrop-blur sm:flex-row sm:justify-between">
+						<button
+							type="button"
+							onClick={() => onViewAllocation(request)}
+							className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#dbe5f1] px-5 py-3 text-sm font-black text-[#0D2B55] transition hover:border-[#0D2B55]"
+						>
+							<ShieldCheck className="size-4" />
+							View allocation
+						</button>
+						<div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+							<button
+								type="button"
+								onClick={onClose}
+								className="inline-flex items-center justify-center rounded-2xl border border-[#dbe5f1] px-5 py-3 text-sm font-black text-[#0D2B55] transition hover:border-[#0D2B55]"
+							>
+								Close
+							</button>
+							{isView ? null : (
+								<button
+									type="button"
+									onClick={onSave}
+									disabled={!canSave || !draft.assignedTo.trim()}
+									className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] px-5 py-3 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.18)] transition hover:-translate-y-0.5 hover:bg-[#123866] disabled:cursor-not-allowed disabled:opacity-50"
+								>
+									<Edit3 className="size-4" />
+									Save request
+								</button>
+							)}
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
 	);
 }
 
@@ -2788,6 +3496,9 @@ export default function HostelModuleWorkspace({
 	const [hostels, setHostels] = useState(INITIAL_HOSTELS);
 	const [rooms, setRooms] = useState(INITIAL_ROOMS);
 	const [allocations, setAllocations] = useState(INITIAL_ALLOCATIONS);
+	const [maintenanceRequests, setMaintenanceRequests] = useState(
+		INITIAL_MAINTENANCE_REQUESTS,
+	);
 	const [activeView, setActiveView] = useState<HostelView>(
 		isStudentDomain ? "dashboard" : "manage",
 	);
@@ -2803,6 +3514,12 @@ export default function HostelModuleWorkspace({
 	const [modalAllocation, setModalAllocation] = useState<AllocationItem | null>(null);
 	const [allocationDraft, setAllocationDraft] =
 		useState<AllocationDraft>(getAllocationDraft());
+	const [maintenanceModalMode, setMaintenanceModalMode] =
+		useState<MaintenanceModalMode | null>(null);
+	const [modalMaintenanceRequest, setModalMaintenanceRequest] =
+		useState<MaintenanceRequestItem | null>(null);
+	const [maintenanceDraft, setMaintenanceDraft] =
+		useState<MaintenanceRequestDraft>(getMaintenanceDraft());
 	const canManage = useMemo(
 		() =>
 			!isStudentDomain &&
@@ -2820,6 +3537,9 @@ export default function HostelModuleWorkspace({
 			? hasPermissions(permissions, ["hostels.create"], { mode: "any" })
 			: hasPermissions(permissions, ["hostels.update"], { mode: "any" });
 	const canSaveAllocation = hasPermissions(permissions, ["hostels.allocate"], {
+		mode: "any",
+	});
+	const canSaveMaintenance = hasPermissions(permissions, ["hostels.update"], {
 		mode: "any",
 	});
 	const activeHostel = selectedHostel ?? hostels[0];
@@ -2989,6 +3709,75 @@ export default function HostelModuleWorkspace({
 		closeAllocationModal();
 	}
 
+	function openMaintenanceModal(
+		request: MaintenanceRequestItem,
+		mode: MaintenanceModalMode,
+	) {
+		setModalMaintenanceRequest(request);
+		setMaintenanceDraft(getMaintenanceDraft(request));
+		setMaintenanceModalMode(mode);
+	}
+
+	function closeMaintenanceModal() {
+		setMaintenanceModalMode(null);
+		setModalMaintenanceRequest(null);
+	}
+
+	function saveMaintenanceRequest() {
+		if (
+			!canSaveMaintenance ||
+			!modalMaintenanceRequest ||
+			!maintenanceDraft.assignedTo.trim()
+		) {
+			return;
+		}
+
+		const nextRequest: MaintenanceRequestItem = {
+			...modalMaintenanceRequest,
+			status: maintenanceDraft.status,
+			priority: maintenanceDraft.priority,
+			assignedTo: maintenanceDraft.assignedTo.trim(),
+			resolutionNote: maintenanceDraft.resolutionNote.trim(),
+			updatedAt: new Date().toISOString(),
+		};
+
+		setMaintenanceRequests((current) =>
+			current.map((request) =>
+				request.id === nextRequest.id ? nextRequest : request,
+			),
+		);
+		setModalMaintenanceRequest(nextRequest);
+		closeMaintenanceModal();
+	}
+
+	function viewAllocationFromMaintenance(request: MaintenanceRequestItem) {
+		const allocation = allocations.find(
+			(item) =>
+				item.matricNo === request.matricNo ||
+				(item.hostel === request.hostel && item.room === request.room),
+		);
+
+		if (allocation) {
+			closeMaintenanceModal();
+			openAllocationModal(allocation, "view");
+			return;
+		}
+
+		setAllocationDraft({
+			...getAllocationDraft(),
+			studentName: request.studentName,
+			matricNo: request.matricNo,
+			hostel: request.hostel,
+			room: request.room,
+			bed: request.bed,
+			status: "Review",
+			note: `Created from maintenance request ${request.id}: ${request.issue}`,
+		});
+		setModalAllocation(null);
+		closeMaintenanceModal();
+		setAllocationModalMode("create");
+	}
+
 	function renderView() {
 		if (!isStudentDomain && activeView === "manage") {
 			return (
@@ -3030,6 +3819,20 @@ export default function HostelModuleWorkspace({
 			);
 		}
 
+		if (!isStudentDomain && activeView === "maintenance") {
+			return (
+				<AdminMaintenanceView
+					requests={maintenanceRequests}
+					allocations={allocations}
+					hostels={hostels}
+					permissions={permissions}
+					onView={(request) => openMaintenanceModal(request, "view")}
+					onManage={(request) => openMaintenanceModal(request, "manage")}
+					onViewAllocation={viewAllocationFromMaintenance}
+				/>
+			);
+		}
+
 		if (activeView === "browse") {
 			return <BrowseView hostels={hostels} onView={viewHostel} onBook={bookHostel} />;
 		}
@@ -3056,7 +3859,7 @@ export default function HostelModuleWorkspace({
 
 		if (activeView === "allocation") return <AllocationView />;
 		if (activeView === "payment") return <PaymentView />;
-		if (activeView === "maintenance") return <MaintenanceView />;
+		if (activeView === "maintenance") return <StudentMaintenanceView />;
 
 		return (
 			<DashboardView
@@ -3124,6 +3927,16 @@ export default function HostelModuleWorkspace({
 				onClose={closeAllocationModal}
 				onDraftChange={setAllocationDraft}
 				onSave={saveAllocation}
+			/>
+			<MaintenanceRequestModal
+				mode={maintenanceModalMode}
+				request={modalMaintenanceRequest}
+				draft={maintenanceDraft}
+				canSave={canSaveMaintenance}
+				onClose={closeMaintenanceModal}
+				onDraftChange={setMaintenanceDraft}
+				onSave={saveMaintenanceRequest}
+				onViewAllocation={viewAllocationFromMaintenance}
 			/>
 		</div>
 	);
