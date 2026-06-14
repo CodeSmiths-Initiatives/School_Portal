@@ -18,6 +18,7 @@ const DEV_INTERNAL_SECRET =
 const BED_STATUSES = ["available", "reserved", "allocated", "maintenance", "inactive"] as const;
 const COMPLAINT_STATUSES = ["Open", "In Progress", "Resolved", "Escalated"] as const;
 const COMPLAINT_PRIORITIES = ["Low", "Medium", "High", "Critical"] as const;
+const BED_RESERVATION_CONFLICT = "BED_RESERVATION_CONFLICT";
 
 function getInternalSecret() {
 	const configured =
@@ -88,6 +89,12 @@ function relationId(value: unknown) {
 
 function getRecordId(record: Record<string, unknown>) {
 	return asString(record.documentId) || String(record.id ?? "");
+}
+
+function createReservationConflict(message: string) {
+	const error = new Error(message);
+	error.name = BED_RESERVATION_CONFLICT;
+	return error;
 }
 
 async function findCollegeBySlug(collegeSlug: string) {
@@ -629,19 +636,19 @@ export default {
 		const reservedUntil = new Date(Date.now() + 30 * 60 * 1000).toISOString();
 		let allocation: Record<string, unknown> | null = null;
 
-		await strapi.db.transaction(async () => {
-			const freshBed = await strapi.db.query("api::hostel-bed.hostel-bed").findOne({
-				where: { id: bed.id },
-			});
+		await strapi.db.transaction(async ({ trx }) => {
+			const reservedBeds = await strapi.db.connection("hostel_beds")
+				.transacting(trx)
+				.where({ id: bed.id, status: "available" })
+				.update({
+					status: "reserved",
+					reserved_until: reservedUntil,
+					updated_at: new Date(),
+				});
 
-			if (!freshBed?.id || asString(freshBed.status) !== "available") {
-				throw new Error("This bed is no longer available.");
+			if (reservedBeds !== 1) {
+				throw createReservationConflict("This bed is no longer available.");
 			}
-
-			await strapi.db.query("api::hostel-bed.hostel-bed").update({
-				where: { id: bed.id },
-				data: { status: "reserved", reservedUntil },
-			});
 
 			const invoice = await strapi.db.query("api::payment-invoice.payment-invoice").create({
 				data: {
@@ -659,7 +666,7 @@ export default {
 						allocationNumber,
 						bedId: bed.id,
 						reservationStrategy:
-							"Transaction checks bed status and flips available to reserved before creating allocation.",
+							"Atomic conditional update flips one available bed to reserved before creating allocation.",
 					},
 					college: college.id,
 					...(payload.studentId ? { payer: payload.studentId } : {}),
