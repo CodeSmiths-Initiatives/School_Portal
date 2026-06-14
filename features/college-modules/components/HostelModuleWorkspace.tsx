@@ -49,6 +49,8 @@ type HostelView =
 	| "rooms"
 	| "allocations";
 type HostelModalMode = "create" | "view" | "edit";
+type RoomModalMode = "create" | "view" | "edit";
+type RoomStatus = "Available" | "Partial" | "Full" | "Maintenance";
 
 type HostelItem = {
 	id: string;
@@ -76,6 +78,30 @@ type HostelDraft = {
 	status: HostelStatus;
 	blocks: string;
 	amenities: string;
+};
+
+type RoomItem = {
+	id: string;
+	hostel: string;
+	block: string;
+	floor: string;
+	beds: number;
+	available: number;
+	occupied: number;
+	status: RoomStatus;
+	wardenNote: string;
+	updatedAt: string;
+};
+
+type RoomDraft = {
+	id: string;
+	hostel: string;
+	block: string;
+	floor: string;
+	beds: string;
+	available: string;
+	status: RoomStatus;
+	wardenNote: string;
 };
 
 type HostelMenuItem = {
@@ -229,12 +255,79 @@ const ADMIN_MENU: HostelMenuItem[] = [
 	},
 ];
 
-const ROOMS = [
-	{ id: "A101", block: "Block A", beds: 6, available: 4, status: "Available" },
-	{ id: "A102", block: "Block A", beds: 6, available: 6, status: "Available" },
-	{ id: "A103", block: "Block A", beds: 4, available: 2, status: "Partial" },
-	{ id: "B101", block: "Block B", beds: 6, available: 5, status: "Available" },
-	{ id: "B102", block: "Block B", beds: 4, available: 0, status: "Full" },
+const INITIAL_ROOMS: RoomItem[] = [
+	{
+		id: "A101",
+		hostel: "Moremi Hall",
+		block: "Block A",
+		floor: "Ground Floor",
+		beds: 6,
+		available: 4,
+		occupied: 2,
+		status: "Available",
+		wardenNote: "Ready for allocation",
+		updatedAt: "2026-01-16T10:15:00.000Z",
+	},
+	{
+		id: "A102",
+		hostel: "Moremi Hall",
+		block: "Block A",
+		floor: "Ground Floor",
+		beds: 6,
+		available: 6,
+		occupied: 0,
+		status: "Available",
+		wardenNote: "Newly cleaned",
+		updatedAt: "2026-01-15T13:40:00.000Z",
+	},
+	{
+		id: "A103",
+		hostel: "Moremi Hall",
+		block: "Block A",
+		floor: "First Floor",
+		beds: 4,
+		available: 2,
+		occupied: 2,
+		status: "Partial",
+		wardenNote: "Two beds assigned",
+		updatedAt: "2026-01-14T09:05:00.000Z",
+	},
+	{
+		id: "B101",
+		hostel: "Awolowo Hall",
+		block: "Block B",
+		floor: "Ground Floor",
+		beds: 6,
+		available: 5,
+		occupied: 1,
+		status: "Available",
+		wardenNote: "One reserved allocation",
+		updatedAt: "2026-01-13T16:30:00.000Z",
+	},
+	{
+		id: "B102",
+		hostel: "Awolowo Hall",
+		block: "Block B",
+		floor: "First Floor",
+		beds: 4,
+		available: 0,
+		occupied: 4,
+		status: "Full",
+		wardenNote: "No vacant bed space",
+		updatedAt: "2026-01-12T12:20:00.000Z",
+	},
+	{
+		id: "C201",
+		hostel: "Queen Hall",
+		block: "Block C",
+		floor: "Second Floor",
+		beds: 4,
+		available: 0,
+		occupied: 0,
+		status: "Maintenance",
+		wardenNote: "Plumbing repair pending",
+		updatedAt: "2026-01-11T08:45:00.000Z",
+	},
 ];
 
 const STATUS_LABELS: Record<HostelStatus, string> = {
@@ -284,6 +377,25 @@ function getHostelDraft(hostel?: HostelItem | null): HostelDraft {
 		blocks: hostel?.blocks.join(", ") ?? "",
 		amenities: hostel?.amenities.join(", ") ?? "",
 	};
+}
+
+function getRoomDraft(room?: RoomItem | null): RoomDraft {
+	return {
+		id: room?.id ?? "",
+		hostel: room?.hostel ?? INITIAL_HOSTELS[0]?.name ?? "",
+		block: room?.block ?? "",
+		floor: room?.floor ?? "",
+		beds: room ? String(room.beds) : "",
+		available: room ? String(room.available) : "",
+		status: room?.status ?? "Available",
+		wardenNote: room?.wardenNote ?? "",
+	};
+}
+
+function getRoomStatusFromAvailability(available: number, beds: number): RoomStatus {
+	if (beds <= 0 || available <= 0) return "Full";
+	if (available >= beds) return "Available";
+	return "Partial";
 }
 
 function parseCsvList(value: string) {
@@ -762,7 +874,7 @@ function BookingView({
 						))}
 					</div>
 					<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-						{ROOMS.map((room) => (
+						{INITIAL_ROOMS.filter((room) => room.hostel === selectedHostel.name).map((room) => (
 							<button
 								key={room.id}
 								type="button"
@@ -922,42 +1034,513 @@ function MaintenanceView() {
 	);
 }
 
-function RoomsView() {
+function RoomsView({
+	rooms,
+	hostels,
+	permissions,
+	onCreate,
+	onView,
+	onEdit,
+}: {
+	rooms: RoomItem[];
+	hostels: HostelItem[];
+	permissions: UserPermissionKey[];
+	onCreate: () => void;
+	onView: (room: RoomItem) => void;
+	onEdit: (room: RoomItem) => void;
+}) {
+	const [search, setSearch] = useState("");
+	const [status, setStatus] = useState<RoomStatus | "all">("all");
+	const [hostelFilter, setHostelFilter] = useState<string>("all");
+	const [currentPage, setCurrentPage] = useState(1);
+	const [openActionsId, setOpenActionsId] = useState<string | number | null>(null);
+	const canCreate = hasPermissions(permissions, ["hostels.create"], { mode: "any" });
+	const canUpdate = hasPermissions(permissions, ["hostels.update"], { mode: "any" });
+	const stats = useMemo(
+		() => ({
+			totalRooms: rooms.length,
+			totalBeds: rooms.reduce((total, room) => total + room.beds, 0),
+			availableBeds: rooms.reduce((total, room) => total + room.available, 0),
+			maintenance: rooms.filter((room) => room.status === "Maintenance").length,
+		}),
+		[rooms],
+	);
+	const filteredRooms = useMemo(() => {
+		const normalizedSearch = search.trim().toLowerCase();
+
+		return rooms.filter((room) => {
+			const haystack = [
+				room.id,
+				room.hostel,
+				room.block,
+				room.floor,
+				room.status,
+				room.wardenNote,
+			]
+				.join(" ")
+				.toLowerCase();
+
+			return (
+				(!normalizedSearch || haystack.includes(normalizedSearch)) &&
+				(status === "all" || room.status === status) &&
+				(hostelFilter === "all" || room.hostel === hostelFilter)
+			);
+		});
+	}, [hostelFilter, rooms, search, status]);
+	const pageCount = Math.max(1, Math.ceil(filteredRooms.length / PAGE_SIZE));
+	const safePage = Math.min(currentPage, pageCount);
+	const paginatedRooms = filteredRooms.slice(
+		(safePage - 1) * PAGE_SIZE,
+		safePage * PAGE_SIZE,
+	);
+	const hostelOptions = useMemo(
+		() =>
+			Array.from(new Set([...hostels.map((hostel) => hostel.name), ...rooms.map((room) => room.hostel)]))
+				.filter(Boolean)
+				.sort((left, right) => left.localeCompare(right)),
+		[hostels, rooms],
+	);
+
+	function updateFilter<T>(setter: (value: T) => void, value: T) {
+		setter(value);
+		setCurrentPage(1);
+	}
+
+	function clearFilters() {
+		setSearch("");
+		setStatus("all");
+		setHostelFilter("all");
+		setCurrentPage(1);
+	}
+
 	return (
-		<SimplePanel
-			badge="Rooms and Beds"
-			title="Room readiness"
-			description="Manage bed spaces, room capacity, and block availability for hostel operations."
-		>
-			<div className="overflow-x-auto rounded-2xl border border-[#dbe5f1]">
-				<table className="min-w-[720px] w-full border-collapse text-left">
-					<thead className="bg-[#f8fbff]">
-						<tr className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8395AF]">
-							<th className="px-5 py-4">Room</th>
-							<th className="px-5 py-4">Block</th>
-							<th className="px-5 py-4">Beds</th>
-							<th className="px-5 py-4">Available</th>
-							<th className="px-5 py-4">Status</th>
-						</tr>
-					</thead>
-					<tbody className="divide-y divide-[#dbe5f1]">
-						{ROOMS.map((room) => (
-							<tr key={room.id} className="bg-white transition hover:bg-[#f8fbff]">
-								<td className="px-5 py-4 font-black text-[#06183A]">{room.id}</td>
-								<td className="px-5 py-4 text-sm font-bold text-[#60728f]">{room.block}</td>
-								<td className="px-5 py-4 text-sm font-black text-[#0D2B55]">{room.beds}</td>
-								<td className="px-5 py-4 text-sm font-black text-[#0D2B55]">{room.available}</td>
-								<td className="px-5 py-4">
-									<span className={`rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${getStatusClass(room.status)}`}>
-										{room.status}
-									</span>
-								</td>
-							</tr>
-						))}
-					</tbody>
-				</table>
+		<section className="space-y-5">
+			<div className="rounded-3xl border border-[#d7e2f0] bg-white p-5 shadow-[0_18px_45px_rgba(13,43,85,0.08)] sm:p-6">
+				<div className="flex flex-wrap items-start justify-between gap-4">
+					<div>
+						<p className="text-[11px] font-black uppercase tracking-[0.28em] text-[#B7770D]">
+							Rooms & Beds Analytics
+						</p>
+						<h2 className="mt-2 text-2xl font-black text-[#06183A]">
+							Room and bed management
+						</h2>
+						<p className="mt-2 max-w-3xl text-sm leading-7 text-[#556987]">
+							Manage hostel rooms, bed capacity, available bed spaces, and
+							maintenance readiness from one responsive admin table.
+						</p>
+					</div>
+					<button
+						type="button"
+						onClick={onCreate}
+						disabled={!canCreate}
+						className="inline-flex h-12 items-center gap-2 rounded-2xl bg-[#0D2B55] px-5 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.18)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+					>
+						<Plus className="size-4" />
+						Create Room
+					</button>
+				</div>
+
+				<div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+					{[
+						["Total Rooms", stats.totalRooms],
+						["Total Beds", stats.totalBeds],
+						["Available Beds", stats.availableBeds],
+						["Maintenance", stats.maintenance],
+					].map(([label, value]) => (
+						<div
+							key={label}
+							className="rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] p-4"
+						>
+							<p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8395AF]">
+								{label}
+							</p>
+							<p className="mt-2 text-3xl font-black text-[#0D2B55]">{value}</p>
+						</div>
+					))}
+				</div>
 			</div>
-		</SimplePanel>
+
+			<div className="rounded-3xl border border-[#d7e2f0] bg-white p-4 shadow-[0_18px_45px_rgba(13,43,85,0.08)] sm:p-5">
+				<div className="flex flex-wrap items-center justify-between gap-3">
+					<div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.24em] text-[#B7770D]">
+						<Filter className="size-4" />
+						Filters
+					</div>
+					<button
+						type="button"
+						onClick={clearFilters}
+						className="inline-flex h-10 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white px-4 text-xs font-black uppercase tracking-[0.12em] text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+					>
+						Reset filters
+					</button>
+				</div>
+				<div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_13rem_13rem]">
+					<label className="relative">
+						<Search className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[#7b8faa]" />
+						<input
+							value={search}
+							onChange={(event) => updateFilter(setSearch, event.target.value)}
+							placeholder="Search room, hostel, block, or note"
+							className="h-12 w-full rounded-2xl border border-[#d3dfed] bg-[#f8fbff] pl-11 pr-4 text-sm font-semibold text-[#0D2B55] outline-none transition focus:border-[#2E86C1]"
+						/>
+					</label>
+					<select
+						value={hostelFilter}
+						onChange={(event) => updateFilter(setHostelFilter, event.target.value)}
+						className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+					>
+						<option value="all">All hostels</option>
+						{hostelOptions.map((option) => (
+							<option key={option} value={option}>
+								{option}
+							</option>
+						))}
+					</select>
+					<select
+						value={status}
+						onChange={(event) =>
+							updateFilter(setStatus, event.target.value as RoomStatus | "all")
+						}
+						className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+					>
+						<option value="all">All status</option>
+						<option value="Available">Available</option>
+						<option value="Partial">Partial</option>
+						<option value="Full">Full</option>
+						<option value="Maintenance">Maintenance</option>
+					</select>
+				</div>
+			</div>
+
+			<div className="overflow-hidden rounded-3xl border border-[#d7e2f0] bg-white shadow-[0_18px_45px_rgba(13,43,85,0.08)]">
+				<div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#dbe5f1] px-4 py-4 sm:px-5">
+					<div>
+						<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#B7770D]">
+							Rooms Table
+						</p>
+						<p className="mt-1 text-sm font-semibold text-[#60728f]">
+							Showing {paginatedRooms.length} of {filteredRooms.length} rooms
+						</p>
+					</div>
+					<div className="flex items-center gap-2 rounded-full border border-[#dbe5f1] bg-[#f8fbff] px-4 py-2 text-xs font-black text-[#0D2B55]">
+						Page {safePage} of {pageCount}
+					</div>
+				</div>
+
+				{filteredRooms.length === 0 ? (
+					<div className="p-8 text-center">
+						<div className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#eef4fb] text-[#2E86C1]">
+							<DoorOpen className="size-6" />
+						</div>
+						<h3 className="mt-4 text-lg font-black text-[#06183A]">
+							No rooms found
+						</h3>
+						<p className="mt-2 text-sm text-[#60728f]">
+							Adjust the filters or create a room for this hostel module.
+						</p>
+					</div>
+				) : (
+					<>
+						<div className="overflow-x-auto">
+							<table className="min-w-[1080px] w-full border-collapse text-left">
+								<thead className="bg-[#f8fbff]">
+									<tr className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8395AF]">
+										<th className="px-5 py-4">Room</th>
+										<th className="px-5 py-4">Hostel</th>
+										<th className="px-5 py-4">Block</th>
+										<th className="px-5 py-4">Beds</th>
+										<th className="px-5 py-4">Available</th>
+										<th className="px-5 py-4">Status</th>
+										<th className="px-5 py-4">Last Updated</th>
+										<th className="px-5 py-4 text-right">Actions</th>
+									</tr>
+								</thead>
+								<tbody className="divide-y divide-[#dbe5f1]">
+									{paginatedRooms.map((room) => (
+										<tr key={room.id} className="bg-white transition hover:bg-[#f8fbff]">
+											<td className="px-5 py-4">
+												<p className="font-black text-[#06183A]">{room.id}</p>
+												<p className="mt-1 max-w-[14rem] break-words text-sm font-semibold text-[#60728f]">
+													{room.floor}
+												</p>
+											</td>
+											<td className="px-5 py-4">
+												<p className="text-sm font-black text-[#0D2B55]">
+													{room.hostel}
+												</p>
+											</td>
+											<td className="px-5 py-4 text-sm font-bold text-[#60728f]">
+												{room.block}
+											</td>
+											<td className="px-5 py-4">
+												<p className="text-sm font-black text-[#0D2B55]">
+													{room.occupied} / {room.beds}
+												</p>
+												<p className="mt-1 text-xs font-bold text-[#60728f]">
+													occupied beds
+												</p>
+											</td>
+											<td className="px-5 py-4 text-sm font-black text-[#0D2B55]">
+												{room.available}
+											</td>
+											<td className="px-5 py-4">
+												<span className={`rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${getStatusClass(room.status)}`}>
+													{room.status}
+												</span>
+											</td>
+											<td className="px-5 py-4">
+												<p className="text-sm font-bold text-[#60728f]">
+													{formatDate(room.updatedAt)}
+												</p>
+											</td>
+											<td className="px-5 py-4">
+												<RowActionMenu
+													label={`Open actions for room ${room.id}`}
+													open={openActionsId === room.id}
+													onOpenChange={(open) => setOpenActionsId(open ? room.id : null)}
+													menuClassName="z-[100]"
+													items={[
+														{
+															label: "View",
+															icon: <Eye className="size-4" />,
+															onSelect: () => {
+																onView(room);
+																setOpenActionsId(null);
+															},
+														},
+														{
+															label: "Edit",
+															icon: <Edit3 className="size-4" />,
+															disabled: !canUpdate,
+															className: "text-[#0D2B55] hover:bg-[#eef4fb]",
+															onSelect: () => {
+																onEdit(room);
+																setOpenActionsId(null);
+															},
+														},
+													]}
+												/>
+											</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
+
+						<div className="flex flex-col gap-3 border-t border-[#dbe5f1] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+							<p className="text-sm font-semibold text-[#60728f]">
+								Rows per page: {PAGE_SIZE}
+							</p>
+							<div className="flex items-center gap-2">
+								<button
+									type="button"
+									onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+									disabled={safePage === 1}
+									className="h-10 rounded-2xl border border-[#d3dfed] bg-white px-4 text-sm font-black text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D] disabled:cursor-not-allowed disabled:opacity-40"
+								>
+									Previous
+								</button>
+								<button
+									type="button"
+									onClick={() => setCurrentPage((page) => Math.min(pageCount, page + 1))}
+									disabled={safePage === pageCount}
+									className="h-10 rounded-2xl bg-[#0D2B55] px-4 text-sm font-black text-white transition hover:bg-[#123866] disabled:cursor-not-allowed disabled:opacity-40"
+								>
+									Next
+								</button>
+							</div>
+						</div>
+					</>
+				)}
+			</div>
+		</section>
+	);
+}
+
+function RoomModal({
+	mode,
+	room,
+	draft,
+	hostels,
+	canSave,
+	onClose,
+	onDraftChange,
+	onSave,
+}: {
+	mode: RoomModalMode | null;
+	room: RoomItem | null;
+	draft: RoomDraft;
+	hostels: HostelItem[];
+	canSave: boolean;
+	onClose: () => void;
+	onDraftChange: (draft: RoomDraft) => void;
+	onSave: () => void;
+}) {
+	if (!mode) {
+		return null;
+	}
+
+	const isView = mode === "view";
+	const title =
+		mode === "create" ? "Create room" : mode === "edit" ? "Edit room" : "Room details";
+	const hostelOptions = Array.from(
+		new Set([...hostels.map((hostel) => hostel.name), draft.hostel].filter(Boolean)),
+	);
+
+	return (
+		<div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#06172f]/60 p-4 backdrop-blur-sm">
+			<div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-3xl border border-[#dbe5f1] bg-white shadow-[0_30px_80px_rgba(6,23,47,0.35)]">
+				<div className="flex items-start justify-between gap-4 border-b border-[#dbe5f1] bg-[#0D2B55] px-5 py-5 text-white sm:px-6">
+					<div>
+						<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#E4A11B]">
+							Manage Room & Beds
+						</p>
+						<h2 className="mt-2 text-xl font-black sm:text-2xl">{title}</h2>
+						<p className="mt-1 text-sm font-semibold text-[#c5d4e8]">
+							{room?.id ?? "New hostel room"}
+						</p>
+					</div>
+					<button
+						type="button"
+						onClick={onClose}
+						className="flex size-10 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition hover:bg-white hover:text-[#0D2B55]"
+						aria-label="Close room modal"
+					>
+						<X className="size-5" />
+					</button>
+				</div>
+
+				<div className="max-h-[calc(90vh-8rem)] overflow-y-auto p-5 sm:p-6">
+					{isView && room ? (
+						<div className="space-y-5">
+							<div className="grid gap-3 md:grid-cols-3">
+								{[
+									["Hostel", room.hostel],
+									["Block", room.block],
+									["Floor", room.floor],
+									["Total Beds", room.beds],
+									["Occupied Beds", room.occupied],
+									["Available Beds", room.available],
+									["Status", room.status],
+									["Last Updated", formatDate(room.updatedAt)],
+								].map(([label, value]) => (
+									<div
+										key={label as string}
+										className="rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] p-4"
+									>
+										<p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8395AF]">
+											{label as string}
+										</p>
+										<p className="mt-2 break-words text-sm font-black text-[#0D2B55]">
+											{value as ReactNode}
+										</p>
+									</div>
+								))}
+							</div>
+							<div className="rounded-2xl border border-[#dbe5f1] bg-white p-4">
+								<p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8395AF]">
+									Warden Note
+								</p>
+								<p className="mt-2 text-sm font-semibold leading-6 text-[#60728f]">
+									{room.wardenNote || "No room note has been recorded."}
+								</p>
+							</div>
+						</div>
+					) : (
+						<div className="grid gap-3 md:grid-cols-2">
+							<input
+								value={draft.id}
+								onChange={(event) => onDraftChange({ ...draft, id: event.target.value })}
+								placeholder="Room number, e.g. A101"
+								className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+							/>
+							<select
+								value={draft.hostel}
+								onChange={(event) =>
+									onDraftChange({ ...draft, hostel: event.target.value })
+								}
+								className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+							>
+								{hostelOptions.map((option) => (
+									<option key={option} value={option}>
+										{option}
+									</option>
+								))}
+							</select>
+							<input
+								value={draft.block}
+								onChange={(event) => onDraftChange({ ...draft, block: event.target.value })}
+								placeholder="Block"
+								className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+							/>
+							<input
+								value={draft.floor}
+								onChange={(event) => onDraftChange({ ...draft, floor: event.target.value })}
+								placeholder="Floor"
+								className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+							/>
+							<input
+								value={draft.beds}
+								onChange={(event) => onDraftChange({ ...draft, beds: event.target.value })}
+								inputMode="numeric"
+								placeholder="Total beds"
+								className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+							/>
+							<input
+								value={draft.available}
+								onChange={(event) =>
+									onDraftChange({ ...draft, available: event.target.value })
+								}
+								inputMode="numeric"
+								placeholder="Available beds"
+								className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+							/>
+							<select
+								value={draft.status}
+								onChange={(event) =>
+									onDraftChange({ ...draft, status: event.target.value as RoomStatus })
+								}
+								className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+							>
+								<option value="Available">Available</option>
+								<option value="Partial">Partial</option>
+								<option value="Full">Full</option>
+								<option value="Maintenance">Maintenance</option>
+							</select>
+							<textarea
+								value={draft.wardenNote}
+								onChange={(event) =>
+									onDraftChange({ ...draft, wardenNote: event.target.value })
+								}
+								placeholder="Warden note"
+								className="min-h-24 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 py-3 text-sm font-semibold text-[#0D2B55] outline-none focus:border-[#2E86C1] md:col-span-2"
+							/>
+						</div>
+					)}
+
+					<div className="sticky bottom-0 mt-5 flex flex-col gap-3 border-t border-[#dbe5f1] bg-white/95 pt-4 backdrop-blur sm:flex-row sm:justify-end">
+						<button
+							type="button"
+							onClick={onClose}
+							className="inline-flex items-center justify-center rounded-2xl border border-[#dbe5f1] px-5 py-3 text-sm font-black text-[#0D2B55] transition hover:border-[#0D2B55]"
+						>
+							Close
+						</button>
+						{isView ? null : (
+							<button
+								type="button"
+								onClick={onSave}
+								disabled={!canSave || !draft.id.trim() || !draft.hostel.trim()}
+								className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] px-5 py-3 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.18)] transition hover:-translate-y-0.5 hover:bg-[#123866] disabled:cursor-not-allowed disabled:opacity-50"
+							>
+								{mode === "create" ? <Plus className="size-4" /> : <Edit3 className="size-4" />}
+								{mode === "create" ? "Create room" : "Save room"}
+							</button>
+						)}
+					</div>
+				</div>
+			</div>
+		</div>
 	);
 }
 
@@ -1491,6 +2074,7 @@ export default function HostelModuleWorkspace({
 }: HostelModuleWorkspaceProps) {
 	const isStudentDomain = domain === "student";
 	const [hostels, setHostels] = useState(INITIAL_HOSTELS);
+	const [rooms, setRooms] = useState(INITIAL_ROOMS);
 	const [activeView, setActiveView] = useState<HostelView>(
 		isStudentDomain ? "dashboard" : "manage",
 	);
@@ -1498,6 +2082,9 @@ export default function HostelModuleWorkspace({
 	const [modalMode, setModalMode] = useState<HostelModalMode | null>(null);
 	const [modalHostel, setModalHostel] = useState<HostelItem | null>(null);
 	const [hostelDraft, setHostelDraft] = useState<HostelDraft>(getHostelDraft());
+	const [roomModalMode, setRoomModalMode] = useState<RoomModalMode | null>(null);
+	const [modalRoom, setModalRoom] = useState<RoomItem | null>(null);
+	const [roomDraft, setRoomDraft] = useState<RoomDraft>(getRoomDraft());
 	const canManage = useMemo(
 		() =>
 			!isStudentDomain &&
@@ -1508,6 +2095,10 @@ export default function HostelModuleWorkspace({
 	);
 	const canSaveHostel =
 		modalMode === "create"
+			? hasPermissions(permissions, ["hostels.create"], { mode: "any" })
+			: hasPermissions(permissions, ["hostels.update"], { mode: "any" });
+	const canSaveRoom =
+		roomModalMode === "create"
 			? hasPermissions(permissions, ["hostels.create"], { mode: "any" })
 			: hasPermissions(permissions, ["hostels.update"], { mode: "any" });
 	const activeHostel = selectedHostel ?? hostels[0];
@@ -1571,6 +2162,55 @@ export default function HostelModuleWorkspace({
 		closeHostelModal();
 	}
 
+	function openCreateRoomModal() {
+		setModalRoom(null);
+		setRoomDraft(getRoomDraft());
+		setRoomModalMode("create");
+	}
+
+	function openRoomModal(room: RoomItem, mode: Exclude<RoomModalMode, "create">) {
+		setModalRoom(room);
+		setRoomDraft(getRoomDraft(room));
+		setRoomModalMode(mode);
+	}
+
+	function closeRoomModal() {
+		setRoomModalMode(null);
+		setModalRoom(null);
+	}
+
+	function saveRoom() {
+		if (!canSaveRoom || !roomDraft.id.trim() || !roomDraft.hostel.trim()) {
+			return;
+		}
+
+		const beds = Math.max(0, Number(roomDraft.beds) || 0);
+		const available = Math.min(Math.max(0, Number(roomDraft.available) || 0), beds);
+		const status =
+			roomDraft.status === "Maintenance"
+				? roomDraft.status
+				: getRoomStatusFromAvailability(available, beds);
+		const nextRoom: RoomItem = {
+			id: roomDraft.id.trim().toUpperCase(),
+			hostel: roomDraft.hostel.trim(),
+			block: roomDraft.block.trim() || "Unassigned block",
+			floor: roomDraft.floor.trim() || "Unassigned floor",
+			beds,
+			available,
+			occupied: Math.max(0, beds - available),
+			status,
+			wardenNote: roomDraft.wardenNote.trim(),
+			updatedAt: new Date().toISOString(),
+		};
+
+		setRooms((current) =>
+			roomModalMode === "create"
+				? [...current, nextRoom]
+				: current.map((room) => (room.id === modalRoom?.id ? nextRoom : room)),
+		);
+		closeRoomModal();
+	}
+
 	function renderView() {
 		if (!isStudentDomain && activeView === "manage") {
 			return (
@@ -1586,7 +2226,16 @@ export default function HostelModuleWorkspace({
 		}
 
 		if (!isStudentDomain && activeView === "rooms") {
-			return <RoomsView />;
+			return (
+				<RoomsView
+					rooms={rooms}
+					hostels={hostels}
+					permissions={permissions}
+					onCreate={openCreateRoomModal}
+					onView={(room) => openRoomModal(room, "view")}
+					onEdit={(room) => openRoomModal(room, "edit")}
+				/>
+			);
 		}
 
 		if (!isStudentDomain && activeView === "allocations") {
@@ -1666,6 +2315,16 @@ export default function HostelModuleWorkspace({
 				onClose={closeHostelModal}
 				onDraftChange={setHostelDraft}
 				onSave={saveHostel}
+			/>
+			<RoomModal
+				mode={roomModalMode}
+				room={modalRoom}
+				draft={roomDraft}
+				hostels={hostels}
+				canSave={canSaveRoom}
+				onClose={closeRoomModal}
+				onDraftChange={setRoomDraft}
+				onSave={saveRoom}
 			/>
 		</div>
 	);
