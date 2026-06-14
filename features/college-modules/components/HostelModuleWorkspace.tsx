@@ -8,12 +8,14 @@ import {
 	CheckCircle2,
 	CircleDollarSign,
 	CreditCard,
+	Download,
 	DoorOpen,
 	Edit3,
 	Eye,
 	Filter,
 	Home,
 	Plus,
+	Printer,
 	ReceiptText,
 	Search,
 	ShieldCheck,
@@ -56,6 +58,8 @@ type AllocationStatus = "Pending" | "Allocated" | "Paid" | "Review" | "Cancelled
 type MaintenanceModalMode = "view" | "manage";
 type MaintenanceStatus = "Open" | "In Progress" | "Resolved" | "Escalated";
 type MaintenancePriority = "Low" | "Medium" | "High" | "Critical";
+type HostelPaymentStatus = "Paid" | "Pending" | "Review" | "Failed";
+type HostelInvoiceStatus = "Issued" | "Paid" | "Overdue" | "Voided";
 
 type HostelItem = {
 	id: string;
@@ -162,6 +166,28 @@ type MaintenanceRequestDraft = {
 	priority: MaintenancePriority;
 	assignedTo: string;
 	resolutionNote: string;
+};
+
+type HostelPaymentRecord = {
+	id: string;
+	invoiceNo: string;
+	reference: string;
+	studentName: string;
+	matricNo: string;
+	level: string;
+	hostel: string;
+	room: string;
+	bed: string;
+	amount: number;
+	currency: "NGN";
+	paymentStatus: HostelPaymentStatus;
+	invoiceStatus: HostelInvoiceStatus;
+	channel: "Card" | "Bank Transfer" | "USSD" | "Manual Review";
+	issuedAt: string;
+	paidAt?: string;
+	updatedAt: string;
+	verifiedBy: string;
+	note: string;
 };
 
 type HostelMenuItem = {
@@ -312,6 +338,12 @@ const ADMIN_MENU: HostelMenuItem[] = [
 		view: "allocations",
 		icon: ShieldCheck,
 		requiredPermissions: ["hostels.allocate"],
+	},
+	{
+		label: "Payment",
+		view: "payment",
+		icon: CreditCard,
+		requiredPermissions: ["hostels.view"],
 	},
 	{
 		label: "Maintenance",
@@ -532,6 +564,111 @@ const INITIAL_MAINTENANCE_REQUESTS: MaintenanceRequestItem[] = [
 	},
 ];
 
+const INITIAL_HOSTEL_PAYMENTS: HostelPaymentRecord[] = [
+	{
+		id: "hst-pay-001",
+		invoiceNo: "HST-2026-0001",
+		reference: "HST-KASU-0142-250116",
+		studentName: "Ibrahim Fatimah",
+		matricNo: "KASU/ND/25/0142",
+		level: "ND 1",
+		hostel: "Moremi Hall",
+		room: "A101",
+		bed: "Bed 3",
+		amount: 45000,
+		currency: "NGN",
+		paymentStatus: "Paid",
+		invoiceStatus: "Paid",
+		channel: "Card",
+		issuedAt: "2026-01-15T08:05:00.000Z",
+		paidAt: "2026-01-16T09:50:00.000Z",
+		updatedAt: "2026-01-16T10:20:00.000Z",
+		verifiedBy: "Hostel Admin",
+		note: "Payment verified before allocation confirmation.",
+	},
+	{
+		id: "hst-pay-002",
+		invoiceNo: "HST-2026-0002",
+		reference: "HST-KASU-0088-250115",
+		studentName: "Adeyemi Blessing",
+		matricNo: "KASU/HND/25/0088",
+		level: "HND 1",
+		hostel: "Queen Hall",
+		room: "C201",
+		bed: "Bed 1",
+		amount: 45000,
+		currency: "NGN",
+		paymentStatus: "Review",
+		invoiceStatus: "Issued",
+		channel: "Bank Transfer",
+		issuedAt: "2026-01-15T08:35:00.000Z",
+		updatedAt: "2026-01-15T12:10:00.000Z",
+		verifiedBy: "Finance Desk",
+		note: "Student uploaded transfer evidence; awaiting finance confirmation.",
+	},
+	{
+		id: "hst-pay-003",
+		invoiceNo: "HST-2026-0003",
+		reference: "HST-KASU-0231-250114",
+		studentName: "Okafor Chidi",
+		matricNo: "KASU/ND/25/0231",
+		level: "ND 2",
+		hostel: "Awolowo Hall",
+		room: "B101",
+		bed: "Bed 2",
+		amount: 45000,
+		currency: "NGN",
+		paymentStatus: "Paid",
+		invoiceStatus: "Paid",
+		channel: "USSD",
+		issuedAt: "2026-01-13T16:30:00.000Z",
+		paidAt: "2026-01-14T08:25:00.000Z",
+		updatedAt: "2026-01-14T09:40:00.000Z",
+		verifiedBy: "Mr. Aminu Ibrahim",
+		note: "Gateway confirmation matched the hostel invoice reference.",
+	},
+	{
+		id: "hst-pay-004",
+		invoiceNo: "HST-2026-0004",
+		reference: "HST-KASU-0305-250113",
+		studentName: "Salihu Musa",
+		matricNo: "KASU/ND/25/0305",
+		level: "ND 1",
+		hostel: "Awolowo Hall",
+		room: "B102",
+		bed: "Bed 4",
+		amount: 45000,
+		currency: "NGN",
+		paymentStatus: "Pending",
+		invoiceStatus: "Overdue",
+		channel: "Manual Review",
+		issuedAt: "2026-01-12T14:10:00.000Z",
+		updatedAt: "2026-01-13T15:20:00.000Z",
+		verifiedBy: "Not verified",
+		note: "Allocation remains pending until hostel fee payment is cleared.",
+	},
+	{
+		id: "hst-pay-005",
+		invoiceNo: "HST-2026-0005",
+		reference: "HST-KASU-0417-250112",
+		studentName: "Nwachukwu Ada",
+		matricNo: "KASU/HND/25/0417",
+		level: "HND 2",
+		hostel: "Moremi Hall",
+		room: "A103",
+		bed: "Bed 1",
+		amount: 45000,
+		currency: "NGN",
+		paymentStatus: "Failed",
+		invoiceStatus: "Issued",
+		channel: "Card",
+		issuedAt: "2026-01-12T10:05:00.000Z",
+		updatedAt: "2026-01-12T10:12:00.000Z",
+		verifiedBy: "Gateway",
+		note: "Card attempt failed; student can retry payment before allocation.",
+	},
+];
+
 const STATUS_LABELS: Record<HostelStatus, string> = {
 	available: "Available",
 	filling: "Filling",
@@ -564,6 +701,18 @@ const MAINTENANCE_PRIORITIES: MaintenancePriority[] = [
 	"High",
 	"Critical",
 ];
+const HOSTEL_PAYMENT_STATUSES: HostelPaymentStatus[] = [
+	"Pending",
+	"Review",
+	"Paid",
+	"Failed",
+];
+const HOSTEL_INVOICE_STATUSES: HostelInvoiceStatus[] = [
+	"Issued",
+	"Paid",
+	"Overdue",
+	"Voided",
+];
 
 function getHostelToneClass(tone: HostelItem["tone"]) {
 	if (tone === "rose") return "bg-[#d92672]";
@@ -581,6 +730,7 @@ function getStatusClass(status: HostelStatus | string) {
 	if (normalized === "open" || normalized === "in progress") return "border-amber-200 bg-amber-50 text-amber-700";
 	if (normalized === "full") return "border-red-200 bg-red-50 text-red-700";
 	if (normalized === "cancelled") return "border-red-200 bg-red-50 text-red-700";
+	if (normalized === "failed" || normalized === "overdue" || normalized === "voided") return "border-red-200 bg-red-50 text-red-700";
 	if (normalized === "escalated" || normalized === "critical") return "border-red-200 bg-red-50 text-red-700";
 	if (normalized === "maintenance") return "border-sky-200 bg-sky-50 text-sky-700";
 	if (normalized === "high") return "border-orange-200 bg-orange-50 text-orange-700";
@@ -598,6 +748,135 @@ function formatDate(value?: string) {
 		dateStyle: "medium",
 		timeStyle: "short",
 	}).format(new Date(value));
+}
+
+function formatCurrency(amount: number, currency = "NGN") {
+	return new Intl.NumberFormat("en-NG", {
+		style: "currency",
+		currency,
+		maximumFractionDigits: 0,
+	}).format(amount);
+}
+
+function escapeCsvValue(value: string | number | undefined) {
+	const text = String(value ?? "");
+	return `"${text.replaceAll('"', '""')}"`;
+}
+
+function escapeHtml(value: string | number | undefined) {
+	return String(value ?? "")
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;")
+		.replaceAll('"', "&quot;")
+		.replaceAll("'", "&#39;");
+}
+
+function exportHostelPaymentCsv(payment: HostelPaymentRecord) {
+	const rows = [
+		[
+			"Invoice No",
+			"Reference",
+			"Student",
+			"Matric No",
+			"Hostel",
+			"Room",
+			"Bed",
+			"Amount",
+			"Payment Status",
+			"Invoice Status",
+			"Channel",
+			"Issued At",
+			"Paid At",
+			"Verified By",
+		],
+		[
+			payment.invoiceNo,
+			payment.reference,
+			payment.studentName,
+			payment.matricNo,
+			payment.hostel,
+			payment.room,
+			payment.bed,
+			formatCurrency(payment.amount, payment.currency),
+			payment.paymentStatus,
+			payment.invoiceStatus,
+			payment.channel,
+			formatDate(payment.issuedAt),
+			payment.paidAt ? formatDate(payment.paidAt) : "Not paid",
+			payment.verifiedBy,
+		],
+	];
+	const csv = rows
+		.map((row) => row.map((value) => escapeCsvValue(value)).join(","))
+		.join("\n");
+	const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+	const url = URL.createObjectURL(blob);
+	const link = document.createElement("a");
+	link.href = url;
+	link.download = `${payment.invoiceNo.toLowerCase()}-hostel-payment.csv`;
+	document.body.appendChild(link);
+	link.click();
+	link.remove();
+	URL.revokeObjectURL(url);
+}
+
+function printHostelPaymentInvoice(payment: HostelPaymentRecord) {
+	const printWindow = window.open("", "_blank", "width=900,height=700");
+
+	if (!printWindow) {
+		return;
+	}
+
+	printWindow.document.write(`
+		<!doctype html>
+		<html>
+			<head>
+				<title>${escapeHtml(payment.invoiceNo)} Hostel Invoice</title>
+				<style>
+					body { font-family: Arial, sans-serif; color: #06183A; margin: 32px; }
+					.header { border-bottom: 2px solid #0D2B55; padding-bottom: 16px; margin-bottom: 24px; }
+					.badge { color: #B7770D; font-size: 11px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase; }
+					h1 { margin: 8px 0 0; font-size: 28px; }
+					.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+					.card { border: 1px solid #dbe5f1; border-radius: 14px; padding: 14px; }
+					.label { color: #8395AF; font-size: 10px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; }
+					.value { margin-top: 6px; font-size: 14px; font-weight: 800; }
+					.amount { font-size: 30px; color: #0D2B55; }
+					.note { margin-top: 20px; border-top: 1px solid #dbe5f1; padding-top: 16px; color: #60728f; line-height: 1.6; }
+					@media print { body { margin: 24px; } }
+				</style>
+			</head>
+			<body>
+				<div class="header">
+					<div class="badge">Hostel Payment Invoice</div>
+					<h1>${escapeHtml(payment.invoiceNo)}</h1>
+					<p>${escapeHtml(payment.reference)}</p>
+				</div>
+				<div class="grid">
+					<div class="card"><div class="label">Student</div><div class="value">${escapeHtml(payment.studentName)}</div></div>
+					<div class="card"><div class="label">Matric No</div><div class="value">${escapeHtml(payment.matricNo)}</div></div>
+					<div class="card"><div class="label">Hostel</div><div class="value">${escapeHtml(payment.hostel)}</div></div>
+					<div class="card"><div class="label">Room / Bed</div><div class="value">${escapeHtml(payment.room)} / ${escapeHtml(payment.bed)}</div></div>
+					<div class="card"><div class="label">Payment Status</div><div class="value">${escapeHtml(payment.paymentStatus)}</div></div>
+					<div class="card"><div class="label">Invoice Status</div><div class="value">${escapeHtml(payment.invoiceStatus)}</div></div>
+					<div class="card"><div class="label">Channel</div><div class="value">${escapeHtml(payment.channel)}</div></div>
+					<div class="card"><div class="label">Verified By</div><div class="value">${escapeHtml(payment.verifiedBy)}</div></div>
+					<div class="card"><div class="label">Issued</div><div class="value">${escapeHtml(formatDate(payment.issuedAt))}</div></div>
+					<div class="card"><div class="label">Paid</div><div class="value">${escapeHtml(payment.paidAt ? formatDate(payment.paidAt) : "Not paid")}</div></div>
+					<div class="card"><div class="label">Amount</div><div class="value amount">${escapeHtml(formatCurrency(payment.amount, payment.currency))}</div></div>
+				</div>
+				<div class="note">${escapeHtml(payment.note || "No payment note recorded.")}</div>
+				<script>
+					window.addEventListener("load", () => {
+						window.print();
+						window.close();
+					});
+				</script>
+			</body>
+		</html>
+	`);
+	printWindow.document.close();
 }
 
 function getHostelDraft(hostel?: HostelItem | null): HostelDraft {
@@ -1221,7 +1500,7 @@ function AllocationView() {
 	);
 }
 
-function PaymentView() {
+function StudentPaymentView() {
 	return (
 		<SimplePanel
 			badge="Hostel Payment"
@@ -1244,6 +1523,502 @@ function PaymentView() {
 				</div>
 			</div>
 		</SimplePanel>
+	);
+}
+
+function AdminHostelPaymentView({
+	payments,
+	allocations,
+	hostels,
+	permissions,
+	onView,
+	onPrint,
+	onExport,
+}: {
+	payments: HostelPaymentRecord[];
+	allocations: AllocationItem[];
+	hostels: HostelItem[];
+	permissions: UserPermissionKey[];
+	onView: (payment: HostelPaymentRecord) => void;
+	onPrint: (payment: HostelPaymentRecord) => void;
+	onExport: (payment: HostelPaymentRecord) => void;
+}) {
+	const [search, setSearch] = useState("");
+	const [paymentStatus, setPaymentStatus] = useState<HostelPaymentStatus | "all">("all");
+	const [invoiceStatus, setInvoiceStatus] = useState<HostelInvoiceStatus | "all">("all");
+	const [hostelFilter, setHostelFilter] = useState<string>("all");
+	const [currentPage, setCurrentPage] = useState(1);
+	const [openActionsId, setOpenActionsId] = useState<string | number | null>(null);
+	const canViewPayment = hasPermissions(permissions, ["hostels.view"], { mode: "any" });
+	const stats = useMemo(
+		() => ({
+			totalInvoices: payments.length,
+			collected: payments
+				.filter((payment) => payment.paymentStatus === "Paid")
+				.reduce((total, payment) => total + payment.amount, 0),
+			pending: payments.filter((payment) =>
+				["Pending", "Review"].includes(payment.paymentStatus),
+			).length,
+			outstanding: payments
+				.filter((payment) => payment.paymentStatus !== "Paid")
+				.reduce((total, payment) => total + payment.amount, 0),
+		}),
+		[payments],
+	);
+	const hostelOptions = useMemo(
+		() =>
+			Array.from(
+				new Set([
+					...hostels.map((hostel) => hostel.name),
+					...payments.map((payment) => payment.hostel),
+				]),
+			)
+				.filter(Boolean)
+				.sort((left, right) => left.localeCompare(right)),
+		[hostels, payments],
+	);
+	const filteredPayments = useMemo(() => {
+		const normalizedSearch = search.trim().toLowerCase();
+
+		return payments.filter((payment) => {
+			const haystack = [
+				payment.invoiceNo,
+				payment.reference,
+				payment.studentName,
+				payment.matricNo,
+				payment.level,
+				payment.hostel,
+				payment.room,
+				payment.bed,
+				payment.paymentStatus,
+				payment.invoiceStatus,
+				payment.channel,
+				payment.verifiedBy,
+				payment.note,
+			]
+				.join(" ")
+				.toLowerCase();
+
+			return (
+				(!normalizedSearch || haystack.includes(normalizedSearch)) &&
+				(paymentStatus === "all" || payment.paymentStatus === paymentStatus) &&
+				(invoiceStatus === "all" || payment.invoiceStatus === invoiceStatus) &&
+				(hostelFilter === "all" || payment.hostel === hostelFilter)
+			);
+		});
+	}, [hostelFilter, invoiceStatus, paymentStatus, payments, search]);
+	const pageCount = Math.max(1, Math.ceil(filteredPayments.length / PAGE_SIZE));
+	const safePage = Math.min(currentPage, pageCount);
+	const paginatedPayments = filteredPayments.slice(
+		(safePage - 1) * PAGE_SIZE,
+		safePage * PAGE_SIZE,
+	);
+
+	function updateFilter<T>(setter: (value: T) => void, value: T) {
+		setter(value);
+		setCurrentPage(1);
+	}
+
+	function clearFilters() {
+		setSearch("");
+		setPaymentStatus("all");
+		setInvoiceStatus("all");
+		setHostelFilter("all");
+		setCurrentPage(1);
+	}
+
+	return (
+		<section className="space-y-5">
+			<div className="rounded-3xl border border-[#d7e2f0] bg-white p-5 shadow-[0_18px_45px_rgba(13,43,85,0.08)] sm:p-6">
+				<div className="flex flex-wrap items-start justify-between gap-4">
+					<div>
+						<p className="text-[11px] font-black uppercase tracking-[0.28em] text-[#B7770D]">
+							Hostel Payment Analytics
+						</p>
+						<h2 className="mt-2 text-2xl font-black text-[#06183A]">
+							Hostel invoice and payment status
+						</h2>
+						<p className="mt-2 max-w-3xl text-sm leading-7 text-[#556987]">
+							Track student hostel fee invoices, payment clearance, room
+							allocation links, and print-ready hostel receipts inside this
+							college-scoped hostel workspace.
+						</p>
+					</div>
+					<div className="rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] px-4 py-3 text-sm font-black text-[#0D2B55]">
+						{allocations.length} allocation records checked
+					</div>
+				</div>
+
+				<div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+					{[
+						["Total Invoices", stats.totalInvoices],
+						["Collected", formatCurrency(stats.collected)],
+						["Pending Review", stats.pending],
+						["Outstanding", formatCurrency(stats.outstanding)],
+					].map(([label, value]) => (
+						<div
+							key={label}
+							className="rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] p-4"
+						>
+							<p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8395AF]">
+								{label}
+							</p>
+							<p className="mt-2 text-3xl font-black text-[#0D2B55]">{value}</p>
+						</div>
+					))}
+				</div>
+			</div>
+
+			<div className="rounded-3xl border border-[#d7e2f0] bg-white p-4 shadow-[0_18px_45px_rgba(13,43,85,0.08)] sm:p-5">
+				<div className="flex flex-wrap items-center justify-between gap-3">
+					<div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.24em] text-[#B7770D]">
+						<Filter className="size-4" />
+						Filters
+					</div>
+					<button
+						type="button"
+						onClick={clearFilters}
+						className="inline-flex h-10 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white px-4 text-xs font-black uppercase tracking-[0.12em] text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+					>
+						Reset filters
+					</button>
+				</div>
+				<div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_13rem_13rem_13rem]">
+					<label className="relative">
+						<Search className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[#7b8faa]" />
+						<input
+							value={search}
+							onChange={(event) => updateFilter(setSearch, event.target.value)}
+							placeholder="Search invoice, student, reference, or room"
+							className="h-12 w-full rounded-2xl border border-[#d3dfed] bg-[#f8fbff] pl-11 pr-4 text-sm font-semibold text-[#0D2B55] outline-none transition focus:border-[#2E86C1]"
+						/>
+					</label>
+					<select
+						value={hostelFilter}
+						onChange={(event) => updateFilter(setHostelFilter, event.target.value)}
+						className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+					>
+						<option value="all">All hostels</option>
+						{hostelOptions.map((option) => (
+							<option key={option} value={option}>
+								{option}
+							</option>
+						))}
+					</select>
+					<select
+						value={paymentStatus}
+						onChange={(event) =>
+							updateFilter(
+								setPaymentStatus,
+								event.target.value as HostelPaymentStatus | "all",
+							)
+						}
+						className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+					>
+						<option value="all">All payment status</option>
+						{HOSTEL_PAYMENT_STATUSES.map((option) => (
+							<option key={option} value={option}>
+								{option}
+							</option>
+						))}
+					</select>
+					<select
+						value={invoiceStatus}
+						onChange={(event) =>
+							updateFilter(
+								setInvoiceStatus,
+								event.target.value as HostelInvoiceStatus | "all",
+							)
+						}
+						className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+					>
+						<option value="all">All invoice status</option>
+						{HOSTEL_INVOICE_STATUSES.map((option) => (
+							<option key={option} value={option}>
+								{option}
+							</option>
+						))}
+					</select>
+				</div>
+			</div>
+
+			<div className="overflow-hidden rounded-3xl border border-[#d7e2f0] bg-white shadow-[0_18px_45px_rgba(13,43,85,0.08)]">
+				<div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#dbe5f1] px-4 py-4 sm:px-5">
+					<div>
+						<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#B7770D]">
+							Hostel Payment Table
+						</p>
+						<p className="mt-1 text-sm font-semibold text-[#60728f]">
+							Showing {paginatedPayments.length} of {filteredPayments.length} hostel payments
+						</p>
+					</div>
+					<div className="flex items-center gap-2 rounded-full border border-[#dbe5f1] bg-[#f8fbff] px-4 py-2 text-xs font-black text-[#0D2B55]">
+						Page {safePage} of {pageCount}
+					</div>
+				</div>
+
+				{filteredPayments.length === 0 ? (
+					<div className="p-8 text-center">
+						<div className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#eef4fb] text-[#2E86C1]">
+							<CreditCard className="size-6" />
+						</div>
+						<h3 className="mt-4 text-lg font-black text-[#06183A]">
+							No hostel payments found
+						</h3>
+						<p className="mt-2 text-sm text-[#60728f]">
+							Adjust the filters to review student hostel invoice status.
+						</p>
+					</div>
+				) : (
+					<>
+						<div className="overflow-x-auto">
+							<table className="min-w-[1280px] w-full border-collapse text-left">
+								<thead className="bg-[#f8fbff]">
+									<tr className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8395AF]">
+										<th className="px-5 py-4">Invoice</th>
+										<th className="px-5 py-4">Student</th>
+										<th className="px-5 py-4">Room / Bed</th>
+										<th className="px-5 py-4">Amount</th>
+										<th className="px-5 py-4">Payment</th>
+										<th className="px-5 py-4">Invoice Status</th>
+										<th className="px-5 py-4">Paid / Updated</th>
+										<th className="px-5 py-4 text-right">Actions</th>
+									</tr>
+								</thead>
+								<tbody className="divide-y divide-[#dbe5f1]">
+									{paginatedPayments.map((payment) => (
+										<tr key={payment.id} className="bg-white transition hover:bg-[#f8fbff]">
+											<td className="px-5 py-4">
+												<p className="font-black text-[#06183A]">{payment.invoiceNo}</p>
+												<p className="mt-1 max-w-[15rem] break-words text-sm font-semibold text-[#60728f]">
+													{payment.reference}
+												</p>
+											</td>
+											<td className="px-5 py-4">
+												<p className="font-black text-[#0D2B55]">{payment.studentName}</p>
+												<p className="mt-1 text-xs font-bold text-[#60728f]">
+													{payment.matricNo} / {payment.level}
+												</p>
+											</td>
+											<td className="px-5 py-4">
+												<p className="max-w-[14rem] text-sm font-black text-[#0D2B55]">
+													{payment.hostel}
+												</p>
+												<p className="mt-1 text-xs font-bold text-[#60728f]">
+													{payment.room} / {payment.bed}
+												</p>
+											</td>
+											<td className="px-5 py-4">
+												<p className="text-sm font-black text-[#0D2B55]">
+													{formatCurrency(payment.amount, payment.currency)}
+												</p>
+												<p className="mt-1 text-xs font-bold text-[#60728f]">
+													{payment.channel}
+												</p>
+											</td>
+											<td className="px-5 py-4">
+												<span className={`rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${getStatusClass(payment.paymentStatus)}`}>
+													{payment.paymentStatus}
+												</span>
+											</td>
+											<td className="px-5 py-4">
+												<span className={`rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${getStatusClass(payment.invoiceStatus)}`}>
+													{payment.invoiceStatus}
+												</span>
+											</td>
+											<td className="px-5 py-4">
+												<p className="text-sm font-bold text-[#60728f]">
+													{payment.paidAt ? formatDate(payment.paidAt) : "Not paid"}
+												</p>
+												<p className="mt-1 text-xs font-bold text-[#8395AF]">
+													Updated {formatDate(payment.updatedAt)}
+												</p>
+											</td>
+											<td className="px-5 py-4">
+												<RowActionMenu
+													label={`Open actions for hostel payment ${payment.invoiceNo}`}
+													open={openActionsId === payment.id}
+													onOpenChange={(open) => setOpenActionsId(open ? payment.id : null)}
+													menuClassName="z-[160]"
+													width={216}
+													items={[
+														{
+															label: "View",
+															icon: <Eye className="size-4" />,
+															disabled: !canViewPayment,
+															onSelect: () => {
+																onView(payment);
+																setOpenActionsId(null);
+															},
+														},
+														{
+															label: "Print Invoice",
+															icon: <Printer className="size-4" />,
+															disabled: !canViewPayment,
+															className: "text-[#0D2B55] hover:bg-[#eef4fb]",
+															onSelect: () => {
+																onPrint(payment);
+																setOpenActionsId(null);
+															},
+														},
+														{
+															label: "Export CSV",
+															icon: <Download className="size-4" />,
+															disabled: !canViewPayment,
+															className: "text-[#0D2B55] hover:bg-[#eef4fb]",
+															onSelect: () => {
+																onExport(payment);
+																setOpenActionsId(null);
+															},
+														},
+													]}
+												/>
+											</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
+
+						<div className="flex flex-col gap-3 border-t border-[#dbe5f1] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+							<p className="text-sm font-semibold text-[#60728f]">
+								Rows per page: {PAGE_SIZE}
+							</p>
+							<div className="flex items-center gap-2">
+								<button
+									type="button"
+									onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+									disabled={safePage === 1}
+									className="h-10 rounded-2xl border border-[#d3dfed] bg-white px-4 text-sm font-black text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D] disabled:cursor-not-allowed disabled:opacity-40"
+								>
+									Previous
+								</button>
+								<button
+									type="button"
+									onClick={() => setCurrentPage((page) => Math.min(pageCount, page + 1))}
+									disabled={safePage === pageCount}
+									className="h-10 rounded-2xl bg-[#0D2B55] px-4 text-sm font-black text-white transition hover:bg-[#123866] disabled:cursor-not-allowed disabled:opacity-40"
+								>
+									Next
+								</button>
+							</div>
+						</div>
+					</>
+				)}
+			</div>
+		</section>
+	);
+}
+
+function HostelPaymentModal({
+	payment,
+	onClose,
+	onPrint,
+	onExport,
+}: {
+	payment: HostelPaymentRecord | null;
+	onClose: () => void;
+	onPrint: (payment: HostelPaymentRecord) => void;
+	onExport: (payment: HostelPaymentRecord) => void;
+}) {
+	if (!payment) {
+		return null;
+	}
+
+	return (
+		<div className="fixed inset-0 z-[170] flex items-center justify-center bg-[#06172f]/60 p-4 backdrop-blur-sm">
+			<div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-3xl border border-[#dbe5f1] bg-white shadow-[0_30px_80px_rgba(6,23,47,0.35)]">
+				<div className="flex items-start justify-between gap-4 border-b border-[#dbe5f1] bg-[#0D2B55] px-5 py-5 text-white sm:px-6">
+					<div>
+						<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#E4A11B]">
+							Manage Hostel Payment
+						</p>
+						<h2 className="mt-2 text-xl font-black sm:text-2xl">
+							Hostel payment invoice
+						</h2>
+						<p className="mt-1 text-sm font-semibold text-[#c5d4e8]">
+							{payment.invoiceNo} - {payment.reference}
+						</p>
+					</div>
+					<button
+						type="button"
+						onClick={onClose}
+						className="flex size-10 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition hover:bg-white hover:text-[#0D2B55]"
+						aria-label="Close hostel payment modal"
+					>
+						<X className="size-5" />
+					</button>
+				</div>
+
+				<div className="max-h-[calc(90vh-8rem)] overflow-y-auto p-5 sm:p-6">
+					<div className="grid gap-3 md:grid-cols-3">
+						{[
+							["Student", payment.studentName],
+							["Matric No", payment.matricNo],
+							["Level", payment.level],
+							["Hostel", payment.hostel],
+							["Room / Bed", `${payment.room} / ${payment.bed}`],
+							["Amount", formatCurrency(payment.amount, payment.currency)],
+							["Payment", payment.paymentStatus],
+							["Invoice", payment.invoiceStatus],
+							["Channel", payment.channel],
+							["Issued", formatDate(payment.issuedAt)],
+							["Paid", payment.paidAt ? formatDate(payment.paidAt) : "Not paid"],
+							["Verified By", payment.verifiedBy],
+						].map(([label, value]) => (
+							<div
+								key={label as string}
+								className="rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] p-4"
+							>
+								<p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8395AF]">
+									{label as string}
+								</p>
+								<p className="mt-2 break-words text-sm font-black text-[#0D2B55]">
+									{value as ReactNode}
+								</p>
+							</div>
+						))}
+					</div>
+
+					<div className="mt-5 rounded-2xl border border-[#dbe5f1] bg-white p-4">
+						<p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8395AF]">
+							Payment Note
+						</p>
+						<p className="mt-2 text-sm font-semibold leading-6 text-[#60728f]">
+							{payment.note || "No hostel payment note has been recorded."}
+						</p>
+					</div>
+
+					<div className="sticky bottom-0 mt-5 flex flex-col gap-3 border-t border-[#dbe5f1] bg-white/95 pt-4 backdrop-blur sm:flex-row sm:justify-between">
+						<div className="flex flex-col gap-3 sm:flex-row">
+							<button
+								type="button"
+								onClick={() => onPrint(payment)}
+								className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#dbe5f1] px-5 py-3 text-sm font-black text-[#0D2B55] transition hover:border-[#0D2B55]"
+							>
+								<Printer className="size-4" />
+								Print invoice
+							</button>
+							<button
+								type="button"
+								onClick={() => onExport(payment)}
+								className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#dbe5f1] px-5 py-3 text-sm font-black text-[#0D2B55] transition hover:border-[#0D2B55]"
+							>
+								<Download className="size-4" />
+								Export CSV
+							</button>
+						</div>
+						<button
+							type="button"
+							onClick={onClose}
+							className="inline-flex items-center justify-center rounded-2xl bg-[#0D2B55] px-5 py-3 text-sm font-black text-white transition hover:bg-[#123866]"
+						>
+							Close
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
 	);
 }
 
@@ -3499,6 +4274,7 @@ export default function HostelModuleWorkspace({
 	const [maintenanceRequests, setMaintenanceRequests] = useState(
 		INITIAL_MAINTENANCE_REQUESTS,
 	);
+	const [hostelPayments] = useState(INITIAL_HOSTEL_PAYMENTS);
 	const [activeView, setActiveView] = useState<HostelView>(
 		isStudentDomain ? "dashboard" : "manage",
 	);
@@ -3520,10 +4296,13 @@ export default function HostelModuleWorkspace({
 		useState<MaintenanceRequestItem | null>(null);
 	const [maintenanceDraft, setMaintenanceDraft] =
 		useState<MaintenanceRequestDraft>(getMaintenanceDraft());
+	const [modalHostelPayment, setModalHostelPayment] =
+		useState<HostelPaymentRecord | null>(null);
 	const canManage = useMemo(
 		() =>
 			!isStudentDomain &&
 			(hasPermissions(permissions, ["hostels.create"]) ||
+				hasPermissions(permissions, ["hostels.view"]) ||
 				hasPermissions(permissions, ["hostels.update"]) ||
 				hasPermissions(permissions, ["hostels.allocate"])),
 		[isStudentDomain, permissions],
@@ -3778,6 +4557,14 @@ export default function HostelModuleWorkspace({
 		setAllocationModalMode("create");
 	}
 
+	function openHostelPaymentModal(payment: HostelPaymentRecord) {
+		setModalHostelPayment(payment);
+	}
+
+	function closeHostelPaymentModal() {
+		setModalHostelPayment(null);
+	}
+
 	function renderView() {
 		if (!isStudentDomain && activeView === "manage") {
 			return (
@@ -3815,6 +4602,20 @@ export default function HostelModuleWorkspace({
 					onCreate={openCreateAllocationModal}
 					onView={(allocation) => openAllocationModal(allocation, "view")}
 					onEdit={(allocation) => openAllocationModal(allocation, "edit")}
+				/>
+			);
+		}
+
+		if (!isStudentDomain && activeView === "payment") {
+			return (
+				<AdminHostelPaymentView
+					payments={hostelPayments}
+					allocations={allocations}
+					hostels={hostels}
+					permissions={permissions}
+					onView={openHostelPaymentModal}
+					onPrint={printHostelPaymentInvoice}
+					onExport={exportHostelPaymentCsv}
 				/>
 			);
 		}
@@ -3858,7 +4659,7 @@ export default function HostelModuleWorkspace({
 		}
 
 		if (activeView === "allocation") return <AllocationView />;
-		if (activeView === "payment") return <PaymentView />;
+		if (activeView === "payment") return <StudentPaymentView />;
 		if (activeView === "maintenance") return <StudentMaintenanceView />;
 
 		return (
@@ -3937,6 +4738,12 @@ export default function HostelModuleWorkspace({
 				onDraftChange={setMaintenanceDraft}
 				onSave={saveMaintenanceRequest}
 				onViewAllocation={viewAllocationFromMaintenance}
+			/>
+			<HostelPaymentModal
+				payment={modalHostelPayment}
+				onClose={closeHostelPaymentModal}
+				onPrint={printHostelPaymentInvoice}
+				onExport={exportHostelPaymentCsv}
 			/>
 		</div>
 	);
