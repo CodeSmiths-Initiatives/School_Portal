@@ -187,6 +187,13 @@ type HostelPaymentRecord = {
 	note: string;
 };
 
+type StudentMaintenanceDraft = {
+	category: string;
+	issue: string;
+	description: string;
+	priority: MaintenancePriority;
+};
+
 type HostelMenuItem = {
 	label: string;
 	view: HostelView;
@@ -283,7 +290,6 @@ const INITIAL_HOSTELS: HostelItem[] = [
 ];
 
 const STUDENT_MENU: HostelMenuItem[] = [
-	{ label: "Dashboard", view: "dashboard", icon: Home },
 	{ label: "Browse Hostels", view: "browse", icon: Search },
 	{ label: "My Allocation", view: "allocation", icon: BedDouble },
 	{ label: "Hostel Payment", view: "payment", icon: CreditCard },
@@ -1082,7 +1088,6 @@ function DashboardView({
 	onBrowse,
 	onView,
 	onBook,
-	onPayment,
 	onMaintenance,
 }: {
 	collegeName: string;
@@ -1091,7 +1096,6 @@ function DashboardView({
 	onBrowse: () => void;
 	onView: (hostel: HostelItem) => void;
 	onBook: (hostel: HostelItem) => void;
-	onPayment: () => void;
 	onMaintenance: () => void;
 }) {
 	const [listView, setListView] = useState<"table" | "cards">("table");
@@ -1156,14 +1160,6 @@ function DashboardView({
 						</p>
 					</div>
 					<div className="flex flex-col gap-2 sm:flex-row">
-						<button
-							type="button"
-							onClick={onPayment}
-							className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-[#d3dfed] bg-white px-5 text-sm font-black text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
-						>
-							<CreditCard className="size-4" />
-							Pay Fee
-						</button>
 						<button
 							type="button"
 							onClick={onApply}
@@ -1374,14 +1370,6 @@ function DashboardView({
 														},
 													},
 													{
-														label: "Pay Hostel Fee",
-														icon: <CreditCard className="size-4" />,
-														onSelect: () => {
-															onPayment();
-															setOpenActionsId(null);
-														},
-													},
-													{
 														label: "Maintenance",
 														icon: <Wrench className="size-4" />,
 														onSelect: () => {
@@ -1574,12 +1562,38 @@ function DetailsView({
 function BookingView({
 	selectedHostel,
 	hostels,
+	rooms,
+	selectedRoomId,
+	selectedBed,
 	onChooseHostel,
+	onSelectRoom,
+	onSelectBed,
+	onConfirm,
 }: {
 	selectedHostel: HostelItem | null;
 	hostels: HostelItem[];
+	rooms: RoomItem[];
+	selectedRoomId: string;
+	selectedBed: string;
 	onChooseHostel: (hostel: HostelItem) => void;
+	onSelectRoom: (roomId: string) => void;
+	onSelectBed: (bed: string) => void;
+	onConfirm: () => void;
 }) {
+	const availableRooms = selectedHostel
+		? rooms.filter(
+				(room) =>
+					room.hostel === selectedHostel.name &&
+					room.status !== "Full" &&
+					room.status !== "Maintenance" &&
+					room.available > 0,
+			)
+		: [];
+	const selectedRoom = availableRooms.find((room) => room.id === selectedRoomId);
+	const bedOptions = selectedRoom
+		? Array.from({ length: selectedRoom.beds }, (_, index) => `Bed ${index + 1}`)
+		: [];
+
 	if (!selectedHostel) {
 		return (
 			<div className="space-y-5">
@@ -1590,6 +1604,10 @@ function BookingView({
 					<h2 className="mt-2 text-2xl font-bold text-[#0D2B55]">
 						Choose a hostel to continue
 					</h2>
+					<p className="mt-1 text-sm text-[#60728f]">
+						The student flow starts here: pick a hostel, then select an available
+						room and bed before payment is shown.
+					</p>
 				</div>
 				<div className="grid gap-4 xl:grid-cols-3">
 					{hostels.filter((hostel) => hostel.status !== "full").map((hostel) => (
@@ -1614,7 +1632,7 @@ function BookingView({
 					</p>
 					<h2 className="mt-2 text-2xl font-bold">{selectedHostel.name}</h2>
 					<p className="mt-1 text-sm text-[#b8c8dd]">
-						Select a room and preferred bed number.
+						Select an available room and preferred bed number.
 					</p>
 				</div>
 				<div className="p-5">
@@ -1629,12 +1647,21 @@ function BookingView({
 						))}
 					</div>
 					<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-						{INITIAL_ROOMS.filter((room) => room.hostel === selectedHostel.name).map((room) => (
+						{rooms.filter((room) => room.hostel === selectedHostel.name).map((room) => (
 							<button
 								key={room.id}
 								type="button"
-								disabled={room.status === "Full"}
-								className="rounded-2xl border border-[#dbe5f1] bg-[#fbfdff] p-4 text-left transition hover:border-[#B7770D] disabled:cursor-not-allowed disabled:opacity-55"
+								disabled={
+									room.status === "Full" ||
+									room.status === "Maintenance" ||
+									room.available === 0
+								}
+								onClick={() => onSelectRoom(room.id)}
+								className={`rounded-2xl border p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-55 ${
+									selectedRoomId === room.id
+										? "border-[#B7770D] bg-[#fff8e8] shadow-sm"
+										: "border-[#dbe5f1] bg-[#fbfdff] hover:border-[#B7770D]"
+								}`}
 							>
 								<p className="text-sm font-bold text-[#0D2B55]">{room.id}</p>
 								<p className="mt-1 text-xs text-[#60728f]">
@@ -1648,14 +1675,63 @@ function BookingView({
 							</button>
 						))}
 					</div>
-					<div className="mt-5 rounded-2xl border border-[#b7ebc8] bg-[#f2fbf5] p-4">
-						<p className="text-sm font-bold text-[#167a3e]">
-							Booking ready for confirmation
-						</p>
-						<p className="mt-1 text-sm text-[#477157]">
-							This placeholder will connect to hostel payment and room selection
-							APIs during real model integration.
-						</p>
+
+					<div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
+						<div className="rounded-2xl border border-[#dbe5f1] bg-[#fbfdff] p-4">
+							<p className="text-sm font-bold text-[#0D2B55]">Available bed spaces</p>
+							{selectedRoom ? (
+								<div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+									{bedOptions.map((bed, index) => {
+										const disabled = index >= selectedRoom.available;
+										return (
+											<button
+												key={bed}
+												type="button"
+												disabled={disabled}
+												onClick={() => onSelectBed(bed)}
+												className={`min-h-11 rounded-xl border px-3 text-sm font-bold transition disabled:cursor-not-allowed disabled:bg-[#edf2f7] disabled:text-[#9aabc0] ${
+													selectedBed === bed
+														? "border-[#0D2B55] bg-[#0D2B55] text-white"
+														: "border-[#d7e1ee] bg-white text-[#0D2B55] hover:border-[#B7770D]"
+												}`}
+											>
+												{bed}
+											</button>
+										);
+									})}
+								</div>
+							) : (
+								<p className="mt-2 text-sm text-[#60728f]">
+									Select a room above to see available bed spaces.
+								</p>
+							)}
+						</div>
+						<div className="rounded-2xl border border-[#b7ebc8] bg-[#f2fbf5] p-4">
+							<p className="text-sm font-bold text-[#167a3e]">Reservation summary</p>
+							<div className="mt-3 space-y-2 text-sm">
+								<p className="font-semibold text-[#477157]">
+									Hostel: <span className="font-bold">{selectedHostel.name}</span>
+								</p>
+								<p className="font-semibold text-[#477157]">
+									Room: <span className="font-bold">{selectedRoom?.id ?? "Select room"}</span>
+								</p>
+								<p className="font-semibold text-[#477157]">
+									Bed: <span className="font-bold">{selectedBed || "Select bed"}</span>
+								</p>
+								<p className="font-semibold text-[#477157]">
+									Fee: <span className="font-bold">{selectedHostel.fee}</span>
+								</p>
+							</div>
+							<button
+								type="button"
+								disabled={!selectedRoom || !selectedBed}
+								onClick={onConfirm}
+								className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#0D2B55] px-5 text-sm font-bold text-white transition hover:bg-[#123866] disabled:cursor-not-allowed disabled:bg-[#9fb0c6]"
+							>
+								<CreditCard className="size-4" />
+								Proceed to Payment
+							</button>
+						</div>
 					</div>
 				</div>
 			</div>
@@ -1688,19 +1764,50 @@ function SimplePanel({
 	);
 }
 
-function AllocationView() {
+function AllocationView({
+	allocation,
+	payment,
+	onBrowse,
+	onPayment,
+	onMaintenance,
+}: {
+	allocation: AllocationItem | null;
+	payment: HostelPaymentRecord | null;
+	onBrowse: () => void;
+	onPayment: () => void;
+	onMaintenance: () => void;
+}) {
+	if (!allocation) {
+		return (
+			<SimplePanel
+				badge="My Allocation"
+				title="No hostel allocation yet"
+				description="Choose a hostel and reserve an available room or bed before allocation details appear here."
+			>
+				<button
+					type="button"
+					onClick={onBrowse}
+					className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#0D2B55] px-5 text-sm font-bold text-white"
+				>
+					<Search className="size-4" />
+					Browse Hostels
+				</button>
+			</SimplePanel>
+		);
+	}
+
 	return (
 		<SimplePanel
 			badge="My Allocation"
 			title="Current hostel allocation"
-			description="Student-facing allocation details will appear here after confirmed payment and bed selection."
+			description="Your selected hostel, room, bed, payment state, and next residence action are shown here."
 		>
 			<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
 				{[
-					["Hostel", "Moremi Hall"],
-					["Room", "A101"],
-					["Bed", "Bed 3"],
-					["Status", "Paid"],
+					["Hostel", allocation.hostel],
+					["Room", allocation.room],
+					["Bed", allocation.bed],
+					["Status", allocation.status],
 				].map(([label, value]) => (
 					<div key={label} className="rounded-2xl bg-[#f8fbff] p-4">
 						<p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#8395AF]">
@@ -1710,30 +1817,109 @@ function AllocationView() {
 					</div>
 				))}
 			</div>
+			<div className="mt-5 rounded-2xl border border-[#dbe5f1] bg-[#fbfdff] p-4">
+				<p className="text-sm font-bold text-[#0D2B55]">
+					{payment?.paymentStatus === "Paid"
+						? "Payment completed. Maintenance requests are now available for this allocation."
+						: "Complete hostel payment to confirm your allocation."}
+				</p>
+				<p className="mt-1 text-sm leading-relaxed text-[#60728f]">
+					{allocation.note}
+				</p>
+				<div className="mt-4 flex flex-col gap-3 sm:flex-row">
+					<button
+						type="button"
+						onClick={onPayment}
+						className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#d7e2f0] bg-white px-5 text-sm font-bold text-[#0D2B55]"
+					>
+						<CreditCard className="size-4" />
+						View Payment
+					</button>
+					<button
+						type="button"
+						disabled={payment?.paymentStatus !== "Paid"}
+						onClick={onMaintenance}
+						className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#0D2B55] px-5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-[#9fb0c6]"
+					>
+						<Wrench className="size-4" />
+						Raise Maintenance
+					</button>
+				</div>
+			</div>
 		</SimplePanel>
 	);
 }
 
-function StudentPaymentView() {
+function StudentPaymentView({
+	allocation,
+	payment,
+	onPay,
+	onBrowse,
+	onAllocation,
+}: {
+	allocation: AllocationItem | null;
+	payment: HostelPaymentRecord | null;
+	onPay: () => void;
+	onBrowse: () => void;
+	onAllocation: () => void;
+}) {
+	if (!allocation || !payment) {
+		return (
+			<SimplePanel
+				badge="Hostel Payment"
+				title="No hostel payment due"
+				description="Hostel payment appears only after you select a hostel room and reserve a bed."
+			>
+				<button
+					type="button"
+					onClick={onBrowse}
+					className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#0D2B55] px-5 text-sm font-bold text-white"
+				>
+					<Search className="size-4" />
+					Browse Hostels
+				</button>
+			</SimplePanel>
+		);
+	}
+
 	return (
 		<SimplePanel
 			badge="Hostel Payment"
 			title="Accommodation payment"
-			description="This section will connect to the college payment module for hostel fee verification."
+			description="Confirm the hostel fee after reserving a room and bed. This is UI-only for now."
 		>
 			<div className="rounded-2xl border border-[#dbe5f1] bg-[#fbfdff] p-5">
 				<div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 					<div>
-						<p className="text-sm font-bold text-[#0D2B55]">Hostel Fee</p>
-						<p className="mt-2 text-3xl font-bold text-[#0D2B55]">NGN 45,000</p>
+						<p className="text-sm font-bold text-[#0D2B55]">
+							{allocation.hostel} - {allocation.room} / {allocation.bed}
+						</p>
+						<p className="mt-2 text-3xl font-bold text-[#0D2B55]">
+							{formatCurrency(payment.amount, payment.currency)}
+						</p>
 						<p className="mt-1 text-sm text-[#60728f]">
-							Session accommodation charge.
+							Invoice {payment.invoiceNo} is currently {payment.paymentStatus.toLowerCase()}.
 						</p>
 					</div>
-					<button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#0D2B55] px-5 text-sm font-bold text-white">
-						<CreditCard className="size-4" />
-						Pay Hostel Fee
-					</button>
+					<div className="flex flex-col gap-2 sm:flex-row">
+						<button
+							type="button"
+							onClick={onPay}
+							disabled={payment.paymentStatus === "Paid"}
+							className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#0D2B55] px-5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-[#9fb0c6]"
+						>
+							<CreditCard className="size-4" />
+							{payment.paymentStatus === "Paid" ? "Payment Completed" : "Pay Hostel Fee"}
+						</button>
+						<button
+							type="button"
+							onClick={onAllocation}
+							className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#d7e2f0] bg-white px-5 text-sm font-bold text-[#0D2B55]"
+						>
+							<BedDouble className="size-4" />
+							My Allocation
+						</button>
+					</div>
 				</div>
 			</div>
 		</SimplePanel>
@@ -2236,46 +2422,158 @@ function HostelPaymentModal({
 	);
 }
 
-function StudentMaintenanceView() {
+function StudentMaintenanceView({
+	allocation,
+	payment,
+	requests,
+	onSubmit,
+	onBrowse,
+	onPayment,
+}: {
+	allocation: AllocationItem | null;
+	payment: HostelPaymentRecord | null;
+	requests: MaintenanceRequestItem[];
+	onSubmit: (draft: StudentMaintenanceDraft) => void;
+	onBrowse: () => void;
+	onPayment: () => void;
+}) {
+	const [draft, setDraft] = useState<StudentMaintenanceDraft>({
+		category: "General",
+		issue: "",
+		description: "",
+		priority: "Medium",
+	});
+	const canSubmit =
+		Boolean(allocation) &&
+		payment?.paymentStatus === "Paid" &&
+		draft.issue.trim().length > 0 &&
+		draft.description.trim().length > 0;
+
+	function submitRequest() {
+		if (!canSubmit) {
+			return;
+		}
+
+		onSubmit(draft);
+		setDraft({
+			category: "General",
+			issue: "",
+			description: "",
+			priority: "Medium",
+		});
+	}
+
 	return (
 		<SimplePanel
 			badge="Maintenance"
 			title="Residence maintenance requests"
-			description="Students can track room issues while staff can follow up on hostel operations."
+			description="Create a room complaint only after your hostel payment confirms the allocation."
 		>
+			{!allocation || payment?.paymentStatus !== "Paid" ? (
+				<div className="mb-4 rounded-2xl border border-[#f0cb7c] bg-[#fff8e8] p-4">
+					<p className="text-sm font-bold text-[#7a4a00]">
+						Maintenance opens after confirmed hostel allocation.
+					</p>
+					<div className="mt-3 flex flex-col gap-2 sm:flex-row">
+						<button
+							type="button"
+							onClick={onBrowse}
+							className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#d7e2f0] bg-white px-5 text-sm font-bold text-[#0D2B55]"
+						>
+							Browse Hostels
+						</button>
+						<button
+							type="button"
+							onClick={onPayment}
+							className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#0D2B55] px-5 text-sm font-bold text-white"
+						>
+							<CreditCard className="size-4" />
+							Hostel Payment
+						</button>
+					</div>
+				</div>
+			) : null}
 			<div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
 				<div className="space-y-3">
-					{[
-						["Broken door lock", "Room A101", "In Progress"],
-						["Leaking ceiling", "Bathroom", "Resolved"],
-						["Faulty socket", "Room A101", "Resolved"],
-					].map(([issue, location, status]) => (
+					{requests.length > 0 ? requests.map((request) => (
 						<div
-							key={issue}
+							key={request.id}
 							className="flex flex-col gap-3 rounded-2xl border border-[#e3eaf4] bg-[#fbfdff] p-4 sm:flex-row sm:items-center sm:justify-between"
 						>
 							<div>
-								<p className="text-sm font-bold text-[#0D2B55]">{issue}</p>
-								<p className="mt-1 text-xs text-[#60728f]">{location}</p>
+								<p className="text-sm font-bold text-[#0D2B55]">{request.issue}</p>
+								<p className="mt-1 text-xs text-[#60728f]">
+									{request.hostel} - {request.room} / {request.bed}
+								</p>
 							</div>
-							<span className={`w-fit rounded-full border px-3 py-1 text-xs font-bold ${getStatusClass(status)}`}>
-								{status}
+							<span className={`w-fit rounded-full border px-3 py-1 text-xs font-bold ${getStatusClass(request.status)}`}>
+								{request.status}
 							</span>
 						</div>
-					))}
+					)) : (
+						<div className="rounded-2xl border border-dashed border-[#d7e2f0] bg-[#fbfdff] p-5 text-sm font-semibold text-[#60728f]">
+							No maintenance request has been submitted for this allocation.
+						</div>
+					)}
 				</div>
 				<div className="rounded-2xl border border-[#dbe5f1] bg-white p-4">
 					<p className="text-sm font-bold text-[#0D2B55]">New request</p>
 					<div className="mt-3 space-y-3">
+						<select
+							value={draft.category}
+							onChange={(event) =>
+								setDraft((current) => ({ ...current, category: event.target.value }))
+							}
+							disabled={!allocation || payment?.paymentStatus !== "Paid"}
+							className="min-h-11 w-full rounded-xl border border-[#d7e1ee] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1] disabled:bg-[#edf2f7]"
+						>
+							{["General", "Plumbing", "Electrical", "Furniture", "Door and security"].map((category) => (
+								<option key={category} value={category}>
+									{category}
+								</option>
+							))}
+						</select>
 						<input
+							value={draft.issue}
+							onChange={(event) =>
+								setDraft((current) => ({ ...current, issue: event.target.value }))
+							}
+							disabled={!allocation || payment?.paymentStatus !== "Paid"}
 							className="min-h-11 w-full rounded-xl border border-[#d7e1ee] px-4 text-sm outline-none focus:border-[#2E86C1]"
 							placeholder="Issue title"
 						/>
 						<textarea
+							value={draft.description}
+							onChange={(event) =>
+								setDraft((current) => ({ ...current, description: event.target.value }))
+							}
+							disabled={!allocation || payment?.paymentStatus !== "Paid"}
 							className="min-h-24 w-full rounded-xl border border-[#d7e1ee] px-4 py-3 text-sm outline-none focus:border-[#2E86C1]"
 							placeholder="Describe the issue"
 						/>
-						<button className="min-h-11 w-full rounded-xl bg-[#0D2B55] text-sm font-bold text-white">
+						<select
+							value={draft.priority}
+							onChange={(event) =>
+								setDraft((current) => ({
+									...current,
+									priority: event.target.value as MaintenancePriority,
+								}))
+							}
+							disabled={!allocation || payment?.paymentStatus !== "Paid"}
+							className="min-h-11 w-full rounded-xl border border-[#d7e1ee] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1] disabled:bg-[#edf2f7]"
+						>
+							{MAINTENANCE_PRIORITIES.map((priority) => (
+								<option key={priority} value={priority}>
+									{priority}
+								</option>
+							))}
+						</select>
+						<button
+							type="button"
+							disabled={!canSubmit}
+							onClick={submitRequest}
+							className="min-h-11 w-full rounded-xl bg-[#0D2B55] text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-[#9fb0c6]"
+						>
 							Submit Request
 						</button>
 					</div>
@@ -4490,9 +4788,16 @@ export default function HostelModuleWorkspace({
 	);
 	const [hostelPayments] = useState(INITIAL_HOSTEL_PAYMENTS);
 	const [activeView, setActiveView] = useState<HostelView>(
-		isStudentDomain ? "dashboard" : "manage",
+		isStudentDomain ? "browse" : "manage",
 	);
 	const [selectedHostel, setSelectedHostel] = useState<HostelItem | null>(INITIAL_HOSTELS[0]);
+	const [selectedRoomId, setSelectedRoomId] = useState("");
+	const [selectedBed, setSelectedBed] = useState("");
+	const [studentAllocation, setStudentAllocation] = useState<AllocationItem | null>(null);
+	const [studentPayment, setStudentPayment] = useState<HostelPaymentRecord | null>(null);
+	const [studentMaintenanceRequests, setStudentMaintenanceRequests] = useState<
+		MaintenanceRequestItem[]
+	>([]);
 	const [modalMode, setModalMode] = useState<HostelModalMode | null>(null);
 	const [modalHostel, setModalHostel] = useState<HostelItem | null>(null);
 	const [hostelDraft, setHostelDraft] = useState<HostelDraft>(getHostelDraft());
@@ -4544,7 +4849,118 @@ export default function HostelModuleWorkspace({
 
 	function bookHostel(hostel: HostelItem) {
 		setSelectedHostel(hostel);
+		setSelectedRoomId("");
+		setSelectedBed("");
 		setActiveView("booking");
+	}
+
+	function selectBookingRoom(roomId: string) {
+		setSelectedRoomId(roomId);
+		setSelectedBed("");
+	}
+
+	function confirmStudentBooking() {
+		if (!selectedHostel || !selectedRoomId || !selectedBed) {
+			return;
+		}
+
+		const now = new Date().toISOString();
+		const amount = Number(selectedHostel.fee.replace(/[^\d]/g, "")) || 0;
+		const nextAllocation: AllocationItem = {
+			id: "student-allocation-ui",
+			studentName: "Current Student",
+			matricNo: "Student Profile",
+			level: "Current Level",
+			gender: selectedHostel.gender,
+			hostel: selectedHostel.name,
+			room: selectedRoomId,
+			bed: selectedBed,
+			paymentStatus: "Pending",
+			status: "Pending",
+			allocatedBy: "Student self-service",
+			updatedAt: now,
+			note: "Bed reserved. Complete hostel payment to confirm allocation.",
+		};
+		const nextPayment: HostelPaymentRecord = {
+			id: "student-hostel-payment-ui",
+			invoiceNo: "HST-UI-0001",
+			reference: `HST-UI-${selectedHostel.id.toUpperCase()}-${selectedRoomId}-${selectedBed.replace(" ", "")}`,
+			studentName: nextAllocation.studentName,
+			matricNo: nextAllocation.matricNo,
+			level: nextAllocation.level,
+			hostel: selectedHostel.name,
+			room: selectedRoomId,
+			bed: selectedBed,
+			amount,
+			currency: "NGN",
+			paymentStatus: "Pending",
+			invoiceStatus: "Issued",
+			channel: "Card",
+			issuedAt: now,
+			updatedAt: now,
+			verifiedBy: "Self-service UI",
+			note: "Generated after student selected hostel, room, and bed.",
+		};
+
+		setStudentAllocation(nextAllocation);
+		setStudentPayment(nextPayment);
+		setActiveView("payment");
+	}
+
+	function completeStudentPayment() {
+		const now = new Date().toISOString();
+
+		setStudentPayment((current) =>
+			current
+				? {
+						...current,
+						paymentStatus: "Paid",
+						invoiceStatus: "Paid",
+						paidAt: now,
+						updatedAt: now,
+						note: "UI payment marked complete. Allocation is now confirmed.",
+					}
+				: current,
+		);
+		setStudentAllocation((current) =>
+			current
+				? {
+						...current,
+						paymentStatus: "Paid",
+						status: "Allocated",
+						updatedAt: now,
+						note: "Payment completed and bed allocation confirmed.",
+					}
+				: current,
+		);
+		setActiveView("allocation");
+	}
+
+	function submitStudentMaintenance(draft: StudentMaintenanceDraft) {
+		if (!studentAllocation || studentPayment?.paymentStatus !== "Paid") {
+			return;
+		}
+
+		const now = new Date().toISOString();
+		const nextRequest: MaintenanceRequestItem = {
+			id: `student-mnt-${Date.now()}`,
+			studentName: studentAllocation.studentName,
+			matricNo: studentAllocation.matricNo,
+			hostel: studentAllocation.hostel,
+			room: studentAllocation.room,
+			bed: studentAllocation.bed,
+			category: draft.category,
+			issue: draft.issue.trim(),
+			description: draft.description.trim(),
+			priority: draft.priority,
+			status: "Open",
+			assignedTo: "Maintenance Desk",
+			reportedAt: now,
+			updatedAt: now,
+			resolutionNote: "",
+		};
+
+		setStudentMaintenanceRequests((current) => [nextRequest, ...current]);
 	}
 
 	function openCreateModal() {
@@ -4867,14 +5283,53 @@ export default function HostelModuleWorkspace({
 				<BookingView
 					selectedHostel={selectedHostel}
 					hostels={hostels}
+					rooms={rooms}
+					selectedRoomId={selectedRoomId}
+					selectedBed={selectedBed}
 					onChooseHostel={bookHostel}
+					onSelectRoom={selectBookingRoom}
+					onSelectBed={setSelectedBed}
+					onConfirm={confirmStudentBooking}
 				/>
 			);
 		}
 
-		if (activeView === "allocation") return <AllocationView />;
-		if (activeView === "payment") return <StudentPaymentView />;
-		if (activeView === "maintenance") return <StudentMaintenanceView />;
+		if (activeView === "allocation") {
+			return (
+				<AllocationView
+					allocation={studentAllocation}
+					payment={studentPayment}
+					onBrowse={() => setActiveView("browse")}
+					onPayment={() => setActiveView("payment")}
+					onMaintenance={() => setActiveView("maintenance")}
+				/>
+			);
+		}
+
+		if (activeView === "payment") {
+			return (
+				<StudentPaymentView
+					allocation={studentAllocation}
+					payment={studentPayment}
+					onPay={completeStudentPayment}
+					onBrowse={() => setActiveView("browse")}
+					onAllocation={() => setActiveView("allocation")}
+				/>
+			);
+		}
+
+		if (activeView === "maintenance") {
+			return (
+				<StudentMaintenanceView
+					allocation={studentAllocation}
+					payment={studentPayment}
+					requests={studentMaintenanceRequests}
+					onSubmit={submitStudentMaintenance}
+					onBrowse={() => setActiveView("browse")}
+					onPayment={() => setActiveView("payment")}
+				/>
+			);
+		}
 
 		return (
 			<DashboardView
@@ -4884,7 +5339,6 @@ export default function HostelModuleWorkspace({
 				onBrowse={() => setActiveView("browse")}
 				onView={viewHostel}
 				onBook={bookHostel}
-				onPayment={() => setActiveView("payment")}
 				onMaintenance={() => setActiveView("maintenance")}
 			/>
 		);
