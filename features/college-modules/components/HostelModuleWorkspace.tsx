@@ -51,6 +51,8 @@ type HostelView =
 type HostelModalMode = "create" | "view" | "edit";
 type RoomModalMode = "create" | "view" | "edit";
 type RoomStatus = "Available" | "Partial" | "Full" | "Maintenance";
+type AllocationModalMode = "create" | "view" | "edit";
+type AllocationStatus = "Pending" | "Allocated" | "Paid" | "Review" | "Cancelled";
 
 type HostelItem = {
 	id: string;
@@ -102,6 +104,36 @@ type RoomDraft = {
 	available: string;
 	status: RoomStatus;
 	wardenNote: string;
+};
+
+type AllocationItem = {
+	id: string;
+	studentName: string;
+	matricNo: string;
+	level: string;
+	gender: HostelGender;
+	hostel: string;
+	room: string;
+	bed: string;
+	paymentStatus: "Paid" | "Pending" | "Review";
+	status: AllocationStatus;
+	allocatedBy: string;
+	updatedAt: string;
+	note: string;
+};
+
+type AllocationDraft = {
+	studentName: string;
+	matricNo: string;
+	level: string;
+	gender: HostelGender;
+	hostel: string;
+	room: string;
+	bed: string;
+	paymentStatus: AllocationItem["paymentStatus"];
+	status: AllocationStatus;
+	allocatedBy: string;
+	note: string;
 };
 
 type HostelMenuItem = {
@@ -330,6 +362,69 @@ const INITIAL_ROOMS: RoomItem[] = [
 	},
 ];
 
+const INITIAL_ALLOCATIONS: AllocationItem[] = [
+	{
+		id: "alloc-001",
+		studentName: "Ibrahim Fatimah",
+		matricNo: "KASU/ND/25/0142",
+		level: "ND 1",
+		gender: "Female",
+		hostel: "Moremi Hall",
+		room: "A101",
+		bed: "Bed 3",
+		paymentStatus: "Paid",
+		status: "Allocated",
+		allocatedBy: "Mrs. Grace Bello",
+		updatedAt: "2026-01-16T10:35:00.000Z",
+		note: "Payment verified and student checked in.",
+	},
+	{
+		id: "alloc-002",
+		studentName: "Adeyemi Blessing",
+		matricNo: "KASU/HND/25/0088",
+		level: "HND 1",
+		gender: "Female",
+		hostel: "Queen Hall",
+		room: "C201",
+		bed: "Bed 1",
+		paymentStatus: "Review",
+		status: "Review",
+		allocatedBy: "Hostel Admin",
+		updatedAt: "2026-01-15T12:10:00.000Z",
+		note: "Awaiting final warden room readiness confirmation.",
+	},
+	{
+		id: "alloc-003",
+		studentName: "Okafor Chidi",
+		matricNo: "KASU/ND/25/0231",
+		level: "ND 2",
+		gender: "Male",
+		hostel: "Awolowo Hall",
+		room: "B101",
+		bed: "Bed 2",
+		paymentStatus: "Paid",
+		status: "Paid",
+		allocatedBy: "Mr. Aminu Ibrahim",
+		updatedAt: "2026-01-14T09:45:00.000Z",
+		note: "Bed assigned after successful hostel fee payment.",
+	},
+	{
+		id: "alloc-004",
+		studentName: "Salihu Musa",
+		matricNo: "KASU/ND/25/0305",
+		level: "ND 1",
+		gender: "Male",
+		hostel: "Awolowo Hall",
+		room: "B102",
+		bed: "Bed 4",
+		paymentStatus: "Pending",
+		status: "Pending",
+		allocatedBy: "Hostel Admin",
+		updatedAt: "2026-01-13T15:20:00.000Z",
+		note: "Pending payment clearance before check-in.",
+	},
+];
+
 const STATUS_LABELS: Record<HostelStatus, string> = {
 	available: "Available",
 	filling: "Filling",
@@ -338,6 +433,18 @@ const STATUS_LABELS: Record<HostelStatus, string> = {
 };
 
 const GENDER_OPTIONS: HostelGender[] = ["Female", "Male", "Mixed"];
+const ALLOCATION_STATUSES: AllocationStatus[] = [
+	"Pending",
+	"Allocated",
+	"Paid",
+	"Review",
+	"Cancelled",
+];
+const PAYMENT_STATUSES: AllocationItem["paymentStatus"][] = [
+	"Pending",
+	"Paid",
+	"Review",
+];
 
 function getHostelToneClass(tone: HostelItem["tone"]) {
 	if (tone === "rose") return "bg-[#d92672]";
@@ -348,8 +455,11 @@ function getHostelToneClass(tone: HostelItem["tone"]) {
 function getStatusClass(status: HostelStatus | string) {
 	const normalized = status.toLowerCase();
 	if (normalized === "available") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+	if (normalized === "allocated" || normalized === "paid") return "border-emerald-200 bg-emerald-50 text-emerald-700";
 	if (normalized === "filling" || normalized === "partial") return "border-amber-200 bg-amber-50 text-amber-700";
+	if (normalized === "pending" || normalized === "review") return "border-amber-200 bg-amber-50 text-amber-700";
 	if (normalized === "full") return "border-red-200 bg-red-50 text-red-700";
+	if (normalized === "cancelled") return "border-red-200 bg-red-50 text-red-700";
 	if (normalized === "maintenance") return "border-sky-200 bg-sky-50 text-sky-700";
 	return "border-slate-200 bg-slate-50 text-slate-700";
 }
@@ -389,6 +499,22 @@ function getRoomDraft(room?: RoomItem | null): RoomDraft {
 		available: room ? String(room.available) : "",
 		status: room?.status ?? "Available",
 		wardenNote: room?.wardenNote ?? "",
+	};
+}
+
+function getAllocationDraft(allocation?: AllocationItem | null): AllocationDraft {
+	return {
+		studentName: allocation?.studentName ?? "",
+		matricNo: allocation?.matricNo ?? "",
+		level: allocation?.level ?? "ND 1",
+		gender: allocation?.gender ?? "Female",
+		hostel: allocation?.hostel ?? INITIAL_HOSTELS[0]?.name ?? "",
+		room: allocation?.room ?? INITIAL_ROOMS[0]?.id ?? "",
+		bed: allocation?.bed ?? "",
+		paymentStatus: allocation?.paymentStatus ?? "Pending",
+		status: allocation?.status ?? "Pending",
+		allocatedBy: allocation?.allocatedBy ?? "",
+		note: allocation?.note ?? "",
 	};
 }
 
@@ -1544,29 +1670,615 @@ function RoomModal({
 	);
 }
 
-function AllocationsView() {
+function AllocationsView({
+	allocations,
+	hostels,
+	rooms,
+	permissions,
+	onCreate,
+	onView,
+	onEdit,
+}: {
+	allocations: AllocationItem[];
+	hostels: HostelItem[];
+	rooms: RoomItem[];
+	permissions: UserPermissionKey[];
+	onCreate: () => void;
+	onView: (allocation: AllocationItem) => void;
+	onEdit: (allocation: AllocationItem) => void;
+}) {
+	const [search, setSearch] = useState("");
+	const [status, setStatus] = useState<AllocationStatus | "all">("all");
+	const [hostelFilter, setHostelFilter] = useState<string>("all");
+	const [paymentFilter, setPaymentFilter] = useState<AllocationItem["paymentStatus"] | "all">("all");
+	const [currentPage, setCurrentPage] = useState(1);
+	const [openActionsId, setOpenActionsId] = useState<string | number | null>(null);
+	const canAllocate = hasPermissions(permissions, ["hostels.allocate"], { mode: "any" });
+	const stats = useMemo(
+		() => ({
+			total: allocations.length,
+			allocated: allocations.filter((allocation) =>
+				["Allocated", "Paid"].includes(allocation.status),
+			).length,
+			pending: allocations.filter((allocation) => allocation.status === "Pending").length,
+			paid: allocations.filter((allocation) => allocation.paymentStatus === "Paid").length,
+		}),
+		[allocations],
+	);
+	const hostelOptions = useMemo(
+		() =>
+			Array.from(
+				new Set([
+					...hostels.map((hostel) => hostel.name),
+					...allocations.map((allocation) => allocation.hostel),
+				]),
+			)
+				.filter(Boolean)
+				.sort((left, right) => left.localeCompare(right)),
+		[allocations, hostels],
+	);
+	const filteredAllocations = useMemo(() => {
+		const normalizedSearch = search.trim().toLowerCase();
+
+		return allocations.filter((allocation) => {
+			const haystack = [
+				allocation.studentName,
+				allocation.matricNo,
+				allocation.level,
+				allocation.gender,
+				allocation.hostel,
+				allocation.room,
+				allocation.bed,
+				allocation.paymentStatus,
+				allocation.status,
+				allocation.allocatedBy,
+				allocation.note,
+			]
+				.join(" ")
+				.toLowerCase();
+
+			return (
+				(!normalizedSearch || haystack.includes(normalizedSearch)) &&
+				(status === "all" || allocation.status === status) &&
+				(hostelFilter === "all" || allocation.hostel === hostelFilter) &&
+				(paymentFilter === "all" || allocation.paymentStatus === paymentFilter)
+			);
+		});
+	}, [allocations, hostelFilter, paymentFilter, search, status]);
+	const pageCount = Math.max(1, Math.ceil(filteredAllocations.length / PAGE_SIZE));
+	const safePage = Math.min(currentPage, pageCount);
+	const paginatedAllocations = filteredAllocations.slice(
+		(safePage - 1) * PAGE_SIZE,
+		safePage * PAGE_SIZE,
+	);
+
+	function updateFilter<T>(setter: (value: T) => void, value: T) {
+		setter(value);
+		setCurrentPage(1);
+	}
+
+	function clearFilters() {
+		setSearch("");
+		setStatus("all");
+		setHostelFilter("all");
+		setPaymentFilter("all");
+		setCurrentPage(1);
+	}
+
 	return (
-		<SimplePanel
-			badge="Student Allocations"
-			title="Allocation records"
-			description="Track student room assignments and payment-cleared allocations."
-		>
-			<div className="grid gap-3 md:grid-cols-3">
-				{[
-					["Ibrahim Fatimah", "Moremi Hall", "Paid"],
-					["Adeyemi Blessing", "Queen Hall", "Paid"],
-					["Okafor Chidi", "Awolowo Hall", "Review"],
-				].map(([student, hostel, status]) => (
-					<div key={student} className="rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] p-4">
-						<p className="font-black text-[#06183A]">{student}</p>
-						<p className="mt-1 text-sm font-bold text-[#60728f]">{hostel}</p>
-						<span className={`mt-3 inline-flex rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${getStatusClass(status)}`}>
-							{status}
-						</span>
+		<section className="space-y-5">
+			<div className="rounded-3xl border border-[#d7e2f0] bg-white p-5 shadow-[0_18px_45px_rgba(13,43,85,0.08)] sm:p-6">
+				<div className="flex flex-wrap items-start justify-between gap-4">
+					<div>
+						<p className="text-[11px] font-black uppercase tracking-[0.28em] text-[#B7770D]">
+							Allocation Analytics
+						</p>
+						<h2 className="mt-2 text-2xl font-black text-[#06183A]">
+							Hostel allocation management
+						</h2>
+						<p className="mt-2 max-w-3xl text-sm leading-7 text-[#556987]">
+							Assign eligible students to rooms and beds, review payment status,
+							and manage allocation records inside the hostel workspace.
+						</p>
 					</div>
-				))}
+					<button
+						type="button"
+						onClick={onCreate}
+						disabled={!canAllocate}
+						className="inline-flex h-12 items-center gap-2 rounded-2xl bg-[#0D2B55] px-5 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.18)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+					>
+						<Plus className="size-4" />
+						Create Allocation
+					</button>
+				</div>
+
+				<div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+					{[
+						["Total Allocations", stats.total],
+						["Assigned Beds", stats.allocated],
+						["Pending Review", stats.pending],
+						["Payment Cleared", stats.paid],
+					].map(([label, value]) => (
+						<div
+							key={label}
+							className="rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] p-4"
+						>
+							<p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8395AF]">
+								{label}
+							</p>
+							<p className="mt-2 text-3xl font-black text-[#0D2B55]">{value}</p>
+						</div>
+					))}
+				</div>
 			</div>
-		</SimplePanel>
+
+			<div className="rounded-3xl border border-[#d7e2f0] bg-white p-4 shadow-[0_18px_45px_rgba(13,43,85,0.08)] sm:p-5">
+				<div className="flex flex-wrap items-center justify-between gap-3">
+					<div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.24em] text-[#B7770D]">
+						<Filter className="size-4" />
+						Filters
+					</div>
+					<button
+						type="button"
+						onClick={clearFilters}
+						className="inline-flex h-10 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white px-4 text-xs font-black uppercase tracking-[0.12em] text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+					>
+						Reset filters
+					</button>
+				</div>
+				<div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_13rem_13rem_13rem]">
+					<label className="relative">
+						<Search className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[#7b8faa]" />
+						<input
+							value={search}
+							onChange={(event) => updateFilter(setSearch, event.target.value)}
+							placeholder="Search student, matric, room, or bed"
+							className="h-12 w-full rounded-2xl border border-[#d3dfed] bg-[#f8fbff] pl-11 pr-4 text-sm font-semibold text-[#0D2B55] outline-none transition focus:border-[#2E86C1]"
+						/>
+					</label>
+					<select
+						value={hostelFilter}
+						onChange={(event) => updateFilter(setHostelFilter, event.target.value)}
+						className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+					>
+						<option value="all">All hostels</option>
+						{hostelOptions.map((option) => (
+							<option key={option} value={option}>
+								{option}
+							</option>
+						))}
+					</select>
+					<select
+						value={status}
+						onChange={(event) =>
+							updateFilter(setStatus, event.target.value as AllocationStatus | "all")
+						}
+						className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+					>
+						<option value="all">All allocation status</option>
+						{ALLOCATION_STATUSES.map((option) => (
+							<option key={option} value={option}>
+								{option}
+							</option>
+						))}
+					</select>
+					<select
+						value={paymentFilter}
+						onChange={(event) =>
+							updateFilter(
+								setPaymentFilter,
+								event.target.value as AllocationItem["paymentStatus"] | "all",
+							)
+						}
+						className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+					>
+						<option value="all">All payment status</option>
+						{PAYMENT_STATUSES.map((option) => (
+							<option key={option} value={option}>
+								{option}
+							</option>
+						))}
+					</select>
+				</div>
+			</div>
+
+			<div className="overflow-hidden rounded-3xl border border-[#d7e2f0] bg-white shadow-[0_18px_45px_rgba(13,43,85,0.08)]">
+				<div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#dbe5f1] px-4 py-4 sm:px-5">
+					<div>
+						<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#B7770D]">
+							Allocations Table
+						</p>
+						<p className="mt-1 text-sm font-semibold text-[#60728f]">
+							Showing {paginatedAllocations.length} of {filteredAllocations.length} allocations
+						</p>
+					</div>
+					<div className="flex items-center gap-2 rounded-full border border-[#dbe5f1] bg-[#f8fbff] px-4 py-2 text-xs font-black text-[#0D2B55]">
+						Page {safePage} of {pageCount}
+					</div>
+				</div>
+
+				{filteredAllocations.length === 0 ? (
+					<div className="p-8 text-center">
+						<div className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#eef4fb] text-[#2E86C1]">
+							<ShieldCheck className="size-6" />
+						</div>
+						<h3 className="mt-4 text-lg font-black text-[#06183A]">
+							No allocations found
+						</h3>
+						<p className="mt-2 text-sm text-[#60728f]">
+							Adjust the filters or create a new hostel allocation.
+						</p>
+					</div>
+				) : (
+					<>
+						<div className="overflow-x-auto">
+							<table className="min-w-[1180px] w-full border-collapse text-left">
+								<thead className="bg-[#f8fbff]">
+									<tr className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8395AF]">
+										<th className="px-5 py-4">Student</th>
+										<th className="px-5 py-4">Level</th>
+										<th className="px-5 py-4">Hostel</th>
+										<th className="px-5 py-4">Room / Bed</th>
+										<th className="px-5 py-4">Payment</th>
+										<th className="px-5 py-4">Status</th>
+										<th className="px-5 py-4">Last Updated</th>
+										<th className="px-5 py-4 text-right">Actions</th>
+									</tr>
+								</thead>
+								<tbody className="divide-y divide-[#dbe5f1]">
+									{paginatedAllocations.map((allocation) => (
+										<tr key={allocation.id} className="bg-white transition hover:bg-[#f8fbff]">
+											<td className="px-5 py-4">
+												<p className="font-black text-[#06183A]">{allocation.studentName}</p>
+												<p className="mt-1 max-w-[14rem] break-words text-sm font-semibold text-[#60728f]">
+													{allocation.matricNo}
+												</p>
+											</td>
+											<td className="px-5 py-4">
+												<p className="text-sm font-black text-[#0D2B55]">
+													{allocation.level}
+												</p>
+												<p className="mt-1 text-xs font-bold text-[#60728f]">
+													{allocation.gender}
+												</p>
+											</td>
+											<td className="px-5 py-4">
+												<p className="max-w-[14rem] text-sm font-black text-[#0D2B55]">
+													{allocation.hostel}
+												</p>
+											</td>
+											<td className="px-5 py-4">
+												<p className="text-sm font-black text-[#0D2B55]">{allocation.room}</p>
+												<p className="mt-1 text-xs font-bold text-[#60728f]">
+													{allocation.bed || "No bed selected"}
+												</p>
+											</td>
+											<td className="px-5 py-4">
+												<span className={`rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${getStatusClass(allocation.paymentStatus)}`}>
+													{allocation.paymentStatus}
+												</span>
+											</td>
+											<td className="px-5 py-4">
+												<span className={`rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${getStatusClass(allocation.status)}`}>
+													{allocation.status}
+												</span>
+											</td>
+											<td className="px-5 py-4">
+												<p className="text-sm font-bold text-[#60728f]">
+													{formatDate(allocation.updatedAt)}
+												</p>
+											</td>
+											<td className="px-5 py-4">
+												<RowActionMenu
+													label={`Open actions for allocation ${allocation.studentName}`}
+													open={openActionsId === allocation.id}
+													onOpenChange={(open) => setOpenActionsId(open ? allocation.id : null)}
+													menuClassName="z-[120]"
+													items={[
+														{
+															label: "View",
+															icon: <Eye className="size-4" />,
+															onSelect: () => {
+																onView(allocation);
+																setOpenActionsId(null);
+															},
+														},
+														{
+															label: "Edit",
+															icon: <Edit3 className="size-4" />,
+															disabled: !canAllocate,
+															className: "text-[#0D2B55] hover:bg-[#eef4fb]",
+															onSelect: () => {
+																onEdit(allocation);
+																setOpenActionsId(null);
+															},
+														},
+													]}
+												/>
+											</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
+
+						<div className="flex flex-col gap-3 border-t border-[#dbe5f1] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+							<p className="text-sm font-semibold text-[#60728f]">
+								Rows per page: {PAGE_SIZE}
+							</p>
+							<div className="flex items-center gap-2">
+								<button
+									type="button"
+									onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+									disabled={safePage === 1}
+									className="h-10 rounded-2xl border border-[#d3dfed] bg-white px-4 text-sm font-black text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D] disabled:cursor-not-allowed disabled:opacity-40"
+								>
+									Previous
+								</button>
+								<button
+									type="button"
+									onClick={() => setCurrentPage((page) => Math.min(pageCount, page + 1))}
+									disabled={safePage === pageCount}
+									className="h-10 rounded-2xl bg-[#0D2B55] px-4 text-sm font-black text-white transition hover:bg-[#123866] disabled:cursor-not-allowed disabled:opacity-40"
+								>
+									Next
+								</button>
+							</div>
+						</div>
+					</>
+				)}
+			</div>
+
+			<p className="text-xs font-semibold text-[#6b7d97]">
+				Room source: {rooms.length} rooms are available for allocation checks in this workspace.
+			</p>
+		</section>
+	);
+}
+
+function AllocationModal({
+	mode,
+	allocation,
+	draft,
+	hostels,
+	rooms,
+	canSave,
+	onClose,
+	onDraftChange,
+	onSave,
+}: {
+	mode: AllocationModalMode | null;
+	allocation: AllocationItem | null;
+	draft: AllocationDraft;
+	hostels: HostelItem[];
+	rooms: RoomItem[];
+	canSave: boolean;
+	onClose: () => void;
+	onDraftChange: (draft: AllocationDraft) => void;
+	onSave: () => void;
+}) {
+	if (!mode) {
+		return null;
+	}
+
+	const isView = mode === "view";
+	const title =
+		mode === "create"
+			? "Create allocation"
+			: mode === "edit"
+				? "Edit allocation"
+				: "Allocation details";
+	const hostelOptions = Array.from(
+		new Set([...hostels.map((hostel) => hostel.name), draft.hostel].filter(Boolean)),
+	);
+	const roomOptions = Array.from(
+		new Set([
+			...rooms
+				.filter((room) => !draft.hostel || room.hostel === draft.hostel)
+				.map((room) => room.id),
+			draft.room,
+		].filter(Boolean)),
+	);
+
+	return (
+		<div className="fixed inset-0 z-[130] flex items-center justify-center bg-[#06172f]/60 p-4 backdrop-blur-sm">
+			<div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-3xl border border-[#dbe5f1] bg-white shadow-[0_30px_80px_rgba(6,23,47,0.35)]">
+				<div className="flex items-start justify-between gap-4 border-b border-[#dbe5f1] bg-[#0D2B55] px-5 py-5 text-white sm:px-6">
+					<div>
+						<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#E4A11B]">
+							Manage Allocation
+						</p>
+						<h2 className="mt-2 text-xl font-black sm:text-2xl">{title}</h2>
+						<p className="mt-1 text-sm font-semibold text-[#c5d4e8]">
+							{allocation?.matricNo ?? "New student allocation"}
+						</p>
+					</div>
+					<button
+						type="button"
+						onClick={onClose}
+						className="flex size-10 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition hover:bg-white hover:text-[#0D2B55]"
+						aria-label="Close allocation modal"
+					>
+						<X className="size-5" />
+					</button>
+				</div>
+
+				<div className="max-h-[calc(90vh-8rem)] overflow-y-auto p-5 sm:p-6">
+					{isView && allocation ? (
+						<div className="space-y-5">
+							<div className="grid gap-3 md:grid-cols-3">
+								{[
+									["Student", allocation.studentName],
+									["Matric No", allocation.matricNo],
+									["Level", allocation.level],
+									["Gender", allocation.gender],
+									["Hostel", allocation.hostel],
+									["Room", allocation.room],
+									["Bed", allocation.bed || "No bed selected"],
+									["Payment", allocation.paymentStatus],
+									["Status", allocation.status],
+									["Allocated By", allocation.allocatedBy],
+									["Last Updated", formatDate(allocation.updatedAt)],
+								].map(([label, value]) => (
+									<div
+										key={label as string}
+										className="rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] p-4"
+									>
+										<p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8395AF]">
+											{label as string}
+										</p>
+										<p className="mt-2 break-words text-sm font-black text-[#0D2B55]">
+											{value as ReactNode}
+										</p>
+									</div>
+								))}
+							</div>
+							<div className="rounded-2xl border border-[#dbe5f1] bg-white p-4">
+								<p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8395AF]">
+									Allocation Note
+								</p>
+								<p className="mt-2 text-sm font-semibold leading-6 text-[#60728f]">
+									{allocation.note || "No allocation note has been recorded."}
+								</p>
+							</div>
+						</div>
+					) : (
+						<div className="grid gap-3 md:grid-cols-2">
+							<input
+								value={draft.studentName}
+								onChange={(event) =>
+									onDraftChange({ ...draft, studentName: event.target.value })
+								}
+								placeholder="Student name"
+								className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+							/>
+							<input
+								value={draft.matricNo}
+								onChange={(event) =>
+									onDraftChange({ ...draft, matricNo: event.target.value })
+								}
+								placeholder="Matric or admission number"
+								className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+							/>
+							<input
+								value={draft.level}
+								onChange={(event) => onDraftChange({ ...draft, level: event.target.value })}
+								placeholder="Level, e.g. ND 1"
+								className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+							/>
+							<select
+								value={draft.gender}
+								onChange={(event) =>
+									onDraftChange({ ...draft, gender: event.target.value as HostelGender })
+								}
+								className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+							>
+								{GENDER_OPTIONS.map((option) => (
+									<option key={option} value={option}>
+										{option}
+									</option>
+								))}
+							</select>
+							<select
+								value={draft.hostel}
+								onChange={(event) =>
+									onDraftChange({ ...draft, hostel: event.target.value, room: "" })
+								}
+								className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+							>
+								{hostelOptions.map((option) => (
+									<option key={option} value={option}>
+										{option}
+									</option>
+								))}
+							</select>
+							<select
+								value={draft.room}
+								onChange={(event) => onDraftChange({ ...draft, room: event.target.value })}
+								className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+							>
+								<option value="">Select room</option>
+								{roomOptions.map((option) => (
+									<option key={option} value={option}>
+										{option}
+									</option>
+								))}
+							</select>
+							<input
+								value={draft.bed}
+								onChange={(event) => onDraftChange({ ...draft, bed: event.target.value })}
+								placeholder="Bed label, e.g. Bed 3"
+								className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+							/>
+							<input
+								value={draft.allocatedBy}
+								onChange={(event) =>
+									onDraftChange({ ...draft, allocatedBy: event.target.value })
+								}
+								placeholder="Allocated by"
+								className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+							/>
+							<select
+								value={draft.paymentStatus}
+								onChange={(event) =>
+									onDraftChange({
+										...draft,
+										paymentStatus: event.target.value as AllocationItem["paymentStatus"],
+									})
+								}
+								className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+							>
+								{PAYMENT_STATUSES.map((option) => (
+									<option key={option} value={option}>
+										{option} payment
+									</option>
+								))}
+							</select>
+							<select
+								value={draft.status}
+								onChange={(event) =>
+									onDraftChange({ ...draft, status: event.target.value as AllocationStatus })
+								}
+								className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+							>
+								{ALLOCATION_STATUSES.map((option) => (
+									<option key={option} value={option}>
+										{option}
+									</option>
+								))}
+							</select>
+							<textarea
+								value={draft.note}
+								onChange={(event) => onDraftChange({ ...draft, note: event.target.value })}
+								placeholder="Allocation note"
+								className="min-h-24 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 py-3 text-sm font-semibold text-[#0D2B55] outline-none focus:border-[#2E86C1] md:col-span-2"
+							/>
+						</div>
+					)}
+
+					<div className="sticky bottom-0 mt-5 flex flex-col gap-3 border-t border-[#dbe5f1] bg-white/95 pt-4 backdrop-blur sm:flex-row sm:justify-end">
+						<button
+							type="button"
+							onClick={onClose}
+							className="inline-flex items-center justify-center rounded-2xl border border-[#dbe5f1] px-5 py-3 text-sm font-black text-[#0D2B55] transition hover:border-[#0D2B55]"
+						>
+							Close
+						</button>
+						{isView ? null : (
+							<button
+								type="button"
+								onClick={onSave}
+								disabled={!canSave || !draft.studentName.trim() || !draft.matricNo.trim() || !draft.hostel.trim() || !draft.room.trim()}
+								className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] px-5 py-3 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.18)] transition hover:-translate-y-0.5 hover:bg-[#123866] disabled:cursor-not-allowed disabled:opacity-50"
+							>
+								{mode === "create" ? <Plus className="size-4" /> : <Edit3 className="size-4" />}
+								{mode === "create" ? "Create allocation" : "Save allocation"}
+							</button>
+						)}
+					</div>
+				</div>
+			</div>
+		</div>
 	);
 }
 
@@ -2075,6 +2787,7 @@ export default function HostelModuleWorkspace({
 	const isStudentDomain = domain === "student";
 	const [hostels, setHostels] = useState(INITIAL_HOSTELS);
 	const [rooms, setRooms] = useState(INITIAL_ROOMS);
+	const [allocations, setAllocations] = useState(INITIAL_ALLOCATIONS);
 	const [activeView, setActiveView] = useState<HostelView>(
 		isStudentDomain ? "dashboard" : "manage",
 	);
@@ -2085,6 +2798,11 @@ export default function HostelModuleWorkspace({
 	const [roomModalMode, setRoomModalMode] = useState<RoomModalMode | null>(null);
 	const [modalRoom, setModalRoom] = useState<RoomItem | null>(null);
 	const [roomDraft, setRoomDraft] = useState<RoomDraft>(getRoomDraft());
+	const [allocationModalMode, setAllocationModalMode] =
+		useState<AllocationModalMode | null>(null);
+	const [modalAllocation, setModalAllocation] = useState<AllocationItem | null>(null);
+	const [allocationDraft, setAllocationDraft] =
+		useState<AllocationDraft>(getAllocationDraft());
 	const canManage = useMemo(
 		() =>
 			!isStudentDomain &&
@@ -2101,6 +2819,9 @@ export default function HostelModuleWorkspace({
 		roomModalMode === "create"
 			? hasPermissions(permissions, ["hostels.create"], { mode: "any" })
 			: hasPermissions(permissions, ["hostels.update"], { mode: "any" });
+	const canSaveAllocation = hasPermissions(permissions, ["hostels.allocate"], {
+		mode: "any",
+	});
 	const activeHostel = selectedHostel ?? hostels[0];
 
 	function viewHostel(hostel: HostelItem) {
@@ -2211,6 +2932,63 @@ export default function HostelModuleWorkspace({
 		closeRoomModal();
 	}
 
+	function openCreateAllocationModal() {
+		setModalAllocation(null);
+		setAllocationDraft(getAllocationDraft());
+		setAllocationModalMode("create");
+	}
+
+	function openAllocationModal(
+		allocation: AllocationItem,
+		mode: Exclude<AllocationModalMode, "create">,
+	) {
+		setModalAllocation(allocation);
+		setAllocationDraft(getAllocationDraft(allocation));
+		setAllocationModalMode(mode);
+	}
+
+	function closeAllocationModal() {
+		setAllocationModalMode(null);
+		setModalAllocation(null);
+	}
+
+	function saveAllocation() {
+		if (
+			!canSaveAllocation ||
+			!allocationDraft.studentName.trim() ||
+			!allocationDraft.matricNo.trim() ||
+			!allocationDraft.hostel.trim() ||
+			!allocationDraft.room.trim()
+		) {
+			return;
+		}
+
+		const nextAllocation: AllocationItem = {
+			id: modalAllocation?.id ?? `alloc-${Date.now()}`,
+			studentName: allocationDraft.studentName.trim(),
+			matricNo: allocationDraft.matricNo.trim().toUpperCase(),
+			level: allocationDraft.level.trim() || "Unassigned level",
+			gender: allocationDraft.gender,
+			hostel: allocationDraft.hostel.trim(),
+			room: allocationDraft.room.trim().toUpperCase(),
+			bed: allocationDraft.bed.trim(),
+			paymentStatus: allocationDraft.paymentStatus,
+			status: allocationDraft.status,
+			allocatedBy: allocationDraft.allocatedBy.trim() || "Hostel Admin",
+			updatedAt: new Date().toISOString(),
+			note: allocationDraft.note.trim(),
+		};
+
+		setAllocations((current) =>
+			allocationModalMode === "create"
+				? [...current, nextAllocation]
+				: current.map((allocation) =>
+						allocation.id === nextAllocation.id ? nextAllocation : allocation,
+					),
+		);
+		closeAllocationModal();
+	}
+
 	function renderView() {
 		if (!isStudentDomain && activeView === "manage") {
 			return (
@@ -2239,7 +3017,17 @@ export default function HostelModuleWorkspace({
 		}
 
 		if (!isStudentDomain && activeView === "allocations") {
-			return <AllocationsView />;
+			return (
+				<AllocationsView
+					allocations={allocations}
+					hostels={hostels}
+					rooms={rooms}
+					permissions={permissions}
+					onCreate={openCreateAllocationModal}
+					onView={(allocation) => openAllocationModal(allocation, "view")}
+					onEdit={(allocation) => openAllocationModal(allocation, "edit")}
+				/>
+			);
 		}
 
 		if (activeView === "browse") {
@@ -2325,6 +3113,17 @@ export default function HostelModuleWorkspace({
 				onClose={closeRoomModal}
 				onDraftChange={setRoomDraft}
 				onSave={saveRoom}
+			/>
+			<AllocationModal
+				mode={allocationModalMode}
+				allocation={modalAllocation}
+				draft={allocationDraft}
+				hostels={hostels}
+				rooms={rooms}
+				canSave={canSaveAllocation}
+				onClose={closeAllocationModal}
+				onDraftChange={setAllocationDraft}
+				onSave={saveAllocation}
 			/>
 		</div>
 	);
