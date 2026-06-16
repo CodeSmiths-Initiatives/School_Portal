@@ -16,6 +16,7 @@ import {
 	ReceiptText,
 	Search,
 	ShieldCheck,
+	Trash2,
 	Wrench,
 	X,
 } from "lucide-react";
@@ -38,6 +39,7 @@ import {
 	createHostelComplaintRecord,
 	createHostelRecord,
 	createHostelRoomRecord,
+	deleteHostelRoomRecord,
 	initializeHostelPayment,
 	loadHostelData,
 	reserveHostelBedRecord,
@@ -3381,6 +3383,8 @@ function RoomsView({
 	onView,
 	onEdit,
 	onManageBeds,
+	onDelete,
+	deletingRoomId,
 }: {
 	rooms: RoomItem[];
 	hostels: HostelItem[];
@@ -3389,6 +3393,8 @@ function RoomsView({
 	onView: (room: RoomItem) => void;
 	onEdit: (room: RoomItem) => void;
 	onManageBeds: (room: RoomItem) => void;
+	onDelete: (room: RoomItem) => void;
+	deletingRoomId: string | null;
 }) {
 	const [search, setSearch] = useState("");
 	const [status, setStatus] = useState<RoomStatus | "all">("all");
@@ -3666,6 +3672,19 @@ function RoomsView({
 															className: "text-[#0D2B55] hover:bg-[#eef4fb]",
 															onSelect: () => {
 																onManageBeds(room);
+																setOpenActionsId(null);
+															},
+														},
+														{
+															label:
+																deletingRoomId === (room.recordId ?? room.id)
+																	? "Deleting..."
+																	: "Delete",
+															icon: <Trash2 className="size-4" />,
+															disabled: !canUpdate || deletingRoomId !== null,
+															className: "text-[#B42318] hover:bg-[#fff1f0]",
+															onSelect: () => {
+																onDelete(room);
 																setOpenActionsId(null);
 															},
 														},
@@ -5218,6 +5237,7 @@ export default function HostelModuleWorkspace({
 	const [roomDraft, setRoomDraft] = useState<RoomDraft>(getRoomDraft());
 	const [isSavingRoom, setIsSavingRoom] = useState(false);
 	const isSavingRoomRef = useRef(false);
+	const [deletingRoomId, setDeletingRoomId] = useState<string | null>(null);
 	const [bedModalMode, setBedModalMode] = useState<BedModalMode | null>(null);
 	const [modalBedRoom, setModalBedRoom] = useState<RoomItem | null>(null);
 	const [savingBedId, setSavingBedId] = useState<string | null>(null);
@@ -5831,6 +5851,40 @@ export default function HostelModuleWorkspace({
 		closeRoomModal();
 	}
 
+	async function deleteRoom(room: RoomItem) {
+		const roomId = room.recordId ?? room.id;
+
+		if (
+			!hasPermissions(permissions, ["hostels.update"], { mode: "any" }) ||
+			deletingRoomId ||
+			!roomId
+		) {
+			return;
+		}
+
+		const confirmed = window.confirm(
+			`Delete room ${room.id}? This will remove it from active hostel room management.`,
+		);
+
+		if (!confirmed) {
+			return;
+		}
+
+		setDeletingRoomId(roomId);
+		setLiveError("");
+
+		try {
+			await deleteHostelRoomRecord(collegeSlug, roomId);
+			await refreshLiveHostels();
+		} catch (error) {
+			setLiveError(
+				error instanceof Error ? error.message : "Unable to delete room.",
+			);
+		} finally {
+			setDeletingRoomId(null);
+		}
+	}
+
 	function openAllocationModal(
 		allocation: AllocationItem,
 		mode: Exclude<AllocationModalMode, "create">,
@@ -6004,6 +6058,8 @@ export default function HostelModuleWorkspace({
 					onView={(room) => openRoomModal(room, "view")}
 					onEdit={(room) => openRoomModal(room, "edit")}
 					onManageBeds={openBedModal}
+					onDelete={deleteRoom}
+					deletingRoomId={deletingRoomId}
 				/>
 			);
 		}

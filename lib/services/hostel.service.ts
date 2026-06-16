@@ -313,6 +313,18 @@ export async function updateHostelRoom(
 	);
 }
 
+export async function deleteHostelRoom(
+	collegeSlug: string,
+	roomId: string | number,
+) {
+	const params = new URLSearchParams({ collegeSlug });
+
+	return internalFetch<void>(
+		`/api/internal/hostel-rooms/${roomId}?${params.toString()}`,
+		{ method: "DELETE" },
+	);
+}
+
 export async function updateHostelBed(
 	collegeSlug: string,
 	bedId: string | number,

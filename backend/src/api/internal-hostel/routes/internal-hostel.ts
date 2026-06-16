@@ -31,6 +31,12 @@ export default {
 			config: { auth: false },
 		},
 		{
+			method: "DELETE",
+			path: "/internal/hostel-rooms/:id",
+			handler: "internal-hostel.deleteRoom",
+			config: { auth: false },
+		},
+		{
 			method: "PATCH",
 			path: "/internal/hostel-beds/:id",
 			handler: "internal-hostel.updateBed",

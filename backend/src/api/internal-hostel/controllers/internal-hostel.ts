@@ -270,6 +270,16 @@ async function findRoomForCollege(roomId: string, collegeId: number) {
 	});
 }
 
+async function findRoomForCollegeIncludingArchived(roomId: string, collegeId: number) {
+	return strapi.db.query("api::hostel-room.hostel-room").findOne({
+		where: {
+			$or: [{ documentId: roomId }, { id: asNumber(roomId) }],
+			college: collegeId,
+		},
+		populate: { hostel: true, college: true, beds: true },
+	});
+}
+
 async function findBedForCollege(bedId: string, collegeId: number) {
 	return strapi.db.query("api::hostel-bed.hostel-bed").findOne({
 		where: {
@@ -776,6 +786,87 @@ export default {
 
 		const savedRoom = await findRoomForCollege(String(existing.id), college.id);
 		ctx.body = { room: mapRoom(savedRoom as Record<string, unknown>) };
+	},
+
+	async deleteRoom(ctx: StrapiContext) {
+		if (!authorize(ctx)) {
+			return ctx.unauthorized("Hostel access is not authorized.");
+		}
+
+		const collegeSlug = asString(ctx.request.query?.collegeSlug);
+		const roomId = asString(ctx.params?.id);
+		const college = await findCollegeBySlug(collegeSlug);
+
+		if (!college?.id || !roomId) {
+			return ctx.badRequest("College slug and room id are required.");
+		}
+
+		const existing = await findRoomForCollegeIncludingArchived(roomId, college.id);
+
+		if (!existing?.id) {
+			return ctx.notFound?.("Room could not be found for this college.") ??
+				ctx.badRequest("Room could not be found for this college.");
+		}
+
+		if (asString(existing.status) === "archived") {
+			ctx.status = 204;
+			ctx.body = null;
+			return;
+		}
+
+		const activeBeds = asArray(existing.beds)
+			.map(asRecord)
+			.filter((bed) => ["reserved", "allocated"].includes(asString(bed.status)));
+
+		if (activeBeds.length) {
+			return ctx.conflict?.("Room cannot be deleted while beds are reserved or allocated.") ??
+				ctx.badRequest("Room cannot be deleted while beds are reserved or allocated.");
+		}
+
+		const activeAllocation = await strapi.db.query("api::hostel-allocation.hostel-allocation").findOne({
+			where: {
+				college: college.id,
+				room: existing.id,
+				status: { $in: ["reserved", "allocated"] },
+			},
+		});
+
+		if (activeAllocation?.id) {
+			return ctx.conflict?.("Room cannot be deleted while it has an active allocation.") ??
+				ctx.badRequest("Room cannot be deleted while it has an active allocation.");
+		}
+
+		await strapi.db.query("api::hostel-room.hostel-room").update({
+			where: { id: existing.id },
+			data: { status: "archived" },
+		});
+
+		await strapi.db.query("api::hostel-bed.hostel-bed").updateMany({
+			where: {
+				college: college.id,
+				room: existing.id,
+				status: { $in: ["available", "maintenance"] },
+			},
+			data: { status: "inactive" },
+		});
+
+		await createAuditLog({
+			collegeId: college.id,
+			entityType: "hostel-room",
+			action: "hostel-room.deleted",
+			eventType: "deleted",
+			entityId: String(existing.id),
+			summary: `Deleted room ${asString(existing.roomNumber, roomId)}`,
+			metadata: {
+				collegeSlug,
+				roomId,
+				roomNumber: asString(existing.roomNumber),
+				hostelId: relationId(existing.hostel),
+			},
+		});
+
+		ctx.status = 204;
+		ctx.body = null;
 	},
 
 	async updateBed(ctx: StrapiContext) {

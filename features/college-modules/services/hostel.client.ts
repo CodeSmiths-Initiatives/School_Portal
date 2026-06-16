@@ -37,7 +37,7 @@ async function parseError(response: Response, fallback: string) {
 
 async function request<T>(
 	path: string,
-	options?: { method?: "GET" | "POST" | "PATCH"; body?: unknown },
+	options?: { method?: "GET" | "POST" | "PATCH" | "DELETE"; body?: unknown },
 ) {
 	const response = await fetch(path, {
 		method: options?.method ?? "GET",
@@ -126,6 +126,13 @@ export function updateHostelRoomRecord(
 			body: input,
 		},
 	);
+}
+
+export function deleteHostelRoomRecord(collegeSlug: string, roomId: string) {
+	const params = new URLSearchParams({ collegeSlug });
+	return request<void>(`/api/hostels/rooms/${roomId}?${params.toString()}`, {
+		method: "DELETE",
+	});
 }
 
 export function updateHostelBedRecord(
