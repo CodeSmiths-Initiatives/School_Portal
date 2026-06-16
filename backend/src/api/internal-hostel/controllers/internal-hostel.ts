@@ -308,13 +308,14 @@ function createLedgerNumber(reference: string, type: string) {
 function parseHostelPayload(body: unknown) {
 	const payload = asRecord(body);
 	const name = asString(payload.name);
+	const fee = asNumber(payload.fee);
 
 	return {
 		name,
 		code: normalizeCode(asString(payload.code) || name),
 		gender: normalizeEnum(payload.gender, ["Female", "Male", "Mixed"] as const, "Mixed"),
 		warden: asString(payload.warden),
-		fee: Math.max(0, asNumber(payload.fee)),
+		fee: Number.isFinite(fee) ? fee : 0,
 		currency: asString(payload.currency, "NGN").toUpperCase(),
 		amenities: asArray(payload.amenities).map((item) => asString(item)).filter(Boolean),
 		status: normalizeEnum(payload.status, ["active", "inactive", "maintenance"] as const, "active"),
@@ -529,6 +530,18 @@ export default {
 
 		if (!college?.id || !payload.name || !payload.code) {
 			return ctx.badRequest("College, hostel name, and code are required.");
+		}
+
+		if (payload.name.length < 2) {
+			return ctx.badRequest("Hostel name must be at least 2 characters.");
+		}
+
+		if (payload.fee <= 0) {
+			return ctx.badRequest("Hostel fee must be greater than zero.");
+		}
+
+		if (!/^[A-Z0-9-]{2,40}$/.test(payload.code)) {
+			return ctx.badRequest("Hostel code must use 2 to 40 letters, numbers, or hyphens.");
 		}
 
 		const duplicate = await strapi.db.query("api::hostel.hostel").findOne({

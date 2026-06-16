@@ -104,8 +104,6 @@ type HostelDraft = {
 	name: string;
 	gender: HostelGender;
 	warden: string;
-	totalBeds: string;
-	availableBeds: string;
 	fee: string;
 	status: HostelStatus;
 	blocks: string;
@@ -1046,8 +1044,6 @@ function getHostelDraft(hostel?: HostelItem | null): HostelDraft {
 		name: hostel?.name ?? "",
 		gender: hostel?.gender ?? "Female",
 		warden: hostel?.warden ?? "",
-		totalBeds: hostel ? String(hostel.totalBeds) : "",
-		availableBeds: hostel ? String(hostel.availableBeds) : "",
 		fee: hostel?.fee ?? "NGN 45,000",
 		status: hostel?.status ?? "available",
 		blocks: hostel?.blocks.join(", ") ?? "",
@@ -4817,20 +4813,6 @@ function HostelModal({
 								))}
 							</select>
 							<input
-								value={draft.totalBeds}
-								onChange={(event) => onDraftChange({ ...draft, totalBeds: event.target.value })}
-								inputMode="numeric"
-								placeholder="Total beds"
-								className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
-							/>
-							<input
-								value={draft.availableBeds}
-								onChange={(event) => onDraftChange({ ...draft, availableBeds: event.target.value })}
-								inputMode="numeric"
-								placeholder="Available beds"
-								className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
-							/>
-							<input
 								value={draft.fee}
 								onChange={(event) => onDraftChange({ ...draft, fee: event.target.value })}
 								placeholder="Fee"
@@ -5486,7 +5468,7 @@ export default function HostelModuleWorkspace({
 						const result = await verifyHostelPayment(collegeSlug, {
 							allocationId: studentAllocation.id,
 							reference,
-							amount: studentPayment.amount,
+							amount: Math.round(studentPayment.amount * 100),
 							currency: studentPayment.currency,
 						});
 						const nextAllocation = mapLiveAllocation(result.allocation);
@@ -5669,8 +5651,8 @@ export default function HostelModuleWorkspace({
 			name: hostelDraft.name.trim(),
 			gender: hostelDraft.gender,
 			warden: hostelDraft.warden.trim() || "Not assigned",
-			totalBeds: Number(hostelDraft.totalBeds) || 0,
-			availableBeds: Number(hostelDraft.availableBeds) || 0,
+			totalBeds: modalHostel?.totalBeds ?? 0,
+			availableBeds: modalHostel?.availableBeds ?? 0,
 			fee: hostelDraft.fee.trim() || "NGN 0",
 			blocks: parseCsvList(hostelDraft.blocks),
 			amenities: parseCsvList(hostelDraft.amenities),
