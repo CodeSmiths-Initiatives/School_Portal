@@ -47,6 +47,8 @@ type SuperadminSettingsWorkspaceProps = {
 };
 
 const SETTINGS_STORAGE_KEY = "iums-superadmin-settings-mvp";
+const DEFAULT_NOTICE_START_AT = "2026-06-16T09:00";
+const DEFAULT_NOTICE_END_AT = "2026-06-17T09:00";
 
 const severityStyles = {
 	info: "border-blue-200 bg-blue-50 text-blue-700",
@@ -87,8 +89,8 @@ function createNoticeForm(settings: PlatformSettings): NoticeForm {
 		audience: source?.audience ?? "all",
 		severity: source?.severity ?? "info",
 		status: "draft",
-		startAt: source?.startAt ?? new Date().toISOString().slice(0, 16),
-		endAt: source?.endAt ?? new Date(Date.now() + 86400000).toISOString().slice(0, 16),
+		startAt: source?.startAt ?? DEFAULT_NOTICE_START_AT,
+		endAt: source?.endAt ?? DEFAULT_NOTICE_END_AT,
 	};
 }
 
@@ -215,21 +217,25 @@ export function SuperadminSettingsWorkspace({
 	const [isSavingMaintenance, setIsSavingMaintenance] = useState(false);
 
 	useEffect(() => {
-		const saved = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
+		const timeoutId = window.setTimeout(() => {
+			const saved = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
 
-		if (!saved) {
-			return;
-		}
+			if (!saved) {
+				return;
+			}
 
-		try {
-			const parsed = JSON.parse(saved) as PlatformSettings;
+			try {
+				const parsed = JSON.parse(saved) as PlatformSettings;
 
-			setSettings(parsed);
-			setMaintenance(parsed.maintenance);
-			setNoticeForm(createNoticeForm(parsed));
-		} catch {
-			window.localStorage.removeItem(SETTINGS_STORAGE_KEY);
-		}
+				setSettings(parsed);
+				setMaintenance(parsed.maintenance);
+				setNoticeForm(createNoticeForm(parsed));
+			} catch {
+				window.localStorage.removeItem(SETTINGS_STORAGE_KEY);
+			}
+		}, 0);
+
+		return () => window.clearTimeout(timeoutId);
 	}, []);
 
 	useEffect(() => {

@@ -127,6 +127,8 @@ For every implementation:
   role-specific code.
 - Keep changes scoped to the requested module.
 - Keep API responses tenant-scoped and reasonably small.
+- Make save/submit actions idempotent so double-clicks, retries, or duplicate
+  requests cannot create or save the same data twice.
 - Keep time complexity low; avoid repeated filtering, unnecessary nested loops,
   and repeated API calls.
 - Add or preserve indexes for fields used in tenant filters, lookups, joins,

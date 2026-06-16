@@ -46,6 +46,7 @@ const MONTH_FORMATTER = new Intl.DateTimeFormat("en-NG", {
 	month: "long",
 	year: "numeric",
 });
+const INITIAL_MONTH_KEY = "2026-06";
 
 type SlotForm = Omit<TimelineSlot, "id">;
 
@@ -435,14 +436,14 @@ export default function Timetable({
 	const [modeFilter, setModeFilter] = useState<Mode | "All Modes">("All Modes");
 	const [typeFilter, setTypeFilter] = useState<CourseType | "All Types">("All Types");
 	const [searchQuery, setSearchQuery] = useState("");
-	const [monthKey, setMonthKey] = useState(() => getMonthKey(new Date()));
+	const [monthKey, setMonthKey] = useState(INITIAL_MONTH_KEY);
 	const [showModal, setShowModal] = useState<"add" | "edit" | null>(null);
 	const [selectedSlot, setSelectedSlot] = useState<TimelineSlot | null>(null);
 	const [openActionSlotId, setOpenActionSlotId] = useState<string | null>(null);
 
 	const monthDates = useMemo(() => getMonthDates(monthKey), [monthKey]);
 	const activeMonth = Number(monthKey.split("-")[1]) - 1;
-	const todayKey = new Date().toDateString();
+	const todayKey = "";
 	const coursesBySlotKey = useMemo(() => {
 		const lookup = new Map<string, Course>();
 

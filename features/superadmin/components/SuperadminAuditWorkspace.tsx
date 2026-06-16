@@ -58,6 +58,38 @@ type ReviewDraft = {
 };
 
 const PAGE_SIZE = 20;
+const DEFAULT_FROM_DATE = "2026-06-09";
+const DEFAULT_TO_DATE = "2026-06-16";
+
+function dateOnlyFromIso(value: string | undefined, fallback: string) {
+	if (!value) {
+		return fallback;
+	}
+
+	const timestamp = Date.parse(value);
+
+	if (Number.isNaN(timestamp)) {
+		return fallback;
+	}
+
+	return new Date(timestamp).toISOString().slice(0, 10);
+}
+
+function daysBeforeIso(value: string | undefined, days: number, fallback: string) {
+	if (!value) {
+		return fallback;
+	}
+
+	const timestamp = Date.parse(value);
+
+	if (Number.isNaN(timestamp)) {
+		return fallback;
+	}
+
+	const date = new Date(timestamp);
+	date.setUTCDate(date.getUTCDate() - days);
+	return date.toISOString().slice(0, 10);
+}
 
 const fallbackColleges: ProvisionedCollege[] = [
 	{
@@ -120,10 +152,6 @@ const eventMeta = {
 		Icon: typeof Activity;
 	}
 >;
-
-function dateOnly(value: Date) {
-	return value.toISOString().slice(0, 10);
-}
 
 function daysAgo(days: number) {
 	const date = new Date();
@@ -405,11 +433,13 @@ export function SuperadminAuditWorkspace({
 	colleges,
 	auditData,
 }: SuperadminAuditWorkspaceProps) {
+	const defaultFromDate = daysBeforeIso(auditData?.generatedAt, 7, DEFAULT_FROM_DATE);
+	const defaultToDate = dateOnlyFromIso(auditData?.generatedAt, DEFAULT_TO_DATE);
 	const [collegeSlug, setCollegeSlug] = useState("all");
 	const [eventType, setEventType] = useState<"all" | AuditEventType>("all");
 	const [query, setQuery] = useState("");
-	const [fromDate, setFromDate] = useState(dateOnly(daysAgo(7)));
-	const [toDate, setToDate] = useState(dateOnly(new Date()));
+	const [fromDate, setFromDate] = useState(defaultFromDate);
+	const [toDate, setToDate] = useState(defaultToDate);
 	const [currentPage, setCurrentPage] = useState(1);
 	const [openActionsId, setOpenActionsId] = useState<string | null>(null);
 	const [modalEvent, setModalEvent] = useState<AuditEvent | null>(null);
@@ -487,8 +517,8 @@ export function SuperadminAuditWorkspace({
 		setCollegeSlug("all");
 		setEventType("all");
 		setQuery("");
-		setFromDate(dateOnly(daysAgo(7)));
-		setToDate(dateOnly(new Date()));
+		setFromDate(defaultFromDate);
+		setToDate(defaultToDate);
 		setCurrentPage(1);
 	}
 

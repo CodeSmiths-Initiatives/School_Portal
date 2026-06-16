@@ -49,15 +49,37 @@ const fallbackColleges: ProvisionedCollege[] = [
 ];
 
 const monthLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
+const DEFAULT_FROM_DATE = "2026-05-17";
+const DEFAULT_TO_DATE = "2026-06-16";
 
-function dateOnly(value: Date) {
-	return value.toISOString().slice(0, 10);
+function dateOnlyFromIso(value: string | undefined, fallback: string) {
+	if (!value) {
+		return fallback;
+	}
+
+	const timestamp = Date.parse(value);
+
+	if (Number.isNaN(timestamp)) {
+		return fallback;
+	}
+
+	return new Date(timestamp).toISOString().slice(0, 10);
 }
 
-function daysAgo(days: number) {
-	const date = new Date();
-	date.setDate(date.getDate() - days);
-	return date;
+function daysBeforeIso(value: string | undefined, days: number, fallback: string) {
+	if (!value) {
+		return fallback;
+	}
+
+	const timestamp = Date.parse(value);
+
+	if (Number.isNaN(timestamp)) {
+		return fallback;
+	}
+
+	const date = new Date(timestamp);
+	date.setUTCDate(date.getUTCDate() - days);
+	return date.toISOString().slice(0, 10);
 }
 
 function formatCurrency(value: number) {
@@ -223,10 +245,12 @@ export function SuperadminReportWorkspace({
 	colleges,
 	reportData,
 }: SuperadminReportWorkspaceProps) {
+	const defaultFromDate = daysBeforeIso(reportData?.generatedAt, 30, DEFAULT_FROM_DATE);
+	const defaultToDate = dateOnlyFromIso(reportData?.generatedAt, DEFAULT_TO_DATE);
 	const [collegeSlug, setCollegeSlug] = useState("all");
 	const [focus, setFocus] = useState<ReportFocus>("all");
-	const [fromDate, setFromDate] = useState(dateOnly(daysAgo(30)));
-	const [toDate, setToDate] = useState(dateOnly(new Date()));
+	const [fromDate, setFromDate] = useState(defaultFromDate);
+	const [toDate, setToDate] = useState(defaultToDate);
 
 	const collegeOptions = useMemo(
 		() => (colleges.length > 0 ? colleges : fallbackColleges),
@@ -264,8 +288,8 @@ export function SuperadminReportWorkspace({
 	function resetFilters() {
 		setCollegeSlug("all");
 		setFocus("all");
-		setFromDate(dateOnly(daysAgo(30)));
-		setToDate(dateOnly(new Date()));
+		setFromDate(defaultFromDate);
+		setToDate(defaultToDate);
 	}
 
 	function exportReport() {

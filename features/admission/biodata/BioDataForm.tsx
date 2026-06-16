@@ -23,7 +23,8 @@ import Declaration from "./Declaration";
 const emptySubjects = (): OLevelSubject[] =>
   Array.from({ length: 9 }, () => ({ subject: "", grade: "" }));
 
-const initialData: BioDataForm = {
+function createInitialData(): BioDataForm {
+  return {
   passportPhoto: null,
   surname: "",
   firstName: "",
@@ -88,11 +89,14 @@ const initialData: BioDataForm = {
   agreedToAccuracy: false,
   declarationDate: new Date().toISOString().split("T")[0],
   signature: "",
-};
+  };
+}
 
 export function useBioDataForm() {
   const [currentStep, setCurrentStep] = useState<BioStep>(1);
-  const [formData, setFormData] = useState<BioDataForm>(initialData);
+  const [formData, setFormData] = useState<BioDataForm>(() =>
+    createInitialData(),
+  );
   const [errors, setErrors] = useState<BioDataErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isComplete, setIsComplete] = useState(false);

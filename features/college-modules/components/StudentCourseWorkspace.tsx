@@ -107,6 +107,10 @@ function getMonthKey(date: Date) {
 	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
+function getMonthKeyFromIso(value: string) {
+	return /^\d{4}-\d{2}/.test(value) ? value.slice(0, 7) : getMonthKey(new Date(value));
+}
+
 function getMonthTitle(monthKey: string) {
 	const [year, month] = monthKey.split("-").map(Number);
 	return MONTH_FORMATTER.format(new Date(year, month - 1, 1));
@@ -332,18 +336,20 @@ function CalendarSlot({
 function TimetableCalendar({
 	slots,
 	courses,
+	initialMonthKey,
 }: {
 	slots: TimelineSlot[];
 	courses: Course[];
+	initialMonthKey: string;
 }) {
-	const [monthKey, setMonthKey] = useState(() => getMonthKey(new Date()));
+	const [monthKey, setMonthKey] = useState(initialMonthKey);
 	const [search, setSearch] = useState("");
 	const [levelFilter, setLevelFilter] = useState("All Levels");
 	const [modeFilter, setModeFilter] = useState("All Modes");
 	const [typeFilter, setTypeFilter] = useState("All Types");
 	const monthDates = useMemo(() => getMonthDates(monthKey), [monthKey]);
 	const activeMonth = Number(monthKey.split("-")[1]) - 1;
-	const todayKey = new Date().toDateString();
+	const todayKey = "";
 
 	const coursesBySlotKey = useMemo(() => {
 		const lookup = new Map<string, Course>();
@@ -796,6 +802,7 @@ export default function StudentCourseWorkspace({
 							<TimetableCalendar
 								slots={data.timetableSlots}
 								courses={data.courses}
+								initialMonthKey={getMonthKeyFromIso(data.generatedAt)}
 							/>
 						) : (
 							<EmptyState
