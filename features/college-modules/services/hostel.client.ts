@@ -18,9 +18,7 @@ import type {
 
 type HostelPaymentInitializeInput = {
 	allocationId: string;
-	email: string;
-	amount: number;
-	currency: string;
+	email?: string;
 	channel?: "card";
 };
 
@@ -153,8 +151,8 @@ export function reserveHostelBedRecord(
 	return request<{ allocation: HostelAllocation }>(
 		`/api/hostels/reserve?${params.toString()}`,
 		{
-		method: "POST",
-		body: input,
+			method: "POST",
+			body: input,
 		},
 	);
 }
@@ -198,8 +196,8 @@ export function createHostelComplaintRecord(
 	return request<{ complaint: HostelComplaint }>(
 		`/api/hostels/complaints?${params.toString()}`,
 		{
-		method: "POST",
-		body: input,
+			method: "POST",
+			body: input,
 		},
 	);
 }

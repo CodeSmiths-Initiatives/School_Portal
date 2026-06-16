@@ -42,6 +42,7 @@ import {
 	loadHostelData,
 	reserveHostelBedRecord,
 	resumeHostelPaystackPayment,
+	updateHostelBedRecord,
 	updateHostelRecord,
 	updateHostelRoomRecord,
 	updateHostelComplaintRecord,
@@ -72,6 +73,7 @@ type HostelView =
 type HostelModalMode = "create" | "view" | "edit";
 type RoomModalMode = "create" | "view" | "edit";
 type RoomStatus = "Available" | "Partial" | "Full" | "Maintenance";
+type BedModalMode = "manage";
 type AllocationModalMode = "create" | "view" | "edit";
 type AllocationStatus = "Pending" | "Allocated" | "Paid" | "Review" | "Cancelled";
 type MaintenanceModalMode = "view" | "manage";
@@ -121,6 +123,7 @@ type RoomItem = {
 	wardenNote: string;
 	updatedAt: string;
 	bedIdsByLabel?: Record<string, string>;
+	bedSpaces?: BedSpaceItem[];
 };
 
 type RoomDraft = {
@@ -132,6 +135,14 @@ type RoomDraft = {
 	available: string;
 	status: RoomStatus;
 	wardenNote: string;
+};
+
+type BedSpaceItem = {
+	id: string;
+	label: string;
+	status: "available" | "reserved" | "allocated" | "maintenance" | "inactive";
+	price: number;
+	currency: string;
 };
 
 type AllocationItem = {
@@ -939,6 +950,13 @@ function mapLiveRoom(room: HostelPayload["rooms"][number]): RoomItem {
 				.filter((bed) => bed.status === "available")
 				.map((bed) => [bed.label, bed.id]),
 		),
+		bedSpaces: room.beds.map((bed) => ({
+			id: bed.id,
+			label: bed.label,
+			status: bed.status,
+			price: bed.price,
+			currency: bed.currency,
+		})),
 	};
 }
 
@@ -1765,7 +1783,10 @@ function BookingView({
 		: [];
 	const selectedRoom = availableRooms.find((room) => room.id === selectedRoomId);
 	const bedOptions = selectedRoom
-		? Array.from({ length: selectedRoom.beds }, (_, index) => `Bed ${index + 1}`)
+		? selectedRoom.bedSpaces
+			?.filter((bed) => bed.status === "available")
+			.map((bed) => bed.label) ??
+			Object.keys(selectedRoom.bedIdsByLabel ?? {})
 		: [];
 
 	if (!selectedHostel) {
@@ -1855,15 +1876,13 @@ function BookingView({
 							<p className="text-sm font-bold text-[#0D2B55]">Available bed spaces</p>
 							{selectedRoom ? (
 								<div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-									{bedOptions.map((bed, index) => {
-										const disabled = index >= selectedRoom.available;
+									{bedOptions.length > 0 ? bedOptions.map((bed) => {
 										return (
 											<button
 												key={bed}
 												type="button"
-												disabled={disabled}
 												onClick={() => onSelectBed(bed)}
-												className={`min-h-11 rounded-xl border px-3 text-sm font-bold transition disabled:cursor-not-allowed disabled:bg-[#edf2f7] disabled:text-[#9aabc0] ${
+												className={`min-h-11 rounded-xl border px-3 text-sm font-bold transition ${
 													selectedBed === bed
 														? "border-[#0D2B55] bg-[#0D2B55] text-white"
 														: "border-[#d7e1ee] bg-white text-[#0D2B55] hover:border-[#B7770D]"
@@ -1872,7 +1891,11 @@ function BookingView({
 												{bed}
 											</button>
 										);
-									})}
+									}) : (
+										<p className="col-span-full text-sm font-semibold text-[#60728f]">
+											No available bed is currently exposed for this room.
+										</p>
+									)}
 								</div>
 							) : (
 								<p className="mt-2 text-sm text-[#60728f]">
@@ -2620,7 +2643,7 @@ function StudentMaintenanceView({
 	allocation: AllocationItem | null;
 	payment: HostelPaymentRecord | null;
 	requests: MaintenanceRequestItem[];
-	onSubmit: (draft: StudentMaintenanceDraft) => void;
+	onSubmit: (draft: StudentMaintenanceDraft) => Promise<void>;
 	onBrowse: () => void;
 	onPayment: () => void;
 }) {
@@ -2630,24 +2653,32 @@ function StudentMaintenanceView({
 		description: "",
 		priority: "Medium",
 	});
+	const [isSubmitting, setIsSubmitting] = useState(false);
 	const canSubmit =
 		Boolean(allocation) &&
 		payment?.paymentStatus === "Paid" &&
 		draft.issue.trim().length > 0 &&
-		draft.description.trim().length > 0;
+		draft.description.trim().length > 0 &&
+		!isSubmitting;
 
-	function submitRequest() {
+	async function submitRequest() {
 		if (!canSubmit) {
 			return;
 		}
 
-		onSubmit(draft);
-		setDraft({
-			category: "General",
-			issue: "",
-			description: "",
-			priority: "Medium",
-		});
+		setIsSubmitting(true);
+
+		try {
+			await onSubmit(draft);
+			setDraft({
+				category: "General",
+				issue: "",
+				description: "",
+				priority: "Medium",
+			});
+		} finally {
+			setIsSubmitting(false);
+		}
 	}
 
 	return (
@@ -2761,7 +2792,7 @@ function StudentMaintenanceView({
 							onClick={submitRequest}
 							className="min-h-11 w-full rounded-xl bg-[#0D2B55] text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-[#9fb0c6]"
 						>
-							Submit Request
+							{isSubmitting ? "Submitting..." : "Submit Request"}
 						</button>
 					</div>
 				</div>
@@ -3349,6 +3380,7 @@ function RoomsView({
 	onCreate,
 	onView,
 	onEdit,
+	onManageBeds,
 }: {
 	rooms: RoomItem[];
 	hostels: HostelItem[];
@@ -3356,6 +3388,7 @@ function RoomsView({
 	onCreate: () => void;
 	onView: (room: RoomItem) => void;
 	onEdit: (room: RoomItem) => void;
+	onManageBeds: (room: RoomItem) => void;
 }) {
 	const [search, setSearch] = useState("");
 	const [status, setStatus] = useState<RoomStatus | "all">("all");
@@ -3623,6 +3656,16 @@ function RoomsView({
 															className: "text-[#0D2B55] hover:bg-[#eef4fb]",
 															onSelect: () => {
 																onEdit(room);
+																setOpenActionsId(null);
+															},
+														},
+														{
+															label: "Manage Beds",
+															icon: <BedDouble className="size-4" />,
+															disabled: !canUpdate || !room.bedSpaces?.length,
+															className: "text-[#0D2B55] hover:bg-[#eef4fb]",
+															onSelect: () => {
+																onManageBeds(room);
 																setOpenActionsId(null);
 															},
 														},
@@ -4213,6 +4256,177 @@ function AllocationsView({
 				Room source: {rooms.length} rooms are available for allocation checks in this workspace.
 			</p>
 		</section>
+	);
+}
+
+function BedEditorList({
+	room,
+	canSave,
+	savingBedId,
+	onSave,
+}: {
+	room: RoomItem;
+	canSave: boolean;
+	savingBedId: string | null;
+	onSave: (
+		bed: BedSpaceItem,
+		input: Pick<BedSpaceItem, "status" | "price">,
+	) => void;
+}) {
+	const [drafts, setDrafts] = useState<
+		Record<string, Pick<BedSpaceItem, "status" | "price">>
+	>(() =>
+		Object.fromEntries(
+			(room.bedSpaces ?? []).map((bed) => [
+				bed.id,
+				{ status: bed.status, price: bed.price },
+			]),
+		),
+	);
+
+	if (!room.bedSpaces?.length) {
+		return (
+			<div className="rounded-2xl border border-dashed border-[#d7e2f0] bg-[#fbfdff] p-5 text-sm font-semibold text-[#60728f]">
+				This room does not have live bed records yet. Edit the room capacity
+				to create bed spaces.
+			</div>
+		);
+	}
+
+	return (
+		<div className="space-y-3">
+			{room.bedSpaces.map((bed) => {
+				const draft = drafts[bed.id] ?? {
+					status: bed.status,
+					price: bed.price,
+				};
+				const isDirty =
+					draft.status !== bed.status || draft.price !== bed.price;
+
+				return (
+					<div
+						key={bed.id}
+						className="grid gap-3 rounded-2xl border border-[#dbe5f1] bg-[#fbfdff] p-4 md:grid-cols-[minmax(0,1fr)_12rem_10rem_auto]"
+					>
+						<div>
+							<p className="text-sm font-black text-[#0D2B55]">
+								{bed.label}
+							</p>
+							<p className="mt-1 text-xs font-bold text-[#60728f]">
+								Current: {bed.status} / {formatCurrency(bed.price, bed.currency)}
+							</p>
+						</div>
+						<select
+							value={draft.status}
+							onChange={(event) =>
+								setDrafts((current) => ({
+									...current,
+									[bed.id]: {
+										...draft,
+										status: event.target.value as BedSpaceItem["status"],
+									},
+								}))
+							}
+							disabled={!canSave || savingBedId === bed.id}
+							className="h-11 rounded-2xl border border-[#d3dfed] bg-white px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1] disabled:bg-[#edf2f7]"
+						>
+							{["available", "reserved", "allocated", "maintenance", "inactive"].map(
+								(status) => (
+									<option key={status} value={status}>
+										{status}
+									</option>
+								),
+							)}
+						</select>
+						<input
+							type="number"
+							min="0"
+							value={draft.price}
+							onChange={(event) =>
+								setDrafts((current) => ({
+									...current,
+									[bed.id]: {
+										...draft,
+										price: Math.max(0, Number(event.target.value) || 0),
+									},
+								}))
+							}
+							disabled={!canSave || savingBedId === bed.id}
+							className="h-11 rounded-2xl border border-[#d3dfed] bg-white px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1] disabled:bg-[#edf2f7]"
+						/>
+						<button
+							type="button"
+							onClick={() => onSave(bed, draft)}
+							disabled={!canSave || !isDirty || Boolean(savingBedId)}
+							className="inline-flex h-11 items-center justify-center rounded-2xl bg-[#0D2B55] px-4 text-sm font-black text-white transition hover:bg-[#123866] disabled:cursor-not-allowed disabled:opacity-50"
+						>
+							{savingBedId === bed.id ? "Saving..." : "Save"}
+						</button>
+					</div>
+				);
+			})}
+		</div>
+	);
+}
+
+function BedModal({
+	mode,
+	room,
+	canSave,
+	savingBedId,
+	onClose,
+	onSave,
+}: {
+	mode: BedModalMode | null;
+	room: RoomItem | null;
+	canSave: boolean;
+	savingBedId: string | null;
+	onClose: () => void;
+	onSave: (
+		bed: BedSpaceItem,
+		input: Pick<BedSpaceItem, "status" | "price">,
+	) => void;
+}) {
+	if (!mode || !room) {
+		return null;
+	}
+
+	return (
+		<div className="fixed inset-0 z-[130] flex items-center justify-center bg-[#06172f]/60 p-4 backdrop-blur-sm">
+			<div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-3xl border border-[#dbe5f1] bg-white shadow-[0_30px_80px_rgba(6,23,47,0.35)]">
+				<div className="flex items-start justify-between gap-4 border-b border-[#dbe5f1] bg-[#0D2B55] px-5 py-5 text-white sm:px-6">
+					<div>
+						<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#E4A11B]">
+							Manage Beds
+						</p>
+						<h2 className="mt-2 text-xl font-black sm:text-2xl">
+							{room.hostel} - Room {room.id}
+						</h2>
+						<p className="mt-1 text-sm font-semibold text-[#c5d4e8]">
+							Update bed availability, maintenance state, and live price.
+						</p>
+					</div>
+					<button
+						type="button"
+						onClick={onClose}
+						className="flex size-10 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition hover:bg-white hover:text-[#0D2B55]"
+						aria-label="Close bed modal"
+					>
+						<X className="size-5" />
+					</button>
+				</div>
+
+				<div className="max-h-[calc(90vh-8rem)] overflow-y-auto p-5 sm:p-6">
+					<BedEditorList
+						key={room.recordId ?? room.id}
+						room={room}
+						canSave={canSave}
+						savingBedId={savingBedId}
+						onSave={onSave}
+					/>
+				</div>
+			</div>
+		</div>
 	);
 }
 
@@ -5004,6 +5218,9 @@ export default function HostelModuleWorkspace({
 	const [roomDraft, setRoomDraft] = useState<RoomDraft>(getRoomDraft());
 	const [isSavingRoom, setIsSavingRoom] = useState(false);
 	const isSavingRoomRef = useRef(false);
+	const [bedModalMode, setBedModalMode] = useState<BedModalMode | null>(null);
+	const [modalBedRoom, setModalBedRoom] = useState<RoomItem | null>(null);
+	const [savingBedId, setSavingBedId] = useState<string | null>(null);
 	const [allocationModalMode, setAllocationModalMode] =
 		useState<AllocationModalMode | null>(null);
 	const [modalAllocation, setModalAllocation] = useState<AllocationItem | null>(null);
@@ -5157,7 +5374,8 @@ export default function HostelModuleWorkspace({
 				const result = await reserveHostelBedRecord(collegeSlug, {
 					bedId: liveBedId,
 					studentName: "Current Student",
-					studentIdentifier: "Current Student",
+					studentEmail: "",
+					studentIdentifier: "",
 					level: "Current Level",
 				});
 				const nextAllocation = mapLiveAllocation(result.allocation);
@@ -5236,11 +5454,6 @@ export default function HostelModuleWorkspace({
 		try {
 			const payment = await initializeHostelPayment(collegeSlug, {
 				allocationId: studentAllocation.id,
-				email: studentPayment.matricNo.includes("@")
-					? studentPayment.matricNo
-					: `${studentAllocation.id}@hostel.local`,
-				amount: studentPayment.amount,
-				currency: studentPayment.currency,
 				channel: "card",
 			});
 
@@ -5306,13 +5519,15 @@ export default function HostelModuleWorkspace({
 
 		if (studentAllocation.id && studentAllocation.id !== "student-allocation-ui") {
 			try {
-				await createHostelComplaintRecord(collegeSlug, {
+				const result = await createHostelComplaintRecord(collegeSlug, {
 					allocationId: studentAllocation.id,
 					category: draft.category,
 					issue: draft.issue.trim(),
 					description: draft.description.trim(),
 					priority: draft.priority,
 				});
+				const nextRequest = mapLiveComplaint(result.complaint);
+				setStudentMaintenanceRequests((current) => [nextRequest, ...current]);
 				await refreshLiveHostels();
 				return;
 			} catch (error) {
@@ -5471,6 +5686,49 @@ export default function HostelModuleWorkspace({
 		setIsSavingRoom(false);
 		setRoomModalMode(null);
 		setModalRoom(null);
+	}
+
+	function openBedModal(room: RoomItem) {
+		setModalBedRoom(room);
+		setBedModalMode("manage");
+	}
+
+	function closeBedModal() {
+		setSavingBedId(null);
+		setBedModalMode(null);
+		setModalBedRoom(null);
+	}
+
+	async function saveBed(bed: BedSpaceItem, input: Pick<BedSpaceItem, "status" | "price">) {
+		if (!hasPermissions(permissions, ["hostels.update"], { mode: "any" }) || savingBedId) {
+			return;
+		}
+
+		setSavingBedId(bed.id);
+		setLiveError("");
+
+		try {
+			await updateHostelBedRecord(collegeSlug, bed.id, {
+				status: input.status,
+				price: input.price,
+			});
+			await refreshLiveHostels();
+			setModalBedRoom((current) => {
+				if (!current) return current;
+				return {
+					...current,
+					bedSpaces: current.bedSpaces?.map((item) =>
+						item.id === bed.id ? { ...item, ...input } : item,
+					),
+				};
+			});
+		} catch (error) {
+			setLiveError(
+				error instanceof Error ? error.message : "Unable to update hostel bed.",
+			);
+		} finally {
+			setSavingBedId(null);
+		}
 	}
 
 	async function saveRoom() {
@@ -5745,6 +6003,7 @@ export default function HostelModuleWorkspace({
 					onCreate={openCreateRoomModal}
 					onView={(room) => openRoomModal(room, "view")}
 					onEdit={(room) => openRoomModal(room, "edit")}
+					onManageBeds={openBedModal}
 				/>
 			);
 		}
@@ -5931,6 +6190,14 @@ export default function HostelModuleWorkspace({
 				onClose={closeRoomModal}
 				onDraftChange={setRoomDraft}
 				onSave={saveRoom}
+			/>
+			<BedModal
+				mode={bedModalMode}
+				room={modalBedRoom}
+				canSave={hasPermissions(permissions, ["hostels.update"], { mode: "any" })}
+				savingBedId={savingBedId}
+				onClose={closeBedModal}
+				onSave={saveBed}
 			/>
 			<AllocationModal
 				mode={allocationModalMode}

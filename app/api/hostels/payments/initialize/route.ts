@@ -8,7 +8,7 @@ import { z } from "zod";
 
 const requestSchema = z.object({
 	allocationId: z.string().trim().min(1, "Allocation is required."),
-	email: z.email("A valid student email is required."),
+	email: z.email("A valid student email is required.").optional(),
 	channel: z.literal("card").default("card"),
 });
 
@@ -69,6 +69,15 @@ export async function POST(request: Request) {
 			);
 		}
 
+		const payerEmail = session.user.email ?? payload.data.email;
+
+		if (!payerEmail) {
+			return NextResponse.json(
+				{ error: "A valid student email is required for Paystack checkout." },
+				{ status: 400 },
+			);
+		}
+
 		const studentIdentifier = session.user.email ?? session.user.id;
 		const hostelData = await getHostelData(collegeSlug, studentIdentifier);
 		const allocation = hostelData.allocations.find(
@@ -103,7 +112,7 @@ export async function POST(request: Request) {
 				},
 				body: JSON.stringify({
 					amount,
-					email: session.user.email ?? payload.data.email,
+					email: payerEmail,
 					reference,
 					currency: allocation.currency,
 					channels: ["card"],
