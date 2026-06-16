@@ -31,6 +31,21 @@ function createReference() {
 	return `HST-${Date.now()}-${randomPart}`;
 }
 
+function getPaystackCheckoutEmail(email: string) {
+	const normalized = email.trim().toLowerCase();
+
+	if (normalized.endsWith(".test")) {
+		const localPart = normalized
+			.split("@")[0]
+			?.replace(/[^a-z0-9._+-]/g, "")
+			.slice(0, 48);
+
+		return `${localPart || "student"}+iums-test@example.com`;
+	}
+
+	return normalized;
+}
+
 export async function POST(request: Request) {
 	const secretKey = process.env.PAYSTACK_SECRET_KEY;
 
@@ -78,6 +93,8 @@ export async function POST(request: Request) {
 			);
 		}
 
+		const checkoutEmail = getPaystackCheckoutEmail(payerEmail);
+
 		const studentIdentifier = session.user.email ?? session.user.id;
 		const hostelData = await getHostelData(collegeSlug, studentIdentifier);
 		const allocation = hostelData.allocations.find(
@@ -112,11 +129,12 @@ export async function POST(request: Request) {
 				},
 				body: JSON.stringify({
 					amount,
-					email: payerEmail,
+					email: checkoutEmail,
 					reference,
 					currency: allocation.currency,
 					channels: ["card"],
 					metadata: {
+						student_email: payerEmail,
 						custom_fields: [
 							{
 								display_name: "Payment Category",

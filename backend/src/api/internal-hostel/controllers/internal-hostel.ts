@@ -103,6 +103,23 @@ function relationId(value: unknown) {
 	return typeof record.id === "number" ? record.id : undefined;
 }
 
+function relationDataId(value: unknown) {
+	const numeric = asNumber(value);
+
+	if (Number.isInteger(numeric) && numeric > 0) {
+		return numeric;
+	}
+
+	const text = asString(value);
+	const strapiMatch = /^strapi:(\d+)$/.exec(text);
+
+	if (strapiMatch?.[1]) {
+		return Number(strapiMatch[1]);
+	}
+
+	return undefined;
+}
+
 function getRecordId(record: Record<string, unknown>) {
 	return asString(record.documentId) || String(record.id ?? "");
 }
@@ -403,10 +420,11 @@ function parseReservePayload(body: unknown) {
 	const payload = asRecord(body);
 	const studentEmail = asString(payload.studentEmail);
 	const studentIdentifier = asString(payload.studentIdentifier, studentEmail);
+	const studentId = relationDataId(payload.studentId);
 
 	return {
 		bedId: asString(payload.bedId),
-		studentId: asString(payload.studentId),
+		studentId,
 		studentName: asString(payload.studentName, "Current Student"),
 		studentEmail,
 		studentIdentifier: normalizeStudentIdentifier(studentIdentifier),
@@ -434,21 +452,28 @@ async function findActiveStudentAllocation(collegeId: number, studentIdentifier:
 		return existingAllocation;
 	}
 
-	const rows = await strapi.db.connection("hostel_allocations")
-		.select("id")
-		.where({ college_id: collegeId })
-		.whereIn("status", ["reserved", "allocated"])
-		.whereRaw("LOWER(student_identifier) = ?", [normalizedIdentifier])
-		.limit(1);
-	const allocationId = rows[0]?.id;
+	return null;
+}
 
-	if (!allocationId) {
-		return null;
+async function ensureAllocationInvoiceLink(allocationId?: number, invoiceId?: number) {
+	if (!allocationId || !invoiceId) {
+		return;
 	}
 
-	return strapi.db.query("api::hostel-allocation.hostel-allocation").findOne({
-		where: { id: allocationId },
-		populate: { hostel: true, room: true, bed: true, invoice: true },
+	const existing = await strapi.db.connection("hostel_allocations_invoice_lnk")
+		.where({
+			hostel_allocation_id: allocationId,
+			payment_invoice_id: invoiceId,
+		})
+		.first();
+
+	if (existing?.id) {
+		return;
+	}
+
+	await strapi.db.connection("hostel_allocations_invoice_lnk").insert({
+		hostel_allocation_id: allocationId,
+		payment_invoice_id: invoiceId,
 	});
 }
 
@@ -503,6 +528,9 @@ function parseComplaintUpdatePayload(body: unknown) {
 
 async function listPayload(college: Record<string, unknown>, studentIdentifier?: string) {
 	const collegeId = asNumber(college.id);
+	const normalizedStudentIdentifier = studentIdentifier
+		? normalizeStudentIdentifier(studentIdentifier)
+		: "";
 	const [hostels, rooms, allocations, complaints] = await Promise.all([
 		strapi.db.query("api::hostel.hostel").findMany({
 			where: { college: collegeId, status: { $ne: "archived" } },
@@ -519,22 +547,24 @@ async function listPayload(college: Record<string, unknown>, studentIdentifier?:
 			where: {
 				college: collegeId,
 				status: { $ne: "cancelled" },
-				...(studentIdentifier ? { studentIdentifier } : {}),
+				...(normalizedStudentIdentifier
+					? { studentIdentifier: normalizedStudentIdentifier }
+					: {}),
 			},
 			populate: { hostel: true, room: true, bed: true, invoice: true },
 			orderBy: [{ updatedAt: "desc" }],
-			limit: studentIdentifier ? 20 : 1000,
+			limit: normalizedStudentIdentifier ? 20 : 1000,
 		}),
 		strapi.db.query("api::hostel-complaint.hostel-complaint").findMany({
 			where: {
 				college: collegeId,
-				...(studentIdentifier
-					? { allocation: { studentIdentifier } }
+				...(normalizedStudentIdentifier
+					? { allocation: { studentIdentifier: normalizedStudentIdentifier } }
 					: {}),
 			},
 			populate: { allocation: true, hostel: true, room: true, bed: true },
 			orderBy: [{ updatedAt: "desc" }],
-			limit: studentIdentifier ? 50 : 1000,
+			limit: normalizedStudentIdentifier ? 50 : 1000,
 		}),
 	]);
 	const roomsByHostel = new Map<string, Record<string, unknown>[]>();
@@ -1101,6 +1131,28 @@ export default {
 					},
 				});
 
+				await strapi.db.query("api::payment-ledger-entry.payment-ledger-entry").create({
+					data: {
+						entryNumber: createLedgerNumber(invoiceNumber, "charge"),
+						entryType: "charge",
+						direction: "debit",
+						amount: asNumber(invoice.amount),
+						currency: asString(invoice.currency, "NGN"),
+						module: "hostel",
+						description: "Hostel invoice raised",
+						reference: invoiceNumber,
+						postedAt: new Date().toISOString(),
+						metadata: {
+							collegeSlug,
+							allocationNumber,
+							bedId: bed.id,
+						},
+						college: college.id,
+						invoice: invoice.id,
+						...(payload.studentId ? { payer: payload.studentId } : {}),
+					},
+				});
+
 				allocation = await strapi.db.query("api::hostel-allocation.hostel-allocation").create({
 					data: {
 						allocationNumber,
@@ -1121,6 +1173,11 @@ export default {
 					},
 				});
 			});
+
+			await ensureAllocationInvoiceLink(
+				asNumber(allocation?.id),
+				asNumber(invoice?.id),
+			);
 		} catch (error) {
 			const retriedAllocation = await findActiveStudentAllocation(
 				college.id,
