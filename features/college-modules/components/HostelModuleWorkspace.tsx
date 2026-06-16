@@ -212,7 +212,7 @@ type HostelPaymentRecord = {
 	room: string;
 	bed: string;
 	amount: number;
-	currency: "NGN";
+	currency: string;
 	paymentStatus: HostelPaymentStatus;
 	invoiceStatus: HostelInvoiceStatus;
 	channel: "Card" | "Bank Transfer" | "USSD" | "Manual Review";
@@ -962,6 +962,9 @@ function mapLiveRoom(room: HostelPayload["rooms"][number]): RoomItem {
 }
 
 function mapLiveAllocation(allocation: HostelPayload["allocations"][number]): AllocationItem {
+	const isPaid =
+		allocation.paymentStatus === "paid" || allocation.invoiceStatus === "paid";
+
 	return {
 		id: allocation.id,
 		studentName: allocation.studentName,
@@ -972,13 +975,13 @@ function mapLiveAllocation(allocation: HostelPayload["allocations"][number]): Al
 		room: allocation.roomNumber,
 		bed: allocation.bedLabel,
 		paymentStatus:
-			allocation.paymentStatus === "paid"
+			isPaid
 				? "Paid"
 				: allocation.paymentStatus === "review"
 					? "Review"
 					: "Pending",
 		status:
-			allocation.status === "allocated"
+			allocation.status === "allocated" || isPaid
 				? "Allocated"
 				: allocation.status === "cancelled"
 					? "Cancelled"
@@ -1010,6 +1013,9 @@ function mapLiveComplaint(complaint: HostelPayload["complaints"][number]): Maint
 }
 
 function mapLivePayment(allocation: HostelPayload["allocations"][number]): HostelPaymentRecord {
+	const isPaid =
+		allocation.paymentStatus === "paid" || allocation.invoiceStatus === "paid";
+
 	return {
 		id: allocation.invoiceNumber || allocation.id,
 		invoiceNo: allocation.invoiceNumber || "Hostel invoice",
@@ -1021,23 +1027,34 @@ function mapLivePayment(allocation: HostelPayload["allocations"][number]): Hoste
 		room: allocation.roomNumber,
 		bed: allocation.bedLabel,
 		amount: allocation.amount,
-		currency: "NGN",
+		currency: allocation.currency,
 		paymentStatus:
-			allocation.paymentStatus === "paid"
+			isPaid
 				? "Paid"
 				: allocation.paymentStatus === "failed"
 					? "Failed"
 					: allocation.paymentStatus === "review"
 						? "Review"
 						: "Pending",
-		invoiceStatus: allocation.invoiceStatus === "paid" ? "Paid" : "Issued",
+		invoiceStatus: isPaid ? "Paid" : "Issued",
 		channel: "Card",
 		issuedAt: allocation.updatedAt || new Date().toISOString(),
-		paidAt: allocation.paymentStatus === "paid" ? allocation.updatedAt : undefined,
+		paidAt: isPaid ? allocation.updatedAt : undefined,
 		updatedAt: allocation.updatedAt || new Date().toISOString(),
-		verifiedBy: allocation.paymentStatus === "paid" ? "Gateway" : "Not verified",
+		verifiedBy: isPaid ? "Gateway" : "Not verified",
 		note: allocation.note,
 	};
+}
+
+function isHostelPaymentPaid(
+	payment?: HostelPaymentRecord | null,
+	allocation?: AllocationItem | null,
+) {
+	return (
+		payment?.paymentStatus === "Paid" ||
+		payment?.invoiceStatus === "Paid" ||
+		allocation?.paymentStatus === "Paid"
+	);
 }
 
 function getHostelDraft(hostel?: HostelItem | null): HostelDraft {
@@ -2017,6 +2034,8 @@ function AllocationView({
 		);
 	}
 
+	const paymentPaid = isHostelPaymentPaid(payment, allocation);
+
 	return (
 		<SimplePanel
 			badge="My Allocation"
@@ -2040,7 +2059,7 @@ function AllocationView({
 			</div>
 			<div className="mt-5 rounded-2xl border border-[#dbe5f1] bg-[#fbfdff] p-4">
 				<p className="text-sm font-bold text-[#0D2B55]">
-					{payment?.paymentStatus === "Paid"
+					{paymentPaid
 						? "Payment completed. Maintenance requests are now available for this allocation."
 						: "Complete hostel payment to confirm your allocation."}
 				</p>
@@ -2058,7 +2077,7 @@ function AllocationView({
 					</button>
 					<button
 						type="button"
-						disabled={payment?.paymentStatus !== "Paid"}
+						disabled={!paymentPaid}
 						onClick={onMaintenance}
 						className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#0D2B55] px-5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-[#9fb0c6]"
 					>
@@ -2107,6 +2126,8 @@ function StudentPaymentView({
 		);
 	}
 
+	const paymentPaid = isHostelPaymentPaid(payment, allocation);
+
 	return (
 		<SimplePanel
 			badge="Hostel Payment"
@@ -2135,11 +2156,11 @@ function StudentPaymentView({
 						<button
 							type="button"
 							onClick={onPay}
-							disabled={isPaying || payment.paymentStatus === "Paid"}
+							disabled={isPaying || paymentPaid}
 							className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#0D2B55] px-5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-[#9fb0c6]"
 						>
 							<CreditCard className="size-4" />
-							{payment.paymentStatus === "Paid"
+							{paymentPaid
 								? "Payment Completed"
 								: isPaying
 									? "Opening Paystack..."
@@ -2678,9 +2699,10 @@ function StudentMaintenanceView({
 		priority: "Medium",
 	});
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const paymentPaid = isHostelPaymentPaid(payment, allocation);
 	const canSubmit =
 		Boolean(allocation) &&
-		payment?.paymentStatus === "Paid" &&
+		paymentPaid &&
 		draft.issue.trim().length > 0 &&
 		draft.description.trim().length > 0 &&
 		!isSubmitting;
@@ -2711,7 +2733,7 @@ function StudentMaintenanceView({
 			title="Residence maintenance requests"
 			description="Create a room complaint only after your hostel payment confirms the allocation."
 		>
-			{!allocation || payment?.paymentStatus !== "Paid" ? (
+			{!allocation || !paymentPaid ? (
 				<div className="mb-4 rounded-2xl border border-[#f0cb7c] bg-[#fff8e8] p-4">
 					<p className="text-sm font-bold text-[#7a4a00]">
 						Maintenance opens after confirmed hostel allocation.
@@ -2766,7 +2788,7 @@ function StudentMaintenanceView({
 							onChange={(event) =>
 								setDraft((current) => ({ ...current, category: event.target.value }))
 							}
-							disabled={!allocation || payment?.paymentStatus !== "Paid"}
+							disabled={!allocation || !paymentPaid}
 							className="min-h-11 w-full rounded-xl border border-[#d7e1ee] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1] disabled:bg-[#edf2f7]"
 						>
 							{["General", "Plumbing", "Electrical", "Furniture", "Door and security"].map((category) => (
@@ -2780,7 +2802,7 @@ function StudentMaintenanceView({
 							onChange={(event) =>
 								setDraft((current) => ({ ...current, issue: event.target.value }))
 							}
-							disabled={!allocation || payment?.paymentStatus !== "Paid"}
+							disabled={!allocation || !paymentPaid}
 							className="min-h-11 w-full rounded-xl border border-[#d7e1ee] px-4 text-sm outline-none focus:border-[#2E86C1]"
 							placeholder="Issue title"
 						/>
@@ -2789,7 +2811,7 @@ function StudentMaintenanceView({
 							onChange={(event) =>
 								setDraft((current) => ({ ...current, description: event.target.value }))
 							}
-							disabled={!allocation || payment?.paymentStatus !== "Paid"}
+							disabled={!allocation || !paymentPaid}
 							className="min-h-24 w-full rounded-xl border border-[#d7e1ee] px-4 py-3 text-sm outline-none focus:border-[#2E86C1]"
 							placeholder="Describe the issue"
 						/>
@@ -2801,7 +2823,7 @@ function StudentMaintenanceView({
 									priority: event.target.value as MaintenancePriority,
 								}))
 							}
-							disabled={!allocation || payment?.paymentStatus !== "Paid"}
+							disabled={!allocation || !paymentPaid}
 							className="min-h-11 w-full rounded-xl border border-[#d7e1ee] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1] disabled:bg-[#edf2f7]"
 						>
 							{MAINTENANCE_PRIORITIES.map((priority) => (
@@ -5508,7 +5530,7 @@ export default function HostelModuleWorkspace({
 			return;
 		}
 
-		if (studentPayment.paymentStatus === "Paid") {
+		if (isHostelPaymentPaid(studentPayment, studentAllocation)) {
 			setActiveView("allocation");
 			return;
 		}
@@ -5579,7 +5601,7 @@ export default function HostelModuleWorkspace({
 	}
 
 	async function submitStudentMaintenance(draft: StudentMaintenanceDraft) {
-		if (!studentAllocation || studentPayment?.paymentStatus !== "Paid") {
+		if (!studentAllocation || !isHostelPaymentPaid(studentPayment, studentAllocation)) {
 			return;
 		}
 

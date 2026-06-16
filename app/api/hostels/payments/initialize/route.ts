@@ -8,7 +8,6 @@ import { z } from "zod";
 
 const requestSchema = z.object({
 	allocationId: z.string().trim().min(1, "Allocation is required."),
-	email: z.email("A valid student email is required.").optional(),
 	channel: z.literal("card").default("card"),
 });
 
@@ -29,21 +28,6 @@ function getCollegeSlug(request: Request, fallback?: string) {
 function createReference() {
 	const randomPart = Math.random().toString(36).slice(2, 8).toUpperCase();
 	return `HST-${Date.now()}-${randomPart}`;
-}
-
-function getPaystackCheckoutEmail(email: string) {
-	const normalized = email.trim().toLowerCase();
-
-	if (normalized.endsWith(".test")) {
-		const localPart = normalized
-			.split("@")[0]
-			?.replace(/[^a-z0-9._+-]/g, "")
-			.slice(0, 48);
-
-		return `${localPart || "student"}+iums-test@example.com`;
-	}
-
-	return normalized;
 }
 
 export async function POST(request: Request) {
@@ -84,7 +68,7 @@ export async function POST(request: Request) {
 			);
 		}
 
-		const payerEmail = session.user.email ?? payload.data.email;
+		const payerEmail = session.user.email?.trim().toLowerCase();
 
 		if (!payerEmail) {
 			return NextResponse.json(
@@ -92,8 +76,6 @@ export async function POST(request: Request) {
 				{ status: 400 },
 			);
 		}
-
-		const checkoutEmail = getPaystackCheckoutEmail(payerEmail);
 
 		const studentIdentifier = session.user.email ?? session.user.id;
 		const hostelData = await getHostelData(collegeSlug, studentIdentifier);
@@ -108,7 +90,7 @@ export async function POST(request: Request) {
 			);
 		}
 
-		if (allocation.paymentStatus === "paid") {
+		if (allocation.paymentStatus === "paid" || allocation.invoiceStatus === "paid") {
 			return NextResponse.json(
 				{ error: "This hostel invoice has already been paid." },
 				{ status: 409 },
@@ -129,7 +111,7 @@ export async function POST(request: Request) {
 				},
 				body: JSON.stringify({
 					amount,
-					email: checkoutEmail,
+					email: payerEmail,
 					reference,
 					currency: allocation.currency,
 					channels: ["card"],

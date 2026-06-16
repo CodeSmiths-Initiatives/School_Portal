@@ -18,7 +18,6 @@ import type {
 
 type HostelPaymentInitializeInput = {
 	allocationId: string;
-	email?: string;
 	channel?: "card";
 };
 

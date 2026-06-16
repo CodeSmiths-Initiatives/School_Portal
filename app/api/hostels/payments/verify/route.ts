@@ -82,6 +82,10 @@ export async function POST(request: Request) {
 			);
 		}
 
+		if (allocation.paymentStatus === "paid" || allocation.invoiceStatus === "paid") {
+			return NextResponse.json({ allocation });
+		}
+
 		const expectedAmount = Math.round(allocation.amount * 100);
 		const paystackResponse = await fetch(
 			`https://api.paystack.co/transaction/verify/${encodeURIComponent(payload.data.reference)}`,
