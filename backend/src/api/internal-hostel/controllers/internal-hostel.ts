@@ -55,6 +55,22 @@ function asNumber(value: unknown, fallback = 0) {
 	return fallback;
 }
 
+function parseAmount(value: unknown) {
+	if (typeof value === "number" && Number.isFinite(value)) return value;
+	if (typeof value !== "string") return Number.NaN;
+
+	const normalized = value.replace(/[,\s]/g, "").replace(/^NGN/i, "");
+	return /^\d+(?:\.\d{1,2})?$/.test(normalized) ? Number(normalized) : Number.NaN;
+}
+
+function parseWholeNumber(value: unknown) {
+	if (typeof value === "number" && Number.isInteger(value)) return value;
+	if (typeof value !== "string") return Number.NaN;
+
+	const normalized = value.trim();
+	return /^\d+$/.test(normalized) ? Number(normalized) : Number.NaN;
+}
+
 function asRecord(value: unknown) {
 	return value && typeof value === "object" && !Array.isArray(value)
 		? (value as Record<string, unknown>)
@@ -316,14 +332,14 @@ function createLedgerNumber(reference: string, type: string) {
 function parseHostelPayload(body: unknown) {
 	const payload = asRecord(body);
 	const name = asString(payload.name);
-	const fee = asNumber(payload.fee);
+	const fee = parseAmount(payload.fee);
 
 	return {
 		name,
 		code: normalizeCode(asString(payload.code) || name),
 		gender: normalizeEnum(payload.gender, ["Female", "Male", "Mixed"] as const, "Mixed"),
 		warden: asString(payload.warden),
-		fee: Number.isFinite(fee) ? fee : 0,
+		fee,
 		currency: asString(payload.currency, "NGN").toUpperCase(),
 		amenities: asArray(payload.amenities).map((item) => asString(item)).filter(Boolean),
 		status: normalizeEnum(payload.status, ["active", "inactive", "maintenance"] as const, "active"),
@@ -340,7 +356,7 @@ function parseHostelUpdatePayload(body: unknown) {
 		data.gender = normalizeEnum(payload.gender, ["Female", "Male", "Mixed"] as const, "Mixed");
 	}
 	if ("warden" in payload) data.warden = asString(payload.warden);
-	if ("fee" in payload) data.fee = Math.max(0, asNumber(payload.fee));
+	if ("fee" in payload) data.fee = parseAmount(payload.fee);
 	if ("currency" in payload) data.currency = asString(payload.currency, "NGN").toUpperCase();
 	if ("amenities" in payload) {
 		data.amenities = asArray(payload.amenities).map((item) => asString(item)).filter(Boolean);
@@ -360,8 +376,8 @@ function parseRoomPayload(body: unknown) {
 		roomNumber: asString(payload.roomNumber).toUpperCase(),
 		block: asString(payload.block),
 		floor: asString(payload.floor),
-		capacity: Math.max(0, asNumber(payload.capacity)),
-		price: Math.max(0, asNumber(payload.price)),
+		capacity: parseWholeNumber(payload.capacity),
+		price: parseAmount(payload.price),
 		status: normalizeEnum(payload.status, ["active", "inactive", "maintenance"] as const, "active"),
 		wardenNote: asString(payload.wardenNote),
 	};
@@ -374,7 +390,7 @@ function parseRoomUpdatePayload(body: unknown) {
 	if ("roomNumber" in payload) data.roomNumber = asString(payload.roomNumber).toUpperCase();
 	if ("block" in payload) data.block = asString(payload.block);
 	if ("floor" in payload) data.floor = asString(payload.floor);
-	if ("capacity" in payload) data.capacity = Math.max(1, asNumber(payload.capacity, 1));
+	if ("capacity" in payload) data.capacity = parseWholeNumber(payload.capacity);
 	if ("status" in payload) {
 		data.status = normalizeEnum(payload.status, ["active", "inactive", "maintenance"] as const, "active");
 	}
@@ -581,7 +597,7 @@ export default {
 			return ctx.badRequest("Hostel name must be at least 2 characters.");
 		}
 
-		if (payload.fee <= 0) {
+		if (!Number.isFinite(payload.fee) || payload.fee <= 0) {
 			return ctx.badRequest("Hostel fee must be greater than zero.");
 		}
 
@@ -652,6 +668,18 @@ export default {
 				ctx.badRequest("Hostel could not be found for this college.");
 		}
 
+		if ("name" in payload && asString(payload.name).length < 2) {
+			return ctx.badRequest("Hostel name must be at least 2 characters.");
+		}
+
+		if ("fee" in payload && (!Number.isFinite(payload.fee) || asNumber(payload.fee) <= 0)) {
+			return ctx.badRequest("Hostel fee must be greater than zero.");
+		}
+
+		if ("code" in payload && !/^[A-Z0-9-]{2,40}$/.test(asString(payload.code))) {
+			return ctx.badRequest("Hostel code must use 2 to 40 letters, numbers, or hyphens.");
+		}
+
 		const hostel = await strapi.db.query("api::hostel.hostel").update({
 			where: { id: existing.id },
 			data: payload,
@@ -685,8 +713,16 @@ export default {
 		const college = await findCollegeBySlug(collegeSlug);
 		const payload = parseRoomPayload(ctx.request.body);
 
-		if (!college?.id || !payload.hostelId || !payload.roomNumber || payload.capacity < 1) {
+		if (!college?.id || !payload.hostelId || !payload.roomNumber) {
 			return ctx.badRequest("College, hostel, room number, and capacity are required.");
+		}
+
+		if (!Number.isInteger(payload.capacity) || payload.capacity < 1) {
+			return ctx.badRequest("Total beds must be a whole number greater than zero.");
+		}
+
+		if (!Number.isFinite(payload.price) || payload.price <= 0) {
+			return ctx.badRequest("Bed price must be a valid amount greater than zero.");
 		}
 
 		const hostel = await findHostelForCollege(payload.hostelId, college.id);
@@ -712,7 +748,7 @@ export default {
 		}
 
 		let room;
-		const bedPrice = payload.price || asNumber(hostel.fee);
+		const bedPrice = payload.price;
 
 		try {
 			room = await strapi.db.query("api::hostel-room.hostel-room").create({
@@ -795,6 +831,10 @@ export default {
 		if (!existing?.id) {
 			return ctx.notFound?.("Room could not be found for this college.") ??
 				ctx.badRequest("Room could not be found for this college.");
+		}
+
+		if ("capacity" in payload && (!Number.isInteger(payload.capacity) || asNumber(payload.capacity) < 1)) {
+			return ctx.badRequest("Total beds must be a whole number greater than zero.");
 		}
 
 		const previousBeds = asArray(existing.beds).map(asRecord);
@@ -948,12 +988,22 @@ export default {
 				ctx.badRequest("Bed could not be found for this college.");
 		}
 
-		const status = normalizeEnum(payload.status, BED_STATUSES, "available");
+		if ("status" in payload && !BED_STATUSES.includes(asString(payload.status) as (typeof BED_STATUSES)[number])) {
+			return ctx.badRequest("Bed status is invalid.");
+		}
+
+		const price = "price" in payload ? parseAmount(payload.price) : asNumber(existing.price);
+
+		if (!Number.isFinite(price) || price <= 0) {
+			return ctx.badRequest("Bed price must be a valid amount greater than zero.");
+		}
+
+		const status = normalizeEnum(payload.status, BED_STATUSES, asString(existing.status, "available") as (typeof BED_STATUSES)[number]);
 		const bed = await strapi.db.query("api::hostel-bed.hostel-bed").update({
 			where: { id: existing.id },
 			data: {
 				status,
-				price: Math.max(0, asNumber(payload.price, asNumber(existing.price))),
+				price,
 			},
 		});
 

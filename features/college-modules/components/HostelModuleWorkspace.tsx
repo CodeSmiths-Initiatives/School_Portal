@@ -133,6 +133,7 @@ type RoomDraft = {
 	floor: string;
 	beds: string;
 	available: string;
+	price: string;
 	status: RoomStatus;
 	wardenNote: string;
 };
@@ -1059,6 +1060,7 @@ function getRoomDraft(room?: RoomItem | null): RoomDraft {
 		floor: room?.floor ?? "",
 		beds: room ? String(room.beds) : "",
 		available: room ? String(room.available) : "",
+		price: room?.bedSpaces?.[0]?.price ? String(room.bedSpaces[0].price) : "",
 		status: room?.status ?? "Available",
 		wardenNote: room?.wardenNote ?? "",
 	};
@@ -1102,6 +1104,30 @@ function parseCsvList(value: string) {
 		.split(",")
 		.map((item) => item.trim())
 		.filter(Boolean);
+}
+
+function parseAmountInput(value: string) {
+	const normalized = value.replace(/[,\s]/g, "").replace(/^NGN/i, "");
+
+	if (!/^\d+(\.\d{1,2})?$/.test(normalized)) {
+		return null;
+	}
+
+	const amount = Number(normalized);
+	return Number.isFinite(amount) && amount > 0 ? amount : null;
+}
+
+function parseWholeNumberInput(value: string) {
+	if (!/^\d+$/.test(value.trim())) {
+		return null;
+	}
+
+	const amount = Number(value);
+	return Number.isSafeInteger(amount) ? amount : null;
+}
+
+function formatPlainAmount(value: number) {
+	return Number.isFinite(value) && value > 0 ? String(value) : "";
 }
 
 function BookingStepCard({
@@ -3754,6 +3780,13 @@ function RoomModal({
 	const hostelOptions = Array.from(
 		new Set([...hostels.map((hostel) => hostel.name), draft.hostel].filter(Boolean)),
 	);
+	const selectedHostel = hostels.find((hostel) => hostel.name === draft.hostel);
+	const canSubmitDraft =
+		Boolean(draft.id.trim()) &&
+		Boolean(draft.hostel.trim()) &&
+		parseWholeNumberInput(draft.beds) !== null &&
+		parseWholeNumberInput(draft.available) !== null &&
+		(mode !== "create" || parseAmountInput(draft.price) !== null);
 
 	return (
 		<div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#06172f]/60 p-4 backdrop-blur-sm">
@@ -3824,9 +3857,18 @@ function RoomModal({
 							/>
 							<select
 								value={draft.hostel}
-								onChange={(event) =>
-									onDraftChange({ ...draft, hostel: event.target.value })
-								}
+								onChange={(event) => {
+									const nextHostel = hostels.find(
+										(hostel) => hostel.name === event.target.value,
+									);
+									onDraftChange({
+										...draft,
+										hostel: event.target.value,
+										price: draft.price || formatPlainAmount(
+											Number(nextHostel?.fee.replace(/[^\d.]/g, "")) || 0,
+										),
+									});
+								}}
 								className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
 							>
 								{hostelOptions.map((option) => (
@@ -3848,6 +3890,9 @@ function RoomModal({
 								className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
 							/>
 							<input
+								type="number"
+								min="1"
+								step="1"
 								value={draft.beds}
 								onChange={(event) => onDraftChange({ ...draft, beds: event.target.value })}
 								inputMode="numeric"
@@ -3855,6 +3900,9 @@ function RoomModal({
 								className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
 							/>
 							<input
+								type="number"
+								min="0"
+								step="1"
 								value={draft.available}
 								onChange={(event) =>
 									onDraftChange({ ...draft, available: event.target.value })
@@ -3862,6 +3910,17 @@ function RoomModal({
 								inputMode="numeric"
 								placeholder="Available beds"
 								className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
+							/>
+							<input
+								type="number"
+								min="1"
+								step="0.01"
+								value={draft.price}
+								onChange={(event) => onDraftChange({ ...draft, price: event.target.value })}
+								inputMode="decimal"
+								placeholder={`Bed price${selectedHostel ? `, e.g. ${selectedHostel.fee}` : ""}`}
+								disabled={mode !== "create"}
+								className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1] disabled:bg-[#edf2f7]"
 							/>
 							<select
 								value={draft.status}
@@ -3898,9 +3957,7 @@ function RoomModal({
 							<button
 								type="button"
 								onClick={onSave}
-								disabled={
-									isSaving || !canSave || !draft.id.trim() || !draft.hostel.trim()
-								}
+								disabled={isSaving || !canSave || !canSubmitDraft}
 								className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] px-5 py-3 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.18)] transition hover:-translate-y-0.5 hover:bg-[#123866] disabled:cursor-not-allowed disabled:opacity-50"
 							>
 								{mode === "create" ? <Plus className="size-4" /> : <Edit3 className="size-4" />}
@@ -4317,6 +4374,7 @@ function BedEditorList({
 				};
 				const isDirty =
 					draft.status !== bed.status || draft.price !== bed.price;
+				const hasValidPrice = Number.isFinite(draft.price) && draft.price > 0;
 
 				return (
 					<div
@@ -4355,7 +4413,8 @@ function BedEditorList({
 						</select>
 						<input
 							type="number"
-							min="0"
+							min="1"
+							step="0.01"
 							value={draft.price}
 							onChange={(event) =>
 								setDrafts((current) => ({
@@ -4372,7 +4431,7 @@ function BedEditorList({
 						<button
 							type="button"
 							onClick={() => onSave(bed, draft)}
-							disabled={!canSave || !isDirty || Boolean(savingBedId)}
+							disabled={!canSave || !isDirty || !hasValidPrice || Boolean(savingBedId)}
 							className="inline-flex h-11 items-center justify-center rounded-2xl bg-[#0D2B55] px-4 text-sm font-black text-white transition hover:bg-[#123866] disabled:cursor-not-allowed disabled:opacity-50"
 						>
 							{savingBedId === bed.id ? "Saving..." : "Save"}
@@ -4717,6 +4776,7 @@ function HostelModal({
 	const isView = mode === "view";
 	const title =
 		mode === "create" ? "Create hostel" : mode === "edit" ? "Edit hostel" : "Hostel details";
+	const canSubmitDraft = Boolean(draft.name.trim()) && parseAmountInput(draft.fee) !== null;
 
 	return (
 		<div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#06172f]/60 p-4 backdrop-blur-sm">
@@ -4813,9 +4873,13 @@ function HostelModal({
 								))}
 							</select>
 							<input
+								type="number"
+								min="1"
+								step="0.01"
 								value={draft.fee}
 								onChange={(event) => onDraftChange({ ...draft, fee: event.target.value })}
 								placeholder="Fee"
+								inputMode="decimal"
 								className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
 							/>
 							<input
@@ -4845,7 +4909,7 @@ function HostelModal({
 							<button
 								type="button"
 								onClick={onSave}
-								disabled={isSaving || !canSave || !draft.name.trim()}
+								disabled={isSaving || !canSave || !canSubmitDraft}
 								className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] px-5 py-3 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.18)] transition hover:-translate-y-0.5 hover:bg-[#123866] disabled:cursor-not-allowed disabled:opacity-50"
 							>
 								{mode === "create" ? <Plus className="size-4" /> : <Edit3 className="size-4" />}
@@ -5588,6 +5652,13 @@ export default function HostelModuleWorkspace({
 			return;
 		}
 
+		const hostelFee = parseAmountInput(hostelDraft.fee);
+
+		if (hostelFee === null) {
+			setLiveError("Hostel fee must be a valid amount greater than zero.");
+			return;
+		}
+
 		isSavingHostelRef.current = true;
 		setIsSavingHostel(true);
 		setLiveError("");
@@ -5599,7 +5670,7 @@ export default function HostelModuleWorkspace({
 					code: hostelDraft.name.trim(),
 					gender: hostelDraft.gender,
 					warden: hostelDraft.warden.trim(),
-					fee: Number(hostelDraft.fee.replace(/[^\d.]/g, "")) || 0,
+					fee: hostelFee,
 					currency: "NGN",
 					amenities: parseCsvList(hostelDraft.amenities),
 					status:
@@ -5626,7 +5697,7 @@ export default function HostelModuleWorkspace({
 					code: hostelDraft.name.trim(),
 					gender: hostelDraft.gender,
 					warden: hostelDraft.warden.trim(),
-					fee: Number(hostelDraft.fee.replace(/[^\d.]/g, "")) || 0,
+					fee: hostelFee,
 					currency: "NGN",
 					amenities: parseCsvList(hostelDraft.amenities),
 					status:
@@ -5672,8 +5743,14 @@ export default function HostelModuleWorkspace({
 	}
 
 	function openCreateRoomModal() {
+		const firstHostel = hostels[0];
+		const firstHostelFee = Number(firstHostel?.fee.replace(/[^\d.]/g, "")) || 0;
 		setModalRoom(null);
-		setRoomDraft({ ...getRoomDraft(), hostel: hostels[0]?.name ?? "" });
+		setRoomDraft({
+			...getRoomDraft(),
+			hostel: firstHostel?.name ?? "",
+			price: formatPlainAmount(firstHostelFee),
+		});
 		setRoomModalMode("create");
 	}
 
@@ -5743,6 +5820,30 @@ export default function HostelModuleWorkspace({
 			return;
 		}
 
+		const totalBeds = parseWholeNumberInput(roomDraft.beds);
+		const availableBeds = parseWholeNumberInput(roomDraft.available);
+		const bedPrice = parseAmountInput(roomDraft.price);
+
+		if (totalBeds === null) {
+			setLiveError("Total beds must be a whole number greater than zero.");
+			return;
+		}
+
+		if (availableBeds === null) {
+			setLiveError("Available beds must be a whole number.");
+			return;
+		}
+
+		if (availableBeds > totalBeds) {
+			setLiveError("Available beds cannot be greater than total beds.");
+			return;
+		}
+
+		if (roomModalMode === "create" && bedPrice === null) {
+			setLiveError("Bed price must be a valid amount greater than zero.");
+			return;
+		}
+
 		isSavingRoomRef.current = true;
 		setIsSavingRoom(true);
 		setLiveError("");
@@ -5757,7 +5858,8 @@ export default function HostelModuleWorkspace({
 						roomNumber: roomDraft.id.trim().toUpperCase(),
 						block: roomDraft.block.trim(),
 						floor: roomDraft.floor.trim(),
-						capacity: Number(roomDraft.beds) || 0,
+						capacity: totalBeds,
+						price: bedPrice ?? 0,
 						status:
 							roomDraft.status === "Maintenance" ? "maintenance" : "active",
 						wardenNote: roomDraft.wardenNote.trim(),
@@ -5786,7 +5888,7 @@ export default function HostelModuleWorkspace({
 						roomNumber: roomDraft.id.trim().toUpperCase(),
 						block: roomDraft.block.trim(),
 						floor: roomDraft.floor.trim(),
-						capacity: Number(roomDraft.beds) || modalRoom.beds,
+						capacity: totalBeds,
 						status:
 							roomDraft.status === "Maintenance" ? "maintenance" : "active",
 						wardenNote: roomDraft.wardenNote.trim(),
@@ -5806,8 +5908,8 @@ export default function HostelModuleWorkspace({
 			}
 		}
 
-		const beds = Math.max(0, Number(roomDraft.beds) || 0);
-		const available = Math.min(Math.max(0, Number(roomDraft.available) || 0), beds);
+		const beds = totalBeds;
+		const available = availableBeds;
 		const status =
 			roomDraft.status === "Maintenance"
 				? roomDraft.status

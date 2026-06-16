@@ -3,13 +3,13 @@ import { getCurrentAuthSession } from "@/lib/auth/server-session";
 import {
 	createHostel,
 	getHostelData,
-	type CreateHostelInput,
 } from "@/lib/services/hostel.service";
 import {
 	getDefaultPermissionsForDomain,
 	hasPermissions,
 	type UserPermissionKey,
 } from "@/lib/rbac";
+import { createHostelSchema } from "@/lib/validation";
 
 function getCollegeSlug(request: Request, fallback?: string) {
 	const url = new URL(request.url);
@@ -87,8 +87,16 @@ export async function POST(request: Request) {
 
 		if ("error" in auth) return auth.error;
 
-		const payload = (await request.json()) as CreateHostelInput;
-		const result = await createHostel(auth.collegeSlug, payload);
+		const parsed = createHostelSchema.safeParse(await request.json());
+
+		if (!parsed.success) {
+			return NextResponse.json(
+				{ error: parsed.error.issues[0]?.message ?? "Invalid hostel details." },
+				{ status: 400 },
+			);
+		}
+
+		const result = await createHostel(auth.collegeSlug, parsed.data);
 		return NextResponse.json(result, { status: 201 });
 	} catch (error) {
 		return NextResponse.json(

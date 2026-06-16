@@ -3,13 +3,13 @@ import { getCurrentAuthSession } from "@/lib/auth/server-session";
 import {
 	deleteHostelRoom,
 	updateHostelRoom,
-	type UpdateHostelRoomInput,
 } from "@/lib/services/hostel.service";
 import {
 	getDefaultPermissionsForDomain,
 	hasPermissions,
 	type UserPermissionKey,
 } from "@/lib/rbac";
+import { updateHostelRoomSchema } from "@/lib/validation";
 
 function getCollegeSlug(request: Request, fallback?: string) {
 	const url = new URL(request.url);
@@ -51,8 +51,16 @@ export async function PATCH(
 		}
 
 		const { roomId } = await params;
-		const payload = (await request.json()) as UpdateHostelRoomInput;
-		const result = await updateHostelRoom(collegeSlug, roomId, payload);
+		const parsed = updateHostelRoomSchema.safeParse(await request.json());
+
+		if (!parsed.success) {
+			return NextResponse.json(
+				{ error: parsed.error.issues[0]?.message ?? "Invalid room details." },
+				{ status: 400 },
+			);
+		}
+
+		const result = await updateHostelRoom(collegeSlug, roomId, parsed.data);
 
 		return NextResponse.json(result);
 	} catch (error) {

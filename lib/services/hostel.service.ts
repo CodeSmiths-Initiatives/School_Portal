@@ -134,7 +134,7 @@ export type CreateHostelRoomInput = {
 	block?: string;
 	floor?: string;
 	capacity: number;
-	price?: number;
+	price: number;
 	status?: "active" | "inactive" | "maintenance";
 	wardenNote?: string;
 };

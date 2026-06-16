@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server";
 import { getCurrentAuthSession } from "@/lib/auth/server-session";
-import {
-	createHostelRoom,
-	type CreateHostelRoomInput,
-} from "@/lib/services/hostel.service";
+import { createHostelRoom } from "@/lib/services/hostel.service";
 import {
 	getDefaultPermissionsForDomain,
 	hasPermissions,
 	type UserPermissionKey,
 } from "@/lib/rbac";
+import { createHostelRoomSchema } from "@/lib/validation";
 
 function getCollegeSlug(request: Request, fallback?: string) {
 	const url = new URL(request.url);
@@ -46,8 +44,16 @@ export async function POST(request: Request) {
 			);
 		}
 
-		const payload = (await request.json()) as CreateHostelRoomInput;
-		const result = await createHostelRoom(collegeSlug, payload);
+		const parsed = createHostelRoomSchema.safeParse(await request.json());
+
+		if (!parsed.success) {
+			return NextResponse.json(
+				{ error: parsed.error.issues[0]?.message ?? "Invalid room details." },
+				{ status: 400 },
+			);
+		}
+
+		const result = await createHostelRoom(collegeSlug, parsed.data);
 		return NextResponse.json(result, { status: 201 });
 	} catch (error) {
 		return NextResponse.json(

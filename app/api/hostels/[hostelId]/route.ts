@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server";
 import { getCurrentAuthSession } from "@/lib/auth/server-session";
-import {
-	updateHostel,
-	type UpdateHostelInput,
-} from "@/lib/services/hostel.service";
+import { updateHostel } from "@/lib/services/hostel.service";
 import {
 	getDefaultPermissionsForDomain,
 	hasPermissions,
 	type UserPermissionKey,
 } from "@/lib/rbac";
+import { updateHostelSchema } from "@/lib/validation";
 
 function getCollegeSlug(request: Request, fallback?: string) {
 	const url = new URL(request.url);
@@ -50,8 +48,16 @@ export async function PATCH(
 		}
 
 		const { hostelId } = await params;
-		const payload = (await request.json()) as UpdateHostelInput;
-		const result = await updateHostel(collegeSlug, hostelId, payload);
+		const parsed = updateHostelSchema.safeParse(await request.json());
+
+		if (!parsed.success) {
+			return NextResponse.json(
+				{ error: parsed.error.issues[0]?.message ?? "Invalid hostel details." },
+				{ status: 400 },
+			);
+		}
+
+		const result = await updateHostel(collegeSlug, hostelId, parsed.data);
 
 		return NextResponse.json(result);
 	} catch (error) {

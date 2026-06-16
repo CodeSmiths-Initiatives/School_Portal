@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server";
 import { getCurrentAuthSession } from "@/lib/auth/server-session";
-import {
-	updateHostelBed,
-	type UpdateHostelBedInput,
-} from "@/lib/services/hostel.service";
+import { updateHostelBed } from "@/lib/services/hostel.service";
 import {
 	getDefaultPermissionsForDomain,
 	hasPermissions,
 	type UserPermissionKey,
 } from "@/lib/rbac";
+import { updateHostelBedSchema } from "@/lib/validation";
 
 function getCollegeSlug(request: Request, fallback?: string) {
 	const url = new URL(request.url);
@@ -50,8 +48,16 @@ export async function PATCH(
 		}
 
 		const { bedId } = await params;
-		const payload = (await request.json()) as UpdateHostelBedInput;
-		const result = await updateHostelBed(collegeSlug, bedId, payload);
+		const parsed = updateHostelBedSchema.safeParse(await request.json());
+
+		if (!parsed.success) {
+			return NextResponse.json(
+				{ error: parsed.error.issues[0]?.message ?? "Invalid bed details." },
+				{ status: 400 },
+			);
+		}
+
+		const result = await updateHostelBed(collegeSlug, bedId, parsed.data);
 
 		return NextResponse.json(result);
 	} catch (error) {
