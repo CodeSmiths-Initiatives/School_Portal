@@ -107,6 +107,7 @@ async function createAuditLog(input: {
 	collegeId?: number;
 	entityType: string;
 	action: string;
+	eventType?: "created" | "updated" | "deleted" | "login" | "exported" | "settings" | "payment";
 	entityId?: string;
 	summary: string;
 	metadata?: Record<string, unknown>;
@@ -115,6 +116,7 @@ async function createAuditLog(input: {
 		await strapi.db.query("api::audit-log.audit-log").create({
 			data: {
 				action: input.action,
+				eventType: input.eventType ?? "updated",
 				entityType: input.entityType,
 				entityId: input.entityId,
 				summary: input.summary,
@@ -551,6 +553,7 @@ export default {
 			collegeId: college.id,
 			entityType: "hostel",
 			action: "hostel.created",
+			eventType: "created",
 			entityId: String(hostel.id),
 			summary: `Created hostel ${payload.name}`,
 			metadata: { collegeSlug, code: payload.code },
@@ -590,6 +593,7 @@ export default {
 			collegeId: college.id,
 			entityType: "hostel",
 			action: "hostel.updated",
+			eventType: "updated",
 			entityId: String(existing.id),
 			summary: `Updated hostel ${asString(hostel.name, asString(existing.name))}`,
 			metadata: { collegeSlug, hostelId },
@@ -694,6 +698,7 @@ export default {
 			collegeId: college.id,
 			entityType: "hostel-room",
 			action: "hostel-room.created",
+			eventType: "created",
 			entityId: String(room.id),
 			summary: `Created room ${payload.roomNumber}`,
 			metadata: { collegeSlug, hostelId: payload.hostelId, beds: payload.capacity },
@@ -763,6 +768,7 @@ export default {
 			collegeId: college.id,
 			entityType: "hostel-room",
 			action: "hostel-room.updated",
+			eventType: "updated",
 			entityId: String(existing.id),
 			summary: `Updated room ${asString(room.roomNumber, asString(existing.roomNumber))}`,
 			metadata: { collegeSlug, roomId },
@@ -806,6 +812,7 @@ export default {
 			collegeId: college.id,
 			entityType: "hostel-bed",
 			action: "hostel-bed.updated",
+			eventType: "updated",
 			entityId: String(existing.id),
 			summary: `Updated bed ${asString(existing.label)}`,
 			metadata: { collegeSlug, status },
@@ -859,6 +866,7 @@ export default {
 		const invoiceNumber = createInvoiceNumber(allocationNumber);
 		const reservedUntil = new Date(Date.now() + 30 * 60 * 1000).toISOString();
 		let allocation: Record<string, unknown> | null = null;
+		let invoice: Record<string, unknown> | null = null;
 
 		await strapi.db.transaction(async ({ trx }) => {
 			const reservedBeds = await strapi.db.connection("hostel_beds")
@@ -874,7 +882,7 @@ export default {
 				throw createReservationConflict("This bed is no longer available.");
 			}
 
-			const invoice = await strapi.db.query("api::payment-invoice.payment-invoice").create({
+			invoice = await strapi.db.query("api::payment-invoice.payment-invoice").create({
 				data: {
 					invoiceNumber,
 					module: "hostel",
@@ -927,9 +935,42 @@ export default {
 			collegeId: college.id,
 			entityType: "hostel-allocation",
 			action: "hostel-bed.reserved",
+			eventType: "created",
 			entityId: String(allocation?.id ?? ""),
 			summary: `Reserved hostel bed for ${payload.studentIdentifier}`,
-			metadata: { collegeSlug, bedId: payload.bedId, allocationNumber, invoiceNumber },
+			metadata: {
+				collegeSlug,
+				hostelId: relationId(bed.hostel),
+				hostelName: asString(hostel.name),
+				roomId: relationId(bed.room),
+				roomNumber: asString(room.roomNumber),
+				bedId: payload.bedId,
+				bedLabel: asString(bed.label),
+				studentIdentifier: payload.studentIdentifier,
+				allocationNumber,
+				invoiceNumber,
+			},
+		});
+
+		await createAuditLog({
+			collegeId: college.id,
+			entityType: "payment-invoice",
+			action: "hostel-invoice.created",
+			eventType: "payment",
+			entityId: String(invoice?.id ?? ""),
+			summary: `Raised hostel invoice ${invoiceNumber} for ${payload.studentIdentifier}`,
+			metadata: {
+				collegeSlug,
+				module: "hostel",
+				allocationId: allocation?.id,
+				allocationNumber,
+				hostelId: relationId(bed.hostel),
+				roomId: relationId(bed.room),
+				bedId: payload.bedId,
+				invoiceNumber,
+				amount: asNumber(invoice?.amount),
+				currency: asString(invoice?.currency, "NGN"),
+			},
 		});
 
 		ctx.status = 201;
@@ -995,6 +1036,7 @@ export default {
 			collegeId: college.id,
 			entityType: "hostel-payment",
 			action: "hostel-payment.initialized",
+			eventType: "payment",
 			entityId: String(allocation.id),
 			summary: `Initialized hostel payment ${payload.reference}`,
 			metadata: { collegeSlug, allocationId: payload.allocationId },
@@ -1143,6 +1185,7 @@ export default {
 			collegeId: college.id,
 			entityType: "hostel-payment",
 			action: "hostel-payment.verified",
+			eventType: "payment",
 			entityId: String(allocation.id),
 			summary: `Verified hostel payment ${payload.reference}`,
 			metadata: { collegeSlug, invoiceNumber: asString(invoice.invoiceNumber) },
@@ -1200,6 +1243,7 @@ export default {
 			collegeId: college.id,
 			entityType: "hostel-complaint",
 			action: "hostel-complaint.created",
+			eventType: "created",
 			entityId: String(complaint.id),
 			summary: `Created hostel complaint ${payload.issue}`,
 			metadata: { collegeSlug, allocationId: payload.allocationId },
@@ -1250,6 +1294,7 @@ export default {
 			collegeId: college.id,
 			entityType: "hostel-complaint",
 			action: "hostel-complaint.updated",
+			eventType: "updated",
 			entityId: String(existing.id),
 			summary: `Updated hostel complaint ${complaintId}`,
 			metadata: { collegeSlug, status: payload.status },
