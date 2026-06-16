@@ -97,6 +97,14 @@ function createReservationConflict(message: string) {
 	return error;
 }
 
+function isReservationConflict(error: unknown) {
+	return error instanceof Error && error.name === BED_RESERVATION_CONFLICT;
+}
+
+function normalizeStudentIdentifier(value: string) {
+	return value.trim().toLowerCase();
+}
+
 async function findCollegeBySlug(collegeSlug: string) {
 	return strapi.db.query("api::college.college").findOne({
 		where: { slug: collegeSlug, status: "active" },
@@ -377,18 +385,55 @@ function parseRoomUpdatePayload(body: unknown) {
 
 function parseReservePayload(body: unknown) {
 	const payload = asRecord(body);
+	const studentEmail = asString(payload.studentEmail);
+	const studentIdentifier = asString(payload.studentIdentifier, studentEmail);
 
 	return {
 		bedId: asString(payload.bedId),
 		studentId: asString(payload.studentId),
 		studentName: asString(payload.studentName, "Current Student"),
-		studentEmail: asString(payload.studentEmail),
-		studentIdentifier: asString(
-			payload.studentIdentifier,
-			asString(payload.studentEmail),
-		),
+		studentEmail,
+		studentIdentifier: normalizeStudentIdentifier(studentIdentifier),
 		level: asString(payload.level),
 	};
+}
+
+async function findActiveStudentAllocation(collegeId: number, studentIdentifier: string) {
+	const normalizedIdentifier = normalizeStudentIdentifier(studentIdentifier);
+
+	if (!normalizedIdentifier) {
+		return null;
+	}
+
+	const existingAllocation = await strapi.db.query("api::hostel-allocation.hostel-allocation").findOne({
+		where: {
+			college: collegeId,
+			studentIdentifier: normalizedIdentifier,
+			status: { $in: ["reserved", "allocated"] },
+		},
+		populate: { hostel: true, room: true, bed: true, invoice: true },
+	});
+
+	if (existingAllocation?.id) {
+		return existingAllocation;
+	}
+
+	const rows = await strapi.db.connection("hostel_allocations")
+		.select("id")
+		.where({ college_id: collegeId })
+		.whereIn("status", ["reserved", "allocated"])
+		.whereRaw("LOWER(student_identifier) = ?", [normalizedIdentifier])
+		.limit(1);
+	const allocationId = rows[0]?.id;
+
+	if (!allocationId) {
+		return null;
+	}
+
+	return strapi.db.query("api::hostel-allocation.hostel-allocation").findOne({
+		where: { id: allocationId },
+		populate: { hostel: true, room: true, bed: true, invoice: true },
+	});
 }
 
 function parsePaymentInitializePayload(body: unknown) {
@@ -938,14 +983,10 @@ export default {
 			return ctx.badRequest("College, bed, and student details are required.");
 		}
 
-		const existingAllocation = await strapi.db.query("api::hostel-allocation.hostel-allocation").findOne({
-			where: {
-				college: college.id,
-				studentIdentifier: payload.studentIdentifier,
-				status: { $in: ["reserved", "allocated"] },
-			},
-			populate: { hostel: true, room: true, bed: true, invoice: true },
-		});
+		const existingAllocation = await findActiveStudentAllocation(
+			college.id,
+			payload.studentIdentifier,
+		);
 
 		if (existingAllocation?.id) {
 			ctx.body = { allocation: mapAllocation(existingAllocation as Record<string, unknown>) };
@@ -972,63 +1013,81 @@ export default {
 		let allocation: Record<string, unknown> | null = null;
 		let invoice: Record<string, unknown> | null = null;
 
-		await strapi.db.transaction(async ({ trx }) => {
-			const reservedBeds = await strapi.db.connection("hostel_beds")
-				.transacting(trx)
-				.where({ id: bed.id, status: "available" })
-				.update({
-					status: "reserved",
-					reserved_until: reservedUntil,
-					updated_at: new Date(),
+		try {
+			await strapi.db.transaction(async ({ trx }) => {
+				const reservedBeds = await strapi.db.connection("hostel_beds")
+					.transacting(trx)
+					.where({ id: bed.id, status: "available" })
+					.update({
+						status: "reserved",
+						reserved_until: reservedUntil,
+						updated_at: new Date(),
+					});
+
+				if (reservedBeds !== 1) {
+					throw createReservationConflict("This bed is no longer available.");
+				}
+
+				invoice = await strapi.db.query("api::payment-invoice.payment-invoice").create({
+					data: {
+						invoiceNumber,
+						module: "hostel",
+						description: `${asString(hostel.name)} ${asString(room.roomNumber)} ${asString(bed.label)} hostel fee`,
+						amount: asNumber(bed.price, asNumber(hostel.fee)),
+						currency: asString(bed.currency, "NGN"),
+						status: "pending",
+						payerName: payload.studentName,
+						payerEmail: payload.studentEmail,
+						payerIdentifier: payload.studentIdentifier,
+						metadata: {
+							collegeSlug,
+							allocationNumber,
+							bedId: bed.id,
+							reservationStrategy:
+								"Atomic conditional update flips one available bed to reserved before creating allocation.",
+						},
+						college: college.id,
+						...(payload.studentId ? { payer: payload.studentId } : {}),
+					},
 				});
 
-			if (reservedBeds !== 1) {
-				throw createReservationConflict("This bed is no longer available.");
+				allocation = await strapi.db.query("api::hostel-allocation.hostel-allocation").create({
+					data: {
+						allocationNumber,
+						studentName: payload.studentName,
+						studentEmail: payload.studentEmail,
+						studentIdentifier: payload.studentIdentifier,
+						level: payload.level,
+						status: "reserved",
+						paymentStatus: "pending",
+						allocatedBy: "Student self-service",
+						note: "Bed reserved pending hostel fee payment.",
+						college: college.id,
+						...(payload.studentId ? { student: payload.studentId } : {}),
+						hostel: relationId(bed.hostel),
+						room: relationId(bed.room),
+						bed: bed.id,
+						invoice: invoice.id,
+					},
+				});
+			});
+		} catch (error) {
+			const retriedAllocation = await findActiveStudentAllocation(
+				college.id,
+				payload.studentIdentifier,
+			);
+
+			if (retriedAllocation?.id) {
+				ctx.body = { allocation: mapAllocation(retriedAllocation as Record<string, unknown>) };
+				return;
 			}
 
-			invoice = await strapi.db.query("api::payment-invoice.payment-invoice").create({
-				data: {
-					invoiceNumber,
-					module: "hostel",
-					description: `${asString(hostel.name)} ${asString(room.roomNumber)} ${asString(bed.label)} hostel fee`,
-					amount: asNumber(bed.price, asNumber(hostel.fee)),
-					currency: asString(bed.currency, "NGN"),
-					status: "pending",
-					payerName: payload.studentName,
-					payerEmail: payload.studentEmail,
-					payerIdentifier: payload.studentIdentifier,
-					metadata: {
-						collegeSlug,
-						allocationNumber,
-						bedId: bed.id,
-						reservationStrategy:
-							"Atomic conditional update flips one available bed to reserved before creating allocation.",
-					},
-					college: college.id,
-					...(payload.studentId ? { payer: payload.studentId } : {}),
-				},
-			});
+			if (isReservationConflict(error)) {
+				return ctx.conflict?.(error.message) ?? ctx.badRequest(error.message);
+			}
 
-			allocation = await strapi.db.query("api::hostel-allocation.hostel-allocation").create({
-				data: {
-					allocationNumber,
-					studentName: payload.studentName,
-					studentEmail: payload.studentEmail,
-					studentIdentifier: payload.studentIdentifier,
-					level: payload.level,
-					status: "reserved",
-					paymentStatus: "pending",
-					allocatedBy: "Student self-service",
-					note: "Bed reserved pending hostel fee payment.",
-					college: college.id,
-					...(payload.studentId ? { student: payload.studentId } : {}),
-					hostel: relationId(bed.hostel),
-					room: relationId(bed.room),
-					bed: bed.id,
-					invoice: invoice.id,
-				},
-			});
-		});
+			throw error;
+		}
 
 		const savedAllocation = await strapi.db.query("api::hostel-allocation.hostel-allocation").findOne({
 			where: { id: allocation?.id },
