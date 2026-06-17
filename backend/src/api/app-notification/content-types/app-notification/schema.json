@@ -1,0 +1,111 @@
+{
+  "kind": "collectionType",
+  "collectionName": "app_notifications",
+  "info": {
+    "singularName": "app-notification",
+    "pluralName": "app-notifications",
+    "displayName": "App Notification",
+    "description": "Platform and tenant-scoped in-app notifications."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "message": {
+      "type": "text",
+      "required": true
+    },
+    "scope": {
+      "type": "enumeration",
+      "enum": ["platform", "college"],
+      "default": "college",
+      "required": true
+    },
+    "audience": {
+      "type": "enumeration",
+      "enum": ["all", "students", "staff", "college-admins", "specific-admin", "specific-user"],
+      "default": "all",
+      "required": true
+    },
+    "severity": {
+      "type": "enumeration",
+      "enum": ["info", "success", "warning", "critical"],
+      "default": "info",
+      "required": true
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": ["draft", "scheduled", "active", "expired", "archived"],
+      "default": "draft",
+      "required": true
+    },
+    "startAt": {
+      "type": "datetime"
+    },
+    "endAt": {
+      "type": "datetime"
+    },
+    "publishedAt": {
+      "type": "datetime"
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "unique": true
+    },
+    "metadata": {
+      "type": "json"
+    },
+    "college": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::college.college"
+    },
+    "targetUser": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "targetRole": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::portal-role.portal-role"
+    },
+    "targetFaculty": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::faculty.faculty"
+    },
+    "targetDepartment": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::department.department"
+    },
+    "createdBy": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    }
+  },
+  "indexes": [
+    {
+      "name": "app_notification_scope_status_idx",
+      "columns": ["scope", "status"]
+    },
+    {
+      "name": "app_notification_audience_status_idx",
+      "columns": ["audience", "status"]
+    },
+    {
+      "name": "app_notification_schedule_idx",
+      "columns": ["start_at", "end_at"]
+    },
+    {
+      "name": "app_notification_created_idx",
+      "columns": ["created_at"]
+    }
+  ]
+}

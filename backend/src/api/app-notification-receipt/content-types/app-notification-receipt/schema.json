@@ -1,0 +1,51 @@
+{
+  "kind": "collectionType",
+  "collectionName": "app_notification_receipts",
+  "info": {
+    "singularName": "app-notification-receipt",
+    "pluralName": "app-notification-receipts",
+    "displayName": "App Notification Receipt",
+    "description": "Per-user read and dismiss state for app notifications."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "readAt": {
+      "type": "datetime"
+    },
+    "dismissedAt": {
+      "type": "datetime"
+    },
+    "notification": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::app-notification.app-notification"
+    },
+    "user": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "college": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::college.college"
+    }
+  },
+  "indexes": [
+    {
+      "name": "app_notification_receipt_unique_user_idx",
+      "columns": ["notification_id", "user_id"],
+      "type": "unique"
+    },
+    {
+      "name": "app_notification_receipt_read_idx",
+      "columns": ["user_id", "read_at"]
+    },
+    {
+      "name": "app_notification_receipt_dismissed_idx",
+      "columns": ["user_id", "dismissed_at"]
+    }
+  ]
+}
