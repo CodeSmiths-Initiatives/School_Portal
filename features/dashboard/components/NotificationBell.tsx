@@ -189,7 +189,7 @@ export function NotificationBell() {
 			</button>
 
 			{isOpen ? (
-				<div className="absolute right-0 top-14 z-50 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-[#dbe5f1] bg-white text-[#0D2B55] shadow-[0_24px_60px_rgba(6,23,47,0.24)]">
+				<div className="fixed inset-x-3 top-24 z-50 max-h-[calc(100dvh-7rem)] overflow-hidden rounded-2xl border border-[#dbe5f1] bg-white text-[#0D2B55] shadow-[0_24px_60px_rgba(6,23,47,0.24)] sm:absolute sm:inset-x-auto sm:right-0 sm:top-14 sm:w-[22rem] sm:max-h-none">
 					<div className="flex items-center justify-between gap-3 border-b border-[#dbe5f1] bg-[#f8fbff] px-4 py-3">
 						<div>
 							<p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#B7770D]">
@@ -224,7 +224,7 @@ export function NotificationBell() {
 						</div>
 					</div>
 
-					<div className="max-h-[24rem] overflow-y-auto p-3">
+					<div className="max-h-[calc(100dvh-12rem)] overflow-y-auto p-3 sm:max-h-[24rem]">
 						{isLoading ? (
 							<div className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-[#dbe5f1] p-5 text-sm font-semibold text-[#60728f]">
 								<Loader2 className="size-4 animate-spin" />

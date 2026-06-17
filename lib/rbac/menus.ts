@@ -155,6 +155,7 @@ const ADMIN_ROUTED_MENU_KEYS = new Set([
   "results",
   "payments",
   "hostel",
+  "notices",
   "reports",
   "roles",
   "settings",
@@ -251,6 +252,13 @@ export function getVisibleDashboardMenus({
       return {
         ...item,
         href: `/college/${collegeSlug}/admin/reports`,
+      };
+    }
+
+    if (item.key === "notices" && collegeSlug) {
+      return {
+        ...item,
+        href: `/college/${collegeSlug}/${domain}/notices`,
       };
     }
 

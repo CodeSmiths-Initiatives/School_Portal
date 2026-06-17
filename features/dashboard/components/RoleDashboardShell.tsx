@@ -196,22 +196,22 @@ export default function RoleDashboardShell({
             </div>
           </div>
 
-          <div className="flex items-center gap-3 rounded-[1.75rem] border border-white/10 bg-white/6 p-2 pl-4 shadow-[0_10px_30px_rgba(7,23,52,0.16)] backdrop-blur-sm">
-            <div className="min-w-[11rem] rounded-[1.1rem] border border-[#B7770D]/60 bg-[#B7770D]/12 px-4 py-2.5 text-right">
+          <div className="flex w-full flex-wrap items-center justify-end gap-2 rounded-[1.35rem] border border-white/10 bg-white/6 p-2 shadow-[0_10px_30px_rgba(7,23,52,0.16)] backdrop-blur-sm sm:w-auto sm:flex-nowrap sm:gap-3 sm:rounded-[1.75rem] sm:pl-4">
+            <div className="min-w-0 flex-1 rounded-[1.1rem] border border-[#B7770D]/60 bg-[#B7770D]/12 px-3 py-2.5 text-left sm:min-w-[11rem] sm:flex-none sm:px-4 sm:text-right">
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#E4A11B]">
                 Role
               </p>
-              <p className="mt-1 text-sm font-semibold text-white">
+              <p className="mt-1 truncate text-sm font-semibold text-white">
                 {roleLabel}
               </p>
             </div>
 
-            <div className="h-10 w-px bg-white/12" />
+            <div className="hidden h-10 w-px bg-white/12 sm:block" />
 
             {canSeeNotifications ? (
               <>
                 <NotificationBell />
-                <div className="h-10 w-px bg-white/12" />
+                <div className="hidden h-10 w-px bg-white/12 sm:block" />
               </>
             ) : null}
 
