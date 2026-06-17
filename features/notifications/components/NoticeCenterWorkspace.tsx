@@ -4,11 +4,13 @@ import {
 	Bell,
 	CheckCheck,
 	Download,
+	Eye,
 	Filter,
 	Loader2,
 	Printer,
 	Search,
 	ShieldAlert,
+	X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -112,6 +114,7 @@ export function NoticeCenterWorkspace({
 	const [readFilter, setReadFilter] = useState<ReadFilter>("all");
 	const [page, setPage] = useState(1);
 	const [exportAction, setExportAction] = useState<NoticeExportAction>("");
+	const [selectedNotice, setSelectedNotice] = useState<AppNotification | null>(null);
 	const pageSize = 12;
 
 	const buildNoticeParams = useCallback(
@@ -384,6 +387,9 @@ export function NoticeCenterWorkspace({
 				unread: Math.max(current.meta.unread - 1, 0),
 			},
 		}));
+		setSelectedNotice((current) =>
+			current?.id === notification.id ? { ...current, isRead: true } : current,
+		);
 
 		const response = await fetch(
 			`/api/notifications/${encodeURIComponent(notification.id)}/read`,
@@ -422,6 +428,14 @@ export function NoticeCenterWorkspace({
 		} finally {
 			setIsMarkingAll(false);
 		}
+	}
+
+	function openNoticeDetails(notice: AppNotification) {
+		setSelectedNotice(notice);
+	}
+
+	function closeNoticeDetails() {
+		setSelectedNotice(null);
 	}
 
 	return (
@@ -593,14 +607,24 @@ export function NoticeCenterWorkspace({
 										{formatDate(notice.publishedAt ?? notice.startAt)}
 									</td>
 									<td className="px-5 py-4">
-										<button
-											type="button"
-											onClick={() => markRead(notice)}
-											disabled={notice.isRead}
-											className="rounded-full border border-[#dbe5f1] bg-[#f8fbff] px-3 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-[#0D2B55] transition hover:border-[#B7770D] disabled:cursor-default disabled:opacity-70"
-										>
-											{notice.isRead ? "Read" : "Mark read"}
-										</button>
+										<div className="flex flex-wrap gap-2">
+											<button
+												type="button"
+												onClick={() => openNoticeDetails(notice)}
+												className="inline-flex items-center gap-1.5 rounded-full border border-[#dbe5f1] bg-white px-3 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+											>
+												<Eye className="size-3.5" />
+												View
+											</button>
+											<button
+												type="button"
+												onClick={() => markRead(notice)}
+												disabled={notice.isRead}
+												className="rounded-full border border-[#dbe5f1] bg-[#f8fbff] px-3 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-[#0D2B55] transition hover:border-[#B7770D] disabled:cursor-default disabled:opacity-70"
+											>
+												{notice.isRead ? "Read" : "Mark read"}
+											</button>
+										</div>
 									</td>
 								</tr>
 							))}
@@ -632,14 +656,24 @@ export function NoticeCenterWorkspace({
 								<p className="text-xs font-bold text-[#8395AF]">
 									{formatDate(notice.publishedAt ?? notice.startAt)}
 								</p>
-								<button
-									type="button"
-									onClick={() => markRead(notice)}
-									disabled={notice.isRead}
-									className="rounded-full border border-[#dbe5f1] bg-white px-3 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-[#0D2B55] transition hover:border-[#B7770D] disabled:cursor-default disabled:opacity-70"
-								>
-									{notice.isRead ? "Read" : "Mark read"}
-								</button>
+								<div className="flex flex-wrap gap-2">
+									<button
+										type="button"
+										onClick={() => openNoticeDetails(notice)}
+										className="inline-flex items-center gap-1.5 rounded-full border border-[#dbe5f1] bg-white px-3 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+									>
+										<Eye className="size-3.5" />
+										View
+									</button>
+									<button
+										type="button"
+										onClick={() => markRead(notice)}
+										disabled={notice.isRead}
+										className="rounded-full border border-[#dbe5f1] bg-white px-3 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-[#0D2B55] transition hover:border-[#B7770D] disabled:cursor-default disabled:opacity-70"
+									>
+										{notice.isRead ? "Read" : "Mark read"}
+									</button>
+								</div>
 							</div>
 						</article>
 					))}
@@ -694,6 +728,86 @@ export function NoticeCenterWorkspace({
 					</div>
 				) : null}
 			</section>
+
+			{selectedNotice ? (
+				<div className="fixed inset-0 z-50 flex items-end justify-center bg-[#06172f]/60 px-3 py-4 backdrop-blur-sm sm:items-center sm:px-6">
+					<div className="max-h-[92vh] w-full max-w-2xl overflow-hidden rounded-3xl border border-[#d7e2f0] bg-white shadow-[0_26px_70px_rgba(6,24,58,0.28)]">
+						<div className="flex items-start justify-between gap-4 border-b border-[#dbe5f1] bg-[#f8fbff] px-4 py-4 sm:px-6">
+							<div>
+								<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#B7770D]">
+									Notice Details
+								</p>
+								<h3 className="mt-2 text-xl font-black text-[#06183A]">
+									{selectedNotice.title}
+								</h3>
+							</div>
+							<button
+								type="button"
+								onClick={closeNoticeDetails}
+								className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+								aria-label="Close notice details"
+							>
+								<X className="size-4" />
+							</button>
+						</div>
+
+						<div className="max-h-[calc(92vh-9rem)] overflow-y-auto px-4 py-5 sm:px-6">
+							<div className="flex flex-wrap gap-2">
+								<Badge className={severityStyles[selectedNotice.severity]}>
+									{selectedNotice.severity}
+								</Badge>
+								<Badge className="border-[#dbe5f1] bg-white text-[#0D2B55]">
+									{formatAudience(selectedNotice.audience)}
+								</Badge>
+								<Badge className="border-[#dbe5f1] bg-white text-[#0D2B55]">
+									{getNoticeState(selectedNotice)}
+								</Badge>
+							</div>
+
+							<p className="mt-5 whitespace-pre-wrap text-sm leading-7 text-[#334a6b]">
+								{selectedNotice.message}
+							</p>
+
+							<div className="mt-6 grid gap-3 rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] p-4 text-sm sm:grid-cols-2">
+								<div>
+									<p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8395AF]">
+										Published
+									</p>
+									<p className="mt-1 font-bold text-[#0D2B55]">
+										{getNoticeDate(selectedNotice)}
+									</p>
+								</div>
+								<div>
+									<p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8395AF]">
+										Ends
+									</p>
+									<p className="mt-1 font-bold text-[#0D2B55]">
+										{formatDate(selectedNotice.endAt)}
+									</p>
+								</div>
+							</div>
+						</div>
+
+						<div className="flex flex-wrap justify-end gap-2 border-t border-[#dbe5f1] bg-white px-4 py-4 sm:px-6">
+							<button
+								type="button"
+								onClick={closeNoticeDetails}
+								className="h-11 rounded-2xl border border-[#d3dfed] bg-white px-4 text-xs font-black uppercase tracking-[0.12em] text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+							>
+								Close
+							</button>
+							<button
+								type="button"
+								onClick={() => markRead(selectedNotice)}
+								disabled={selectedNotice.isRead}
+								className="h-11 rounded-2xl bg-[#0D2B55] px-4 text-xs font-black uppercase tracking-[0.12em] text-white transition hover:bg-[#123a73] disabled:cursor-not-allowed disabled:opacity-50"
+							>
+								{selectedNotice.isRead ? "Already read" : "Mark read"}
+							</button>
+						</div>
+					</div>
+				</div>
+			) : null}
 		</div>
 	);
 }
