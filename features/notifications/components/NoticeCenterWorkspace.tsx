@@ -3,8 +3,10 @@
 import {
 	Bell,
 	CheckCheck,
+	Download,
 	Filter,
 	Loader2,
+	Printer,
 	Search,
 	ShieldAlert,
 } from "lucide-react";
@@ -23,6 +25,7 @@ type NoticeCenterWorkspaceProps = {
 
 type ReadFilter = "all" | "unread" | "read";
 type SeverityFilter = AppNotificationSeverity | "all";
+type NoticeExportAction = "csv" | "print" | "";
 
 const severityStyles = {
 	info: "border-blue-200 bg-blue-50 text-blue-700",
@@ -41,6 +44,32 @@ function formatDate(value: string | null) {
 		dateStyle: "medium",
 		timeStyle: "short",
 	}).format(date);
+}
+
+function formatAudience(value: string) {
+	return value.replace("-", " ");
+}
+
+function getNoticeDate(notice: AppNotification) {
+	return formatDate(notice.publishedAt ?? notice.startAt);
+}
+
+function getNoticeState(notice: AppNotification) {
+	return notice.isRead ? "Read" : "Unread";
+}
+
+function csvValue(value: string | number | null | undefined) {
+	const text = String(value ?? "");
+	return `"${text.replace(/"/g, '""')}"`;
+}
+
+function htmlValue(value: string | number | null | undefined) {
+	return String(value ?? "")
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&#39;");
 }
 
 function Badge({
@@ -82,22 +111,31 @@ export function NoticeCenterWorkspace({
 	const [severity, setSeverity] = useState<SeverityFilter>("all");
 	const [readFilter, setReadFilter] = useState<ReadFilter>("all");
 	const [page, setPage] = useState(1);
+	const [exportAction, setExportAction] = useState<NoticeExportAction>("");
 	const pageSize = 12;
 
-	const loadNotices = useCallback(async () => {
-		setIsLoading(true);
-		setError("");
-
-		try {
+	const buildNoticeParams = useCallback(
+		(nextPage: number, nextPageSize: number) => {
 			const params = new URLSearchParams({
-				page: String(page),
-				pageSize: String(pageSize),
+				page: String(nextPage),
+				pageSize: String(nextPageSize),
 			});
 
 			if (query.trim()) params.set("q", query.trim());
 			if (severity !== "all") params.set("severity", severity);
 			if (readFilter !== "all") params.set("readState", readFilter);
 
+			return params;
+		},
+		[query, readFilter, severity],
+	);
+
+	const loadNotices = useCallback(async () => {
+		setIsLoading(true);
+		setError("");
+
+		try {
+			const params = buildNoticeParams(page, pageSize);
 			const response = await fetch(`/api/notifications?${params.toString()}`, {
 				cache: "no-store",
 			});
@@ -125,7 +163,7 @@ export function NoticeCenterWorkspace({
 		} finally {
 			setIsLoading(false);
 		}
-	}, [page, query, readFilter, severity]);
+	}, [buildNoticeParams, page]);
 
 	useEffect(() => {
 		const timeoutId = window.setTimeout(() => {
@@ -156,6 +194,181 @@ export function NoticeCenterWorkspace({
 		setSeverity("all");
 		setReadFilter("all");
 		setPage(1);
+	}
+
+	async function fetchFilteredNotices() {
+		const exportPageSize = 50;
+		const firstParams = buildNoticeParams(1, exportPageSize);
+		const firstResponse = await fetch(
+			`/api/notifications?${firstParams.toString()}`,
+			{ cache: "no-store" },
+		);
+		const firstPayload = (await firstResponse.json().catch(() => null)) as
+			| AppNotificationListPayload
+			| { error?: string }
+			| null;
+
+		if (!firstResponse.ok) {
+			throw new Error(
+				(firstPayload as { error?: string } | null)?.error ??
+					"Unable to load notices for export.",
+			);
+		}
+
+		const notices = [...(firstPayload as AppNotificationListPayload).notifications];
+		const pageCount = (firstPayload as AppNotificationListPayload).meta.pageCount;
+
+		for (let nextPage = 2; nextPage <= pageCount; nextPage += 1) {
+			const params = buildNoticeParams(nextPage, exportPageSize);
+			const response = await fetch(`/api/notifications?${params.toString()}`, {
+				cache: "no-store",
+			});
+			const payload = (await response.json().catch(() => null)) as
+				| AppNotificationListPayload
+				| { error?: string }
+				| null;
+
+			if (!response.ok) {
+				throw new Error(
+					(payload as { error?: string } | null)?.error ??
+						"Unable to load all filtered notices.",
+				);
+			}
+
+			notices.push(...(payload as AppNotificationListPayload).notifications);
+		}
+
+		return notices;
+	}
+
+	function downloadNoticeCsv(notices: AppNotification[]) {
+		const rows = [
+			["Title", "Message", "Severity", "Audience", "Published", "State"],
+			...notices.map((notice) => [
+				notice.title,
+				notice.message,
+				notice.severity,
+				formatAudience(notice.audience),
+				getNoticeDate(notice),
+				getNoticeState(notice),
+			]),
+		];
+		const csv = rows
+			.map((row) => row.map((value) => csvValue(value)).join(","))
+			.join("\r\n");
+		const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+		const url = URL.createObjectURL(blob);
+		const link = document.createElement("a");
+
+		link.href = url;
+		link.download = `notice-center-${new Date().toISOString().slice(0, 10)}.csv`;
+		document.body.appendChild(link);
+		link.click();
+		link.remove();
+		URL.revokeObjectURL(url);
+	}
+
+	function writePrintDocument(printWindow: Window, notices: AppNotification[]) {
+		const filterSummary = [
+			query.trim() ? `Search: ${query.trim()}` : "Search: all",
+			`Severity: ${severity}`,
+			`Read state: ${readFilter}`,
+		].join(" | ");
+		const rows = notices
+			.map(
+				(notice) => `
+					<tr>
+						<td>
+							<strong>${htmlValue(notice.title)}</strong>
+							<p>${htmlValue(notice.message)}</p>
+						</td>
+						<td>${htmlValue(notice.severity)}</td>
+						<td>${htmlValue(formatAudience(notice.audience))}</td>
+						<td>${htmlValue(getNoticeDate(notice))}</td>
+						<td>${htmlValue(getNoticeState(notice))}</td>
+					</tr>
+				`,
+			)
+			.join("");
+
+		printWindow.document.write(`
+			<!doctype html>
+			<html>
+				<head>
+					<title>${htmlValue(title)}</title>
+					<style>
+						body { color: #06183A; font-family: Arial, sans-serif; margin: 28px; }
+						h1 { color: #0D2B55; font-size: 24px; margin: 0; }
+						.meta { color: #60728f; font-size: 12px; margin: 8px 0 20px; }
+						table { border-collapse: collapse; width: 100%; }
+						th, td { border: 1px solid #dbe5f1; padding: 10px; text-align: left; vertical-align: top; }
+						th { background: #f8fbff; color: #60728f; font-size: 11px; text-transform: uppercase; }
+						td { font-size: 12px; }
+						p { margin: 6px 0 0; color: #60728f; line-height: 1.5; }
+					</style>
+				</head>
+				<body>
+					<h1>${htmlValue(title)}</h1>
+					<div class="meta">${htmlValue(filterSummary)} | ${notices.length} notices | ${htmlValue(new Date().toLocaleString("en-NG"))}</div>
+					<table>
+						<thead>
+							<tr>
+								<th>Notice</th>
+								<th>Severity</th>
+								<th>Audience</th>
+								<th>Published</th>
+								<th>State</th>
+							</tr>
+						</thead>
+						<tbody>${rows}</tbody>
+					</table>
+				</body>
+			</html>
+		`);
+		printWindow.document.close();
+		printWindow.focus();
+		printWindow.print();
+	}
+
+	async function exportNotices() {
+		if (exportAction) return;
+
+		setExportAction("csv");
+		try {
+			downloadNoticeCsv(await fetchFilteredNotices());
+		} catch (exportError) {
+			setError(
+				exportError instanceof Error
+					? exportError.message
+					: "Unable to export notices.",
+			);
+		} finally {
+			setExportAction("");
+		}
+	}
+
+	async function printNotices() {
+		if (exportAction) return;
+
+		const printWindow = window.open("", "_blank", "noopener,noreferrer");
+		if (!printWindow) {
+			setError("Unable to open the print window.");
+			return;
+		}
+
+		setExportAction("print");
+		try {
+			writePrintDocument(printWindow, await fetchFilteredNotices());
+		} catch (printError) {
+			printWindow.close();
+			setError(
+				printError instanceof Error
+					? printError.message
+					: "Unable to print notices.",
+			);
+		} finally {
+			setExportAction("");
+		}
 	}
 
 	async function markRead(notification: AppNotification) {
@@ -302,6 +515,32 @@ export function NoticeCenterWorkspace({
 							className="h-12 rounded-2xl border border-[#d3dfed] bg-white px-4 text-xs font-black uppercase tracking-[0.12em] text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
 						>
 							Reset
+						</button>
+						<button
+							type="button"
+							onClick={exportNotices}
+							disabled={Boolean(exportAction) || isLoading || payload.meta.total === 0}
+							className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-[#d3dfed] bg-white px-4 text-xs font-black uppercase tracking-[0.12em] text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D] disabled:cursor-not-allowed disabled:opacity-50"
+						>
+							{exportAction === "csv" ? (
+								<Loader2 className="size-4 animate-spin" />
+							) : (
+								<Download className="size-4" />
+							)}
+							Export
+						</button>
+						<button
+							type="button"
+							onClick={printNotices}
+							disabled={Boolean(exportAction) || isLoading || payload.meta.total === 0}
+							className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-[#d3dfed] bg-white px-4 text-xs font-black uppercase tracking-[0.12em] text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D] disabled:cursor-not-allowed disabled:opacity-50"
+						>
+							{exportAction === "print" ? (
+								<Loader2 className="size-4 animate-spin" />
+							) : (
+								<Printer className="size-4" />
+							)}
+							Print
 						</button>
 						<button
 							type="button"
