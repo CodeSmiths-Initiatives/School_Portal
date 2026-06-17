@@ -395,6 +395,30 @@ function parseCreatePayload(body: unknown) {
 	};
 }
 
+function parseUpdatePayload(body: unknown) {
+	const payload = asRecord(body);
+	const status = asString(payload.status);
+
+	return {
+		title: asString(payload.title),
+		message: asString(payload.message),
+		audience: asString(payload.audience),
+		severity: asString(payload.severity),
+		status: STATUSES.includes(status as NotificationStatus)
+			? (status as NotificationStatus)
+			: "",
+		startAt: asString(payload.startAt),
+		endAt: asString(payload.endAt),
+		publishedAt: asString(payload.publishedAt),
+		actorId: asNumber(payload.actorId),
+		actorName: asString(payload.actorName),
+		actorEmail: asString(payload.actorEmail),
+		actorRole: asString(payload.actorRole),
+		managerDomain: normalizeDomain(payload.managerDomain),
+		managerCollegeSlug: asString(payload.managerCollegeSlug),
+	};
+}
+
 function parseViewer(query: Record<string, string | undefined>) {
 	return {
 		userId: asNumber(query.viewerUserId),
@@ -405,6 +429,7 @@ function parseViewer(query: Record<string, string | undefined>) {
 		page: Math.max(asNumber(query.page, 1), 1),
 		pageSize: Math.min(Math.max(asNumber(query.pageSize, 20), 1), 50),
 		includeDismissed: query.includeDismissed === "true",
+		manage: query.manage === "true",
 	};
 }
 
@@ -416,7 +441,7 @@ const internalNotificationController = {
 
 		const viewer = parseViewer(ctx.request.query ?? {});
 
-		if (!viewer.userId || !viewer.domain) {
+		if ((!viewer.userId && !viewer.manage) || !viewer.domain) {
 			return ctx.badRequest("Viewer context is required.");
 		}
 
@@ -436,10 +461,16 @@ const internalNotificationController = {
 			.findMany({
 				where: {
 					status: statusWhere,
-					$or: [
-						{ scope: "platform" },
-						...(collegeId ? [{ scope: "college", college: collegeId }] : []),
-					],
+					...(viewer.manage
+						? viewer.domain === "superadmin"
+							? { scope: "platform" }
+							: { scope: "college", college: collegeId }
+						: {
+								$or: [
+									{ scope: "platform" },
+									...(collegeId ? [{ scope: "college", college: collegeId }] : []),
+								],
+							}),
 				},
 				populate: {
 					college: true,
@@ -461,6 +492,10 @@ const internalNotificationController = {
 			.filter((notification: Record<string, unknown>) => {
 				if (statusFilter === "visible" && !isCurrentlyVisible(notification, now)) {
 					return false;
+				}
+
+				if (viewer.manage) {
+					return viewer.domain === "superadmin" || Boolean(collegeId);
 				}
 
 				if (
@@ -606,6 +641,96 @@ const internalNotificationController = {
 
 		ctx.status = 201;
 		ctx.body = { notification: mapNotification(notification), idempotent: false };
+	},
+
+	async update(ctx: StrapiContext) {
+		if (!authorize(ctx)) {
+			return ctx.unauthorized("Notification update is not authorized.");
+		}
+
+		const notificationId = asString(ctx.params?.id);
+		const existing = await findNotificationByIdentifier(notificationId);
+
+		if (!existing?.id) {
+			return ctx.notFound("Notification was not found.");
+		}
+
+		const payload = parseUpdatePayload(ctx.request.body);
+		const existingCollege = asRecord(existing.college);
+
+		if (payload.managerDomain === "superadmin") {
+			if (asString(existing.scope) !== "platform") {
+				return ctx.notFound("Notification was not found in platform scope.");
+			}
+		} else {
+			const managerCollege = await findCollegeBySlug(payload.managerCollegeSlug);
+
+			if (
+				!managerCollege?.id ||
+				asString(existing.scope) !== "college" ||
+				!sameNumericId(existingCollege.id, managerCollege.id)
+			) {
+				return ctx.notFound("Notification was not found in this college scope.");
+			}
+		}
+		const data: Record<string, unknown> = {};
+
+		if (payload.title) data.title = payload.title;
+		if (payload.message) data.message = payload.message;
+		if (AUDIENCES.includes(payload.audience as NotificationAudience)) {
+			data.audience = payload.audience;
+		}
+		if (SEVERITIES.includes(payload.severity as NotificationSeverity)) {
+			data.severity = payload.severity;
+		}
+		if (payload.status) {
+			data.status = payload.status;
+			if (payload.status === "active") {
+				data.publishedAt = payload.publishedAt || new Date().toISOString();
+			}
+		}
+		if (payload.startAt) data.startAt = payload.startAt;
+		if (payload.endAt) data.endAt = payload.endAt;
+
+		if (Object.keys(data).length === 0) {
+			return ctx.badRequest("No notification updates were provided.");
+		}
+
+		const updated = await strapi.db
+			.query("api::app-notification.app-notification")
+			.update({
+				where: { id: existing.id },
+				data,
+				populate: {
+					college: true,
+					targetUser: true,
+					targetRole: true,
+					createdBy: true,
+				},
+			});
+
+		await createAuditLog({
+			action:
+				payload.status === "active"
+					? "notification.published"
+					: payload.status === "archived"
+						? "notification.archived"
+						: "notification.updated",
+			eventType: "updated",
+			actorId: payload.actorId,
+			actorName: payload.actorName,
+			actorEmail: payload.actorEmail,
+			actorRole: payload.actorRole,
+			collegeId: asNumber(asRecord(updated.college).id),
+			entityId: getEntityId(updated),
+			targetLabel: asString(updated.title),
+			summary: `${payload.actorName || "Portal user"} updated an in-app notification.`,
+			metadata: data,
+		});
+
+		ctx.body = {
+			notification: mapNotification(updated),
+		};
 	},
 
 	async markRead(ctx: StrapiContext) {

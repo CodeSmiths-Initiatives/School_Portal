@@ -26,10 +26,25 @@ export async function POST(_request: Request, { params }: RouteContext) {
 			? session.user.permissions
 			: getDefaultPermissionsForDomain(session.user.domain)) as UserPermissionKey[];
 
-		if (!hasPermissions(permissions, ["notices.view"], { mode: "any" })) {
+		if (
+			!hasPermissions(
+				permissions,
+				session.user.domain === "superadmin"
+					? ["settings.view", "notices.view"]
+					: ["notices.view"],
+				{ mode: "any" },
+			)
+		) {
 			return NextResponse.json(
 				{ error: "You do not have permission to read notices." },
 				{ status: 403 },
+			);
+		}
+
+		if (!session.user.strapiUserId) {
+			return NextResponse.json(
+				{ error: "A live portal user is required to update notice read state." },
+				{ status: 409 },
 			);
 		}
 
@@ -37,7 +52,7 @@ export async function POST(_request: Request, { params }: RouteContext) {
 		const result = await markAppNotificationRead({
 			notificationId,
 			viewer: {
-				userId: session.user.id,
+				userId: session.user.strapiUserId,
 				domain: session.user.domain,
 				roleCode: session.user.portalRoleCode,
 				collegeSlug: session.user.collegeSlug,

@@ -136,7 +136,7 @@ async function parseError(response: Response, fallback: string) {
 async function internalFetch<T>(
 	path: string,
 	options?: {
-		method?: "GET" | "POST";
+		method?: "GET" | "POST" | "PATCH";
 		body?: unknown;
 	},
 ) {
@@ -175,6 +175,7 @@ export async function listAppNotifications(input: {
 	page?: number;
 	pageSize?: number;
 	includeDismissed?: boolean;
+	manage?: boolean;
 }) {
 	const params = new URLSearchParams();
 	appendViewerParams(params, input.viewer);
@@ -183,6 +184,7 @@ export async function listAppNotifications(input: {
 	if (input.page) params.set("page", String(input.page));
 	if (input.pageSize) params.set("pageSize", String(input.pageSize));
 	if (input.includeDismissed) params.set("includeDismissed", "true");
+	if (input.manage) params.set("manage", "true");
 
 	return internalFetch<AppNotificationListPayload>(
 		`/api/internal/notifications?${params.toString()}`,
@@ -204,6 +206,33 @@ export async function createAppNotification(input: {
 			actorName: input.actor.name,
 			actorEmail: input.actor.email,
 			actorRole: input.actor.role,
+		},
+	});
+}
+
+export async function updateAppNotification(input: {
+	notificationId: string;
+	patch: Partial<AppNotificationCreateInput> & {
+		status?: AppNotificationStatus;
+	};
+	actor: AppNotificationActor;
+	manager: {
+		domain: AppNotificationViewer["domain"];
+		collegeSlug?: string;
+	};
+}) {
+	return internalFetch<{
+		notification: AppNotification;
+	}>(`/api/internal/notifications/${encodeURIComponent(input.notificationId)}`, {
+		method: "PATCH",
+		body: {
+			...input.patch,
+			actorId: input.actor.id,
+			actorName: input.actor.name,
+			actorEmail: input.actor.email,
+			actorRole: input.actor.role,
+			managerDomain: input.manager.domain,
+			managerCollegeSlug: input.manager.collegeSlug,
 		},
 	});
 }

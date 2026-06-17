@@ -14,7 +14,7 @@ import {
 	ShieldCheck,
 	SlidersHorizontal,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
 	MaintenanceWindow,
 	PlatformNotice,
@@ -23,6 +23,10 @@ import type {
 	PlatformNoticeStatus,
 	PlatformSettings,
 } from "@/lib/services/superadmin-settings.service";
+import type {
+	AppNotification,
+	AppNotificationListPayload,
+} from "@/lib/services/notification.service";
 import { toast } from "@/lib/toast";
 
 type NoticeForm = {
@@ -46,7 +50,6 @@ type SuperadminSettingsWorkspaceProps = {
 	actorName: string;
 };
 
-const SETTINGS_STORAGE_KEY = "iums-superadmin-settings-mvp";
 const DEFAULT_NOTICE_START_AT = "2026-06-16T09:00";
 const DEFAULT_NOTICE_END_AT = "2026-06-17T09:00";
 
@@ -75,10 +78,6 @@ function formatDateTime(value: string) {
 	}).format(new Date(value));
 }
 
-function createNoticeId() {
-	return `notice-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
 function createNoticeForm(settings: PlatformSettings): NoticeForm {
 	const firstDraft = settings.notices.find((notice) => notice.status === "draft");
 	const source = firstDraft ?? settings.notices[0];
@@ -92,6 +91,45 @@ function createNoticeForm(settings: PlatformSettings): NoticeForm {
 		startAt: source?.startAt ?? DEFAULT_NOTICE_START_AT,
 		endAt: source?.endAt ?? DEFAULT_NOTICE_END_AT,
 	};
+}
+
+function mapNotificationToPlatformNotice(
+	notification: AppNotification,
+	fallbackActor: string,
+): PlatformNotice {
+	return {
+		id: notification.id,
+		title: notification.title,
+		message: notification.message,
+		audience:
+			notification.audience === "specific-admin" ||
+			notification.audience === "specific-user"
+				? "all"
+				: notification.audience,
+		severity: notification.severity,
+		status: notification.status === "archived" ? "expired" : notification.status,
+		startAt: notification.startAt ?? "",
+		endAt: notification.endAt ?? "",
+		createdBy:
+			notification.createdBy?.username ||
+			notification.createdBy?.email ||
+			fallbackActor,
+		updatedAt: notification.updatedAt ?? notification.createdAt ?? "",
+	};
+}
+
+function createIdempotencyKey(form: NoticeForm) {
+	return [
+		"platform-notice",
+		form.title.trim().toLowerCase(),
+		form.audience,
+		form.status,
+		form.startAt,
+		form.endAt,
+	]
+		.join(":")
+		.replace(/[^a-z0-9:.-]+/g, "-")
+		.slice(0, 150);
 }
 
 function SettingsCard({
@@ -214,33 +252,54 @@ export function SuperadminSettingsWorkspace({
 	const [showPassword, setShowPassword] = useState(false);
 	const [isSavingPassword, setIsSavingPassword] = useState(false);
 	const [isSavingNotice, setIsSavingNotice] = useState(false);
+	const [isLoadingNotices, setIsLoadingNotices] = useState(false);
 	const [isSavingMaintenance, setIsSavingMaintenance] = useState(false);
+
+	const loadNotices = useCallback(async () => {
+		setIsLoadingNotices(true);
+
+		try {
+			const response = await fetch(
+				"/api/notifications?manage=true&status=all&pageSize=50",
+				{ cache: "no-store" },
+			);
+			const payload = (await response.json().catch(() => null)) as
+				| AppNotificationListPayload
+				| { error?: string }
+				| null;
+
+			if (!response.ok) {
+				throw new Error(
+					(payload as { error?: string } | null)?.error ??
+						"Unable to load platform notices.",
+				);
+			}
+
+			const notices = (payload as AppNotificationListPayload).notifications.map(
+				(notification) => mapNotificationToPlatformNotice(notification, actorName),
+			);
+
+			setSettings((current) => ({ ...current, notices }));
+		} catch (error) {
+			toast.error({
+				title: "Notice load failed",
+				description:
+					error instanceof Error
+						? error.message
+						: "Unable to load persisted platform notices.",
+			});
+		} finally {
+			setIsLoadingNotices(false);
+		}
+	}, [actorName]);
 
 	useEffect(() => {
 		const timeoutId = window.setTimeout(() => {
-			const saved = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
-
-			if (!saved) {
-				return;
-			}
-
-			try {
-				const parsed = JSON.parse(saved) as PlatformSettings;
-
-				setSettings(parsed);
-				setMaintenance(parsed.maintenance);
-				setNoticeForm(createNoticeForm(parsed));
-			} catch {
-				window.localStorage.removeItem(SETTINGS_STORAGE_KEY);
-			}
+			void loadNotices();
 		}, 0);
 
 		return () => window.clearTimeout(timeoutId);
-	}, []);
-
-	useEffect(() => {
-		window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
-	}, [settings]);
+	}, [loadNotices]);
 
 	const activeNotices = useMemo(
 		() => settings.notices.filter((notice) => notice.status === "active").length,
@@ -313,28 +372,37 @@ export function SuperadminSettingsWorkspace({
 		setIsSavingNotice(true);
 
 		try {
-			const response = await fetch("/api/superadmin/settings", {
-				method: "PATCH",
+			const response = await fetch("/api/notifications", {
+				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
-					action: "notice",
-					payload: noticeForm,
+					scope: "platform",
+					title: noticeForm.title,
+					message: noticeForm.message,
+					audience: noticeForm.audience,
+					severity: noticeForm.severity,
+					status: noticeForm.status,
+					startAt: noticeForm.startAt,
+					endAt: noticeForm.endAt,
+					idempotencyKey: createIdempotencyKey(noticeForm),
 				}),
 			});
 			const payload = (await response.json().catch(() => null)) as
-				| { error?: string }
+				| { error?: string; notification?: AppNotification }
 				| null;
 
 			if (!response.ok) {
 				throw new Error(payload?.error ?? "Unable to save notice.");
 			}
 
-			const notice: PlatformNotice = {
-				...noticeForm,
-				id: createNoticeId(),
-				createdBy: actorName,
-				updatedAt: new Date().toISOString(),
-			};
+			const notice = payload?.notification
+				? mapNotificationToPlatformNotice(payload.notification, actorName)
+				: ({
+						...noticeForm,
+						id: createIdempotencyKey(noticeForm),
+						createdBy: actorName,
+						updatedAt: new Date().toISOString(),
+					} satisfies PlatformNotice);
 
 			setSettings((current) => ({
 				...current,
@@ -347,6 +415,7 @@ export function SuperadminSettingsWorkspace({
 						? "Notice draft is ready for review."
 						: "Notice is ready for platform delivery.",
 			});
+			setNoticeForm(createNoticeForm({ ...settings, notices: [notice] }));
 		} catch (error) {
 			toast.error({
 				title: "Notice save failed",
@@ -794,11 +863,16 @@ export function SuperadminSettingsWorkspace({
 					<SettingsCard
 						kicker="Notice Center"
 						title="Recent notices"
-						description="Preview the latest platform communication rules before Strapi persistence is connected."
+						description="Persisted platform notifications that can appear in user notification bells."
 						icon={<BellRing className="size-5" />}
 					>
 						<div className="mt-6 space-y-3">
-							{settings.notices.map((notice) => (
+							{isLoadingNotices ? (
+								<p className="rounded-2xl border border-dashed border-[#dbe5f1] p-4 text-sm font-semibold text-[#60728f]">
+									Loading platform notices...
+								</p>
+							) : settings.notices.length ? (
+								settings.notices.map((notice) => (
 								<article
 									key={notice.id}
 									className="rounded-3xl border border-[#dbe5f1] bg-[#fbfdff] p-4"
@@ -821,7 +895,12 @@ export function SuperadminSettingsWorkspace({
 										{formatDateTime(notice.startAt)} - {formatDateTime(notice.endAt)}
 									</p>
 								</article>
-							))}
+								))
+							) : (
+								<p className="rounded-2xl border border-dashed border-[#dbe5f1] p-4 text-sm font-semibold text-[#60728f]">
+									No persisted platform notices yet.
+								</p>
+							)}
 						</div>
 					</SettingsCard>
 
@@ -833,9 +912,8 @@ export function SuperadminSettingsWorkspace({
 									Production persistence note
 								</p>
 								<p className="mt-2 text-sm font-semibold leading-6">
-									Notice and maintenance state is contract-ready for Strapi. The
-									next backend slice should persist settings, write audit events,
-									and expose public active notices.
+									Platform notices now persist through the shared notification
+									API. Maintenance windows remain on the settings endpoint.
 								</p>
 							</div>
 						</div>
@@ -847,13 +925,13 @@ export function SuperadminSettingsWorkspace({
 							setSettings(initialSettings);
 							setMaintenance(initialSettings.maintenance);
 							setNoticeForm(createNoticeForm(initialSettings));
-							window.localStorage.removeItem(SETTINGS_STORAGE_KEY);
-							toast.info("Settings preview reset");
+							void loadNotices();
+							toast.info("Settings form reset");
 						}}
 						className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-2xl border border-[#cbd9ec] bg-white px-5 text-sm font-black text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
 					>
 						<RefreshCcw className="size-4" />
-						Reset preview data
+						Reset settings form
 					</button>
 				</aside>
 			</div>

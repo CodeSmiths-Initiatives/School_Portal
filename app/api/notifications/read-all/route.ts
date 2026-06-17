@@ -22,16 +22,32 @@ export async function POST() {
 			? session.user.permissions
 			: getDefaultPermissionsForDomain(session.user.domain)) as UserPermissionKey[];
 
-		if (!hasPermissions(permissions, ["notices.view"], { mode: "any" })) {
+		if (
+			!hasPermissions(
+				permissions,
+				session.user.domain === "superadmin"
+					? ["settings.view", "notices.view"]
+					: ["notices.view"],
+				{ mode: "any" },
+			)
+		) {
 			return NextResponse.json(
 				{ error: "You do not have permission to read notices." },
 				{ status: 403 },
 			);
 		}
 
+		if (!session.user.strapiUserId) {
+			return NextResponse.json({
+				ok: true,
+				updated: 0,
+				readAt: new Date().toISOString(),
+			});
+		}
+
 		const result = await markAllAppNotificationsRead({
 			viewer: {
-				userId: session.user.id,
+				userId: session.user.strapiUserId,
 				domain: session.user.domain,
 				roleCode: session.user.portalRoleCode,
 				collegeSlug: session.user.collegeSlug,

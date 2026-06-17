@@ -19,6 +19,12 @@ const internalNotificationRoutes = {
 			config: { auth: false },
 		},
 		{
+			method: "PATCH",
+			path: "/internal/notifications/:id",
+			handler: "internal-notification.update",
+			config: { auth: false },
+		},
+		{
 			method: "POST",
 			path: "/internal/notifications/:id/read",
 			handler: "internal-notification.markRead",

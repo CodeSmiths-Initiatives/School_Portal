@@ -53,14 +53,23 @@ function createViewer(
 	session: NonNullable<Awaited<ReturnType<typeof getCurrentAuthSession>>>,
 ): AppNotificationViewer {
 	return {
-		userId: session.user.id,
+		userId: session.user.strapiUserId ?? session.user.id,
 		domain: session.user.domain,
 		roleCode: session.user.portalRoleCode,
 		collegeSlug: session.user.collegeSlug,
 	};
 }
 
-function canViewNotifications(permissions: UserPermissionKey[]) {
+function canViewNotifications(
+	session: NonNullable<Awaited<ReturnType<typeof getCurrentAuthSession>>>,
+	permissions: UserPermissionKey[],
+) {
+	if (session.user.domain === "superadmin") {
+		return hasPermissions(permissions, ["settings.view", "notices.view"], {
+			mode: "any",
+		});
+	}
+
 	return hasPermissions(permissions, ["notices.view"], { mode: "any" });
 }
 
@@ -73,6 +82,23 @@ function canCreateNotification(
 	}
 
 	return hasPermissions(permissions, ["notices.create"], { mode: "any" });
+}
+
+function canManageNotificationList(
+	session: NonNullable<Awaited<ReturnType<typeof getCurrentAuthSession>>>,
+	permissions: UserPermissionKey[],
+) {
+	if (session.user.domain === "superadmin") {
+		return hasPermissions(permissions, ["settings.view", "settings.update"], {
+			mode: "any",
+		});
+	}
+
+	return hasPermissions(
+		permissions,
+		["notices.view", "notices.create", "notices.update", "notices.publish"],
+		{ mode: "any" },
+	);
 }
 
 function normalizeCreateInput(
@@ -110,7 +136,7 @@ export async function GET(request: Request) {
 
 		const permissions = getPermissions(session);
 
-		if (!canViewNotifications(permissions)) {
+		if (!canViewNotifications(session, permissions)) {
 			return NextResponse.json(
 				{ error: "You do not have permission to view notices." },
 				{ status: 403 },
@@ -118,6 +144,28 @@ export async function GET(request: Request) {
 		}
 
 		const url = new URL(request.url);
+		const manage = url.searchParams.get("manage") === "true";
+
+		if (manage && !canManageNotificationList(session, permissions)) {
+			return NextResponse.json(
+				{ error: "You do not have permission to manage notices." },
+				{ status: 403 },
+			);
+		}
+
+		if (!session.user.strapiUserId && !manage) {
+			return NextResponse.json({
+				notifications: [],
+				meta: {
+					page: Number(url.searchParams.get("page") ?? "1"),
+					pageSize: Number(url.searchParams.get("pageSize") ?? "20"),
+					total: 0,
+					unread: 0,
+					generatedAt: new Date().toISOString(),
+				},
+			});
+		}
+
 		const payload = await listAppNotifications({
 			viewer: createViewer(session),
 			status:
@@ -129,6 +177,7 @@ export async function GET(request: Request) {
 			page: Number(url.searchParams.get("page") ?? "1"),
 			pageSize: Number(url.searchParams.get("pageSize") ?? "20"),
 			includeDismissed: url.searchParams.get("includeDismissed") === "true",
+			manage,
 		});
 
 		return NextResponse.json(payload);
@@ -198,7 +247,7 @@ export async function POST(request: Request) {
 		const result = await createAppNotification({
 			notification: input,
 			actor: {
-				id: session.user.id,
+				id: session.user.strapiUserId,
 				name: session.user.name ?? session.user.username,
 				email: session.user.email,
 				role: session.user.roleLabel,

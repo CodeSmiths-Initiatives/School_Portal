@@ -20,10 +20,12 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { LogoutButton } from "@/features/auth/components";
+import { NotificationBell } from "./NotificationBell";
 import type { UserDomain } from "@/lib/auth";
 import {
   getDefaultPermissionsForDomain,
   getVisibleDashboardMenus,
+  hasPermissions,
   type UserPermissionKey,
 } from "@/lib/rbac";
 
@@ -165,6 +167,13 @@ export default function RoleDashboardShell({
     permissions: permissions ?? getDefaultPermissionsForDomain(domain),
   });
   const headerTitle = tenantContext?.name ?? title;
+  const effectivePermissions = permissions ?? getDefaultPermissionsForDomain(domain);
+  const canSeeNotifications =
+    domain === "superadmin"
+      ? hasPermissions(effectivePermissions, ["settings.view", "notices.view"], {
+          mode: "any",
+        })
+      : hasPermissions(effectivePermissions, ["notices.view"], { mode: "any" });
 
   return (
     <div className="min-h-dvh bg-[#eef3fb] lg:flex lg:h-dvh lg:flex-col lg:overflow-hidden">
@@ -198,6 +207,13 @@ export default function RoleDashboardShell({
             </div>
 
             <div className="h-10 w-px bg-white/12" />
+
+            {canSeeNotifications ? (
+              <>
+                <NotificationBell />
+                <div className="h-10 w-px bg-white/12" />
+              </>
+            ) : null}
 
             <LogoutButton />
           </div>

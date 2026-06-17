@@ -16,8 +16,12 @@ import {
 	X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { RowActionMenu } from "@/components/ui/row-action-menu";
+import type {
+	AppNotification,
+	AppNotificationListPayload,
+} from "@/lib/services/notification.service";
 import { toast } from "@/lib/toast";
 
 type NoticeAudience = "all" | "students" | "staff";
@@ -103,56 +107,6 @@ function formatDateTime(value: string) {
 	}).format(new Date(value));
 }
 
-function createNoticeId() {
-	return `college-notice-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function createInitialNotices(collegeName: string, actorName: string): AdminNotice[] {
-	const updatedAt = new Date().toISOString();
-
-	return [
-		{
-			id: "notice-orientation",
-			title: "Orientation schedule published",
-			message:
-				"New students should review the updated orientation schedule and check their department notice boards before resumption.",
-			audience: "students",
-			severity: "info",
-			status: "active",
-			startAt: dateTimeLocal(-1),
-			endAt: dateTimeLocal(14),
-			createdBy: actorName,
-			updatedAt,
-		},
-		{
-			id: "notice-screening",
-			title: "Admission screening reminder",
-			message:
-				"Applicants with incomplete profile sections should complete their admission records before the screening desk closes.",
-			audience: "students",
-			severity: "warning",
-			status: "scheduled",
-			startAt: dateTimeLocal(1),
-			endAt: dateTimeLocal(10),
-			createdBy: actorName,
-			updatedAt,
-		},
-		{
-			id: "notice-staff-review",
-			title: `${collegeName} staff review window`,
-			message:
-				"Department staff should review pending student records and escalate unresolved admission issues to the college admin office.",
-			audience: "staff",
-			severity: "success",
-			status: "draft",
-			startAt: dateTimeLocal(),
-			endAt: dateTimeLocal(7),
-			createdBy: actorName,
-			updatedAt,
-		},
-	];
-}
-
 function emptyNoticeForm(): NoticeForm {
 	return {
 		title: "",
@@ -163,6 +117,47 @@ function emptyNoticeForm(): NoticeForm {
 		startAt: dateTimeLocal(),
 		endAt: dateTimeLocal(7),
 	};
+}
+
+function mapNotificationToAdminNotice(
+	notification: AppNotification,
+	fallbackActor: string,
+): AdminNotice {
+	return {
+		id: notification.id,
+		title: notification.title,
+		message: notification.message,
+		audience:
+			notification.audience === "college-admins" ||
+			notification.audience === "specific-admin" ||
+			notification.audience === "specific-user"
+				? "all"
+				: notification.audience,
+		severity: notification.severity,
+		status: notification.status === "archived" ? "expired" : notification.status,
+		startAt: notification.startAt ?? "",
+		endAt: notification.endAt ?? "",
+		createdBy:
+			notification.createdBy?.username ||
+			notification.createdBy?.email ||
+			fallbackActor,
+		updatedAt: notification.updatedAt ?? notification.createdAt ?? "",
+	};
+}
+
+function createIdempotencyKey(collegeSlug: string, form: NoticeForm) {
+	return [
+		"college-notice",
+		collegeSlug,
+		form.title.trim().toLowerCase(),
+		form.audience,
+		form.status,
+		form.startAt,
+		form.endAt,
+	]
+		.join(":")
+		.replace(/[^a-z0-9:.-]+/g, "-")
+		.slice(0, 150);
 }
 
 function Badge({
@@ -211,27 +206,7 @@ export default function CollegeAdminSettingsWorkspace({
 	canCreateNotice,
 	canUpdateSettings,
 }: CollegeAdminSettingsWorkspaceProps) {
-	const storageKey = `iums-college-admin-notices-${collegeSlug}`;
-	const [notices, setNotices] = useState<AdminNotice[]>(() => {
-		if (typeof window === "undefined") {
-			return createInitialNotices(collegeName, actorName);
-		}
-
-		const saved = window.localStorage.getItem(storageKey);
-		if (!saved) {
-			return createInitialNotices(collegeName, actorName);
-		}
-
-		try {
-			const parsed = JSON.parse(saved) as AdminNotice[];
-			return Array.isArray(parsed)
-				? parsed
-				: createInitialNotices(collegeName, actorName);
-		} catch {
-			window.localStorage.removeItem(storageKey);
-			return createInitialNotices(collegeName, actorName);
-		}
-	});
+	const [notices, setNotices] = useState<AdminNotice[]>([]);
 	const [form, setForm] = useState<NoticeForm>(() => emptyNoticeForm());
 	const [showCreatePanel, setShowCreatePanel] = useState(false);
 	const [search, setSearch] = useState("");
@@ -240,10 +215,54 @@ export default function CollegeAdminSettingsWorkspace({
 	const [severity, setSeverity] = useState<NoticeSeverity | "all">("all");
 	const [viewNotice, setViewNotice] = useState<AdminNotice | null>(null);
 	const [openActionsId, setOpenActionsId] = useState<string | null>(null);
+	const [isLoadingNotices, setIsLoadingNotices] = useState(false);
+	const [isSavingNotice, setIsSavingNotice] = useState(false);
+
+	const loadNotices = useCallback(async () => {
+		setIsLoadingNotices(true);
+
+		try {
+			const response = await fetch(
+				"/api/notifications?manage=true&status=all&pageSize=50",
+				{ cache: "no-store" },
+			);
+			const payload = (await response.json().catch(() => null)) as
+				| AppNotificationListPayload
+				| { error?: string }
+				| null;
+
+			if (!response.ok) {
+				throw new Error(
+					(payload as { error?: string } | null)?.error ??
+						"Unable to load college notices.",
+				);
+			}
+
+			setNotices(
+				(payload as AppNotificationListPayload).notifications.map((notification) =>
+					mapNotificationToAdminNotice(notification, actorName),
+				),
+			);
+		} catch (error) {
+			toast.error({
+				title: "Notice load failed",
+				description:
+					error instanceof Error
+						? error.message
+						: "Unable to load persisted college notices.",
+			});
+		} finally {
+			setIsLoadingNotices(false);
+		}
+	}, [actorName]);
 
 	useEffect(() => {
-		window.localStorage.setItem(storageKey, JSON.stringify(notices));
-	}, [notices, storageKey]);
+		const timeoutId = window.setTimeout(() => {
+			void loadNotices();
+		}, 0);
+
+		return () => window.clearTimeout(timeoutId);
+	}, [loadNotices]);
 
 	const filteredNotices = useMemo(() => {
 		const normalizedSearch = search.trim().toLowerCase();
@@ -300,7 +319,7 @@ export default function CollegeAdminSettingsWorkspace({
 		setSeverity("all");
 	}
 
-	function createNotice() {
+	async function createNotice() {
 		if (!canCreateNotice) {
 			toast.error("You do not have permission to create notices.");
 			return;
@@ -314,56 +333,165 @@ export default function CollegeAdminSettingsWorkspace({
 			return;
 		}
 
-		const now = new Date().toISOString();
-		const notice: AdminNotice = {
-			...form,
-			id: createNoticeId(),
-			title: form.title.trim(),
-			message: form.message.trim(),
-			createdBy: actorName,
-			updatedAt: now,
-		};
+		setIsSavingNotice(true);
 
-		setNotices((current) => [notice, ...current]);
-		setForm(emptyNoticeForm());
-		setShowCreatePanel(false);
-		toast.success("In-app notice saved.");
+		try {
+			const response = await fetch("/api/notifications", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					scope: "college",
+					collegeSlug,
+					title: form.title.trim(),
+					message: form.message.trim(),
+					audience: form.audience,
+					severity: form.severity,
+					status: form.status,
+					startAt: form.startAt,
+					endAt: form.endAt,
+					idempotencyKey: createIdempotencyKey(collegeSlug, form),
+				}),
+			});
+			const payload = (await response.json().catch(() => null)) as
+				| { error?: string; notification?: AppNotification }
+				| null;
+
+			if (!response.ok) {
+				throw new Error(payload?.error ?? "Unable to save notice.");
+			}
+
+			const notice = payload?.notification
+				? mapNotificationToAdminNotice(payload.notification, actorName)
+				: ({
+						...form,
+						id: createIdempotencyKey(collegeSlug, form),
+						title: form.title.trim(),
+						message: form.message.trim(),
+						createdBy: actorName,
+						updatedAt: new Date().toISOString(),
+					} satisfies AdminNotice);
+
+			setNotices((current) => [notice, ...current]);
+			setForm(emptyNoticeForm());
+			setShowCreatePanel(false);
+			toast.success("In-app notice saved.");
+		} catch (error) {
+			toast.error({
+				title: "Notice save failed",
+				description:
+					error instanceof Error
+						? error.message
+						: "Check the notice details and try again.",
+			});
+		} finally {
+			setIsSavingNotice(false);
+		}
 	}
 
-	function patchNotice(noticeId: string, patch: Partial<AdminNotice>, message: string) {
+	async function patchNotice(
+		noticeId: string,
+		patch: Partial<AdminNotice>,
+		message: string,
+	) {
 		if (!canUpdateSettings) {
 			toast.error("You do not have permission to update notices.");
 			return;
 		}
 
-		setNotices((current) =>
-			current.map((notice) =>
-				notice.id === noticeId
-					? { ...notice, ...patch, updatedAt: new Date().toISOString() }
-					: notice,
-			),
-		);
-		toast.success(message);
+		try {
+			const response = await fetch(`/api/notifications/${encodeURIComponent(noticeId)}`, {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					...patch,
+					status: patch.status === "expired" ? "archived" : patch.status,
+				}),
+			});
+			const payload = (await response.json().catch(() => null)) as
+				| { error?: string; notification?: AppNotification }
+				| null;
+
+			if (!response.ok) {
+				throw new Error(payload?.error ?? "Unable to update notice.");
+			}
+
+			const updatedNotice = payload?.notification
+				? mapNotificationToAdminNotice(payload.notification, actorName)
+				: null;
+
+			setNotices((current) =>
+				current.map((notice) =>
+					notice.id === noticeId
+						? (updatedNotice ?? {
+								...notice,
+								...patch,
+								updatedAt: new Date().toISOString(),
+							})
+						: notice,
+				),
+			);
+			toast.success(message);
+		} catch (error) {
+			toast.error({
+				title: "Notice update failed",
+				description:
+					error instanceof Error
+						? error.message
+						: "Unable to update this notice.",
+			});
+		}
 	}
 
-	function duplicateNotice(notice: AdminNotice) {
+	async function duplicateNotice(notice: AdminNotice) {
 		if (!canCreateNotice) {
 			toast.error("You do not have permission to duplicate notices.");
 			return;
 		}
 
-		setNotices((current) => [
-			{
-				...notice,
-				id: createNoticeId(),
-				title: `${notice.title} copy`,
-				status: "draft",
-				createdBy: actorName,
-				updatedAt: new Date().toISOString(),
-			},
-			...current,
-		]);
-		toast.success("Notice duplicated as draft.");
+		const duplicateForm: NoticeForm = {
+			title: `${notice.title} copy`,
+			message: notice.message,
+			audience: notice.audience,
+			severity: notice.severity,
+			status: "draft",
+			startAt: notice.startAt,
+			endAt: notice.endAt,
+		};
+
+		try {
+			const response = await fetch("/api/notifications", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					scope: "college",
+					collegeSlug,
+					...duplicateForm,
+				}),
+			});
+			const payload = (await response.json().catch(() => null)) as
+				| { error?: string; notification?: AppNotification }
+				| null;
+
+			if (!response.ok) {
+				throw new Error(payload?.error ?? "Unable to duplicate notice.");
+			}
+
+			if (payload?.notification) {
+				setNotices((current) => [
+					mapNotificationToAdminNotice(payload.notification!, actorName),
+					...current,
+				]);
+			}
+			toast.success("Notice duplicated as draft.");
+		} catch (error) {
+			toast.error({
+				title: "Duplicate failed",
+				description:
+					error instanceof Error
+						? error.message
+						: "Unable to duplicate this notice.",
+			});
+		}
 	}
 
 	return (
@@ -378,9 +506,8 @@ export default function CollegeAdminSettingsWorkspace({
 							{collegeName} in-app notifications
 						</h2>
 						<p className="mt-2 max-w-3xl text-sm leading-7 text-[#556987]">
-							Manage tenant notices for students and staff. This screen is
-							scoped to this college and ready for backend persistence in the
-							next slice.
+							Manage persisted tenant notices for students and staff. This
+							screen is scoped to this college.
 						</p>
 					</div>
 					<div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-[#eef4fb] text-[#2E86C1]">
@@ -544,10 +671,11 @@ export default function CollegeAdminSettingsWorkspace({
 						<button
 							type="button"
 							onClick={createNotice}
-							className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] px-5 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.18)] transition hover:-translate-y-0.5"
+							disabled={isSavingNotice}
+							className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] px-5 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.18)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
 						>
 							<Send className="size-4" />
-							Save notice
+							{isSavingNotice ? "Saving notice..." : "Save notice"}
 						</button>
 					</div>
 				</div>
@@ -598,7 +726,9 @@ export default function CollegeAdminSettingsWorkspace({
 								Notice Center
 							</p>
 							<p className="mt-1 text-sm font-semibold text-[#60728f]">
-								Showing {filteredNotices.length} of {notices.length} notices
+								{isLoadingNotices
+									? "Loading notices"
+									: `Showing ${filteredNotices.length} of ${notices.length} notices`}
 							</p>
 						</div>
 					</div>
@@ -707,10 +837,12 @@ export default function CollegeAdminSettingsWorkspace({
 								<BellRing className="size-6" />
 							</div>
 							<h3 className="mt-4 text-lg font-black text-[#06183A]">
-								No notices found
+								{isLoadingNotices ? "Loading notices" : "No notices found"}
 							</h3>
 							<p className="mt-2 text-sm text-[#60728f]">
-								Adjust filters or create a new in-app notice for this college.
+								{isLoadingNotices
+									? "Fetching persisted in-app notifications for this college."
+									: "Adjust filters or create a new in-app notice for this college."}
 							</p>
 						</div>
 					) : null}
