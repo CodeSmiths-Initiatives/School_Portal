@@ -21,6 +21,7 @@ type NotificationAudience =
 	| "specific-user";
 type NotificationSeverity = "info" | "success" | "warning" | "critical";
 type NotificationStatus = "draft" | "scheduled" | "active" | "expired" | "archived";
+type NotificationReadState = "all" | "read" | "unread";
 
 const DEV_INTERNAL_SECRET =
 	"iums-local-registration-secret-change-before-production";
@@ -33,6 +34,7 @@ const AUDIENCES: NotificationAudience[] = [
 	"specific-user",
 ];
 const SEVERITIES: NotificationSeverity[] = ["info", "success", "warning", "critical"];
+const READ_STATES: NotificationReadState[] = ["all", "read", "unread"];
 const STATUSES: NotificationStatus[] = [
 	"draft",
 	"scheduled",
@@ -428,6 +430,9 @@ function parseViewer(query: Record<string, string | undefined>) {
 		status: asString(query.status),
 		page: Math.max(asNumber(query.page, 1), 1),
 		pageSize: Math.min(Math.max(asNumber(query.pageSize, 20), 1), 50),
+		query: asString(query.q).toLowerCase(),
+		severity: normalizeEnum(query.severity, ["all", ...SEVERITIES] as const, "all"),
+		readState: normalizeEnum(query.readState, READ_STATES, "all"),
 		includeDismissed: query.includeDismissed === "true",
 		manage: query.manage === "true",
 	};
@@ -461,6 +466,7 @@ const internalNotificationController = {
 			.findMany({
 				where: {
 					status: statusWhere,
+					...(viewer.severity !== "all" ? { severity: viewer.severity } : {}),
 					...(viewer.manage
 						? viewer.domain === "superadmin"
 							? { scope: "platform" }
@@ -518,16 +524,33 @@ const internalNotificationController = {
 					receiptsByNotificationId.get(String(notification.id)),
 				),
 			);
-		const start = (viewer.page - 1) * viewer.pageSize;
-		const pageItems = visible.slice(start, start + viewer.pageSize);
+		const filtered = visible.filter((notification) => {
+			const haystack =
+				`${notification.title} ${notification.message} ${notification.audience}`.toLowerCase();
+			const matchesQuery = !viewer.query || haystack.includes(viewer.query);
+			const matchesReadState =
+				viewer.readState === "all" ||
+				(viewer.readState === "read" && notification.isRead) ||
+				(viewer.readState === "unread" && !notification.isRead);
+
+			return matchesQuery && matchesReadState;
+		});
+		const pageCount = Math.max(1, Math.ceil(filtered.length / viewer.pageSize));
+		const page = Math.min(viewer.page, pageCount);
+		const start = (page - 1) * viewer.pageSize;
+		const pageItems = filtered.slice(start, start + viewer.pageSize);
 
 		ctx.body = {
 			notifications: pageItems,
 			meta: {
-				page: viewer.page,
+				page,
 				pageSize: viewer.pageSize,
-				total: visible.length,
-				unread: visible.filter((notification) => !notification.isRead).length,
+				pageCount,
+				total: filtered.length,
+				unread: filtered.filter((notification) => !notification.isRead).length,
+				critical: filtered.filter(
+					(notification) => notification.severity === "critical",
+				).length,
 				generatedAt: new Date().toISOString(),
 			},
 		};

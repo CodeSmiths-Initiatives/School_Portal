@@ -55,8 +55,10 @@ export function NotificationBell() {
 		meta: {
 			page: 1,
 			pageSize: 5,
+			pageCount: 1,
 			total: 0,
 			unread: 0,
+			critical: 0,
 			generatedAt: new Date().toISOString(),
 		},
 	});

@@ -159,8 +159,10 @@ export async function GET(request: Request) {
 				meta: {
 					page: Number(url.searchParams.get("page") ?? "1"),
 					pageSize: Number(url.searchParams.get("pageSize") ?? "20"),
+					pageCount: 1,
 					total: 0,
 					unread: 0,
+					critical: 0,
 					generatedAt: new Date().toISOString(),
 				},
 			});
@@ -176,6 +178,13 @@ export async function GET(request: Request) {
 					| null) ?? "visible",
 			page: Number(url.searchParams.get("page") ?? "1"),
 			pageSize: Number(url.searchParams.get("pageSize") ?? "20"),
+			query: url.searchParams.get("q") ?? "",
+			severity:
+				(url.searchParams.get("severity") as AppNotificationSeverity | "all" | null) ??
+				"all",
+			readState:
+				(url.searchParams.get("readState") as "all" | "read" | "unread" | null) ??
+				"all",
 			includeDismissed: url.searchParams.get("includeDismissed") === "true",
 			manage,
 		});

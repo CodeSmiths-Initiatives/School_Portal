@@ -61,8 +61,10 @@ export type AppNotificationListPayload = {
 	meta: {
 		page: number;
 		pageSize: number;
+		pageCount: number;
 		total: number;
 		unread: number;
+		critical: number;
 		generatedAt: string;
 	};
 };
@@ -174,6 +176,9 @@ export async function listAppNotifications(input: {
 	status?: "visible" | "all" | AppNotificationStatus;
 	page?: number;
 	pageSize?: number;
+	query?: string;
+	severity?: AppNotificationSeverity | "all";
+	readState?: "all" | "read" | "unread";
 	includeDismissed?: boolean;
 	manage?: boolean;
 }) {
@@ -183,6 +188,9 @@ export async function listAppNotifications(input: {
 	if (input.status) params.set("status", input.status);
 	if (input.page) params.set("page", String(input.page));
 	if (input.pageSize) params.set("pageSize", String(input.pageSize));
+	if (input.query?.trim()) params.set("q", input.query.trim());
+	if (input.severity && input.severity !== "all") params.set("severity", input.severity);
+	if (input.readState && input.readState !== "all") params.set("readState", input.readState);
 	if (input.includeDismissed) params.set("includeDismissed", "true");
 	if (input.manage) params.set("manage", "true");
 

@@ -599,84 +599,88 @@ export default function CollegeAdminSettingsWorkspace({
 			</div>
 
 			{showCreatePanel ? (
-				<div className="rounded-3xl border border-[#d7e2f0] bg-white p-5 shadow-[0_18px_45px_rgba(13,43,85,0.08)] sm:p-6">
-					<div className="flex flex-wrap items-start justify-between gap-4">
-						<div>
-							<p className="text-[11px] font-black uppercase tracking-[0.28em] text-[#B7770D]">
-								Create App Notification
-							</p>
-							<h2 className="mt-2 text-2xl font-black text-[#06183A]">
-								New in-app notice
-							</h2>
+				<div className="fixed inset-0 z-50 flex items-end justify-center bg-[#06172f]/60 px-3 py-4 backdrop-blur-sm sm:items-center sm:px-6">
+					<div className="max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-3xl border border-[#d7e2f0] bg-white shadow-[0_26px_70px_rgba(6,24,58,0.28)]">
+						<div className="flex items-start justify-between gap-4 border-b border-[#dbe5f1] bg-[#f8fbff] px-4 py-4 sm:px-6">
+							<div>
+								<p className="text-[11px] font-black uppercase tracking-[0.28em] text-[#B7770D]">
+									Create App Notification
+								</p>
+								<h2 className="mt-2 text-xl font-black text-[#06183A] sm:text-2xl">
+									New in-app notice
+								</h2>
+							</div>
+							<button
+								type="button"
+								onClick={() => setShowCreatePanel(false)}
+								className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+								aria-label="Close create notice modal"
+							>
+								<X className="size-4" />
+							</button>
 						</div>
-						<button
-							type="button"
-							onClick={() => setShowCreatePanel(false)}
-							className="flex size-10 items-center justify-center rounded-2xl border border-[#d3dfed] text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
-							aria-label="Close create notice panel"
-						>
-							<X className="size-4" />
-						</button>
-					</div>
-					<div className="mt-5 grid gap-4 xl:grid-cols-2">
-						<FieldLabel label="Title">
-							<input
-								value={form.title}
-								onChange={(event) => updateForm("title", event.target.value)}
-								placeholder="Portal notice title"
-								className={inputClassName()}
-							/>
-						</FieldLabel>
-						<div className="grid gap-4 sm:grid-cols-3">
-							<FieldLabel label="Audience">
-								<select value={form.audience} onChange={(event) => updateForm("audience", event.target.value as NoticeAudience)} className={inputClassName()}>
-									{Object.entries(AUDIENCE_LABELS).map(([value, label]) => (
-										<option key={value} value={value}>{label}</option>
-									))}
-								</select>
-							</FieldLabel>
-							<FieldLabel label="Severity">
-								<select value={form.severity} onChange={(event) => updateForm("severity", event.target.value as NoticeSeverity)} className={inputClassName()}>
-									{Object.entries(SEVERITY_LABELS).map(([value, label]) => (
-										<option key={value} value={value}>{label}</option>
-									))}
-								</select>
-							</FieldLabel>
-							<FieldLabel label="Status">
-								<select value={form.status} onChange={(event) => updateForm("status", event.target.value as NoticeStatus)} className={inputClassName()}>
-									{Object.entries(STATUS_LABELS).map(([value, label]) => (
-										<option key={value} value={value}>{label}</option>
-									))}
-								</select>
-							</FieldLabel>
+						<div className="max-h-[calc(92vh-8rem)] overflow-y-auto px-4 py-5 sm:px-6">
+							<div className="grid gap-4 xl:grid-cols-2">
+								<FieldLabel label="Title">
+									<input
+										value={form.title}
+										onChange={(event) => updateForm("title", event.target.value)}
+										placeholder="Portal notice title"
+										className={inputClassName()}
+									/>
+								</FieldLabel>
+								<div className="grid gap-4 sm:grid-cols-3">
+									<FieldLabel label="Audience">
+										<select value={form.audience} onChange={(event) => updateForm("audience", event.target.value as NoticeAudience)} className={inputClassName()}>
+											{Object.entries(AUDIENCE_LABELS).map(([value, label]) => (
+												<option key={value} value={value}>{label}</option>
+											))}
+										</select>
+									</FieldLabel>
+									<FieldLabel label="Severity">
+										<select value={form.severity} onChange={(event) => updateForm("severity", event.target.value as NoticeSeverity)} className={inputClassName()}>
+											{Object.entries(SEVERITY_LABELS).map(([value, label]) => (
+												<option key={value} value={value}>{label}</option>
+											))}
+										</select>
+									</FieldLabel>
+									<FieldLabel label="Status">
+										<select value={form.status} onChange={(event) => updateForm("status", event.target.value as NoticeStatus)} className={inputClassName()}>
+											{Object.entries(STATUS_LABELS).map(([value, label]) => (
+												<option key={value} value={value}>{label}</option>
+											))}
+										</select>
+									</FieldLabel>
+								</div>
+								<FieldLabel label="Message">
+									<textarea
+										value={form.message}
+										onChange={(event) => updateForm("message", event.target.value)}
+										placeholder="Write the notice students or staff will see in-app."
+										className={textareaClassName()}
+									/>
+								</FieldLabel>
+								<div className="grid gap-4 sm:grid-cols-2">
+									<FieldLabel label="Start">
+										<input type="datetime-local" value={form.startAt} onChange={(event) => updateForm("startAt", event.target.value)} className={inputClassName()} />
+									</FieldLabel>
+									<FieldLabel label="End">
+										<input type="datetime-local" value={form.endAt} onChange={(event) => updateForm("endAt", event.target.value)} className={inputClassName()} />
+									</FieldLabel>
+								</div>
+							</div>
 						</div>
-						<FieldLabel label="Message">
-							<textarea
-								value={form.message}
-								onChange={(event) => updateForm("message", event.target.value)}
-								placeholder="Write the notice students or staff will see in-app."
-								className={textareaClassName()}
-							/>
-						</FieldLabel>
-						<div className="grid gap-4 sm:grid-cols-2">
-							<FieldLabel label="Start">
-								<input type="datetime-local" value={form.startAt} onChange={(event) => updateForm("startAt", event.target.value)} className={inputClassName()} />
-							</FieldLabel>
-							<FieldLabel label="End">
-								<input type="datetime-local" value={form.endAt} onChange={(event) => updateForm("endAt", event.target.value)} className={inputClassName()} />
-							</FieldLabel>
+						<div className="flex justify-end border-t border-[#dbe5f1] bg-white px-4 py-4 sm:px-6">
+							<button
+								type="button"
+								onClick={createNotice}
+								disabled={isSavingNotice}
+								className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] px-5 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.18)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+							>
+								<Send className="size-4" />
+								{isSavingNotice ? "Saving notice..." : "Save notice"}
+							</button>
 						</div>
-					</div>
-					<div className="mt-5 flex justify-end">
-						<button
-							type="button"
-							onClick={createNotice}
-							disabled={isSavingNotice}
-							className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] px-5 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.18)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
-						>
-							<Send className="size-4" />
-							{isSavingNotice ? "Saving notice..." : "Save notice"}
-						</button>
 					</div>
 				</div>
 			) : null}

@@ -13,6 +13,7 @@ import {
 	Save,
 	ShieldCheck,
 	SlidersHorizontal,
+	X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
@@ -250,6 +251,7 @@ export function SuperadminSettingsWorkspace({
 		confirmPassword: "",
 	});
 	const [showPassword, setShowPassword] = useState(false);
+	const [showNoticeModal, setShowNoticeModal] = useState(false);
 	const [isSavingPassword, setIsSavingPassword] = useState(false);
 	const [isSavingNotice, setIsSavingNotice] = useState(false);
 	const [isLoadingNotices, setIsLoadingNotices] = useState(false);
@@ -416,6 +418,7 @@ export function SuperadminSettingsWorkspace({
 						: "Notice is ready for platform delivery.",
 			});
 			setNoticeForm(createNoticeForm({ ...settings, notices: [notice] }));
+			setShowNoticeModal(false);
 		} catch (error) {
 			toast.error({
 				title: "Notice save failed",
@@ -516,105 +519,7 @@ export function SuperadminSettingsWorkspace({
 						description="Publish or schedule messages for students, staff, college admins, or the full platform."
 						icon={<Megaphone className="size-5" />}
 					>
-						<form className="mt-6 space-y-4" onSubmit={handleNoticeSubmit}>
-							<FieldLabel label="Title">
-								<input
-									value={noticeForm.title}
-									onChange={(event) =>
-										updateNoticeField("title", event.target.value)
-									}
-									placeholder="Scheduled maintenance"
-									className={inputClassName()}
-								/>
-							</FieldLabel>
-
-							<FieldLabel label="Message">
-								<textarea
-									value={noticeForm.message}
-									onChange={(event) =>
-										updateNoticeField("message", event.target.value)
-									}
-									placeholder="Portal maintenance will run from 1 Aug to 15 Aug."
-									className={textareaClassName()}
-								/>
-							</FieldLabel>
-
-							<div className="grid gap-4 md:grid-cols-3">
-								<FieldLabel label="Audience">
-									<select
-										value={noticeForm.audience}
-										onChange={(event) =>
-											updateNoticeField(
-												"audience",
-												event.target.value as PlatformNoticeAudience,
-											)
-										}
-										className={inputClassName()}
-									>
-										<option value="all">All users</option>
-										<option value="students">Students</option>
-										<option value="staff">Staff</option>
-										<option value="college-admins">College admins</option>
-									</select>
-								</FieldLabel>
-								<FieldLabel label="Severity">
-									<select
-										value={noticeForm.severity}
-										onChange={(event) =>
-											updateNoticeField(
-												"severity",
-												event.target.value as PlatformNoticeSeverity,
-											)
-										}
-										className={inputClassName()}
-									>
-										<option value="info">Info</option>
-										<option value="success">Success</option>
-										<option value="warning">Warning</option>
-										<option value="critical">Critical</option>
-									</select>
-								</FieldLabel>
-								<FieldLabel label="Status">
-									<select
-										value={noticeForm.status}
-										onChange={(event) =>
-											updateNoticeField(
-												"status",
-												event.target.value as PlatformNoticeStatus,
-											)
-										}
-										className={inputClassName()}
-									>
-										<option value="draft">Draft</option>
-										<option value="scheduled">Scheduled</option>
-										<option value="active">Active</option>
-									</select>
-								</FieldLabel>
-							</div>
-
-							<div className="grid gap-4 md:grid-cols-2">
-								<FieldLabel label="Start">
-									<input
-										value={noticeForm.startAt}
-										onChange={(event) =>
-											updateNoticeField("startAt", event.target.value)
-										}
-										type="datetime-local"
-										className={inputClassName()}
-									/>
-								</FieldLabel>
-								<FieldLabel label="End">
-									<input
-										value={noticeForm.endAt}
-										onChange={(event) =>
-											updateNoticeField("endAt", event.target.value)
-										}
-										type="datetime-local"
-										className={inputClassName()}
-									/>
-								</FieldLabel>
-							</div>
-
+						<div className="mt-6 space-y-4">
 							<div className="rounded-3xl border border-[#dbe5f1] bg-[#f8fbff] p-4">
 								<div className="flex flex-wrap items-center gap-2">
 									<Badge className={severityStyles[noticeForm.severity]}>
@@ -637,14 +542,14 @@ export function SuperadminSettingsWorkspace({
 							</div>
 
 							<button
-								type="submit"
-								disabled={isSavingNotice}
+								type="button"
+								onClick={() => setShowNoticeModal(true)}
 								className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-2xl bg-[#0D2B55] px-5 text-sm font-black text-white shadow-[0_14px_26px_rgba(13,43,85,0.24)] transition hover:bg-[#123a73] disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
 							>
-								<Save className="size-4" />
-								{isSavingNotice ? "Saving notice..." : "Save notice"}
+								<Megaphone className="size-4" />
+								Create notice
 							</button>
-						</form>
+						</div>
 					</SettingsCard>
 
 					<SettingsCard
@@ -935,6 +840,167 @@ export function SuperadminSettingsWorkspace({
 					</button>
 				</aside>
 			</div>
+
+			{showNoticeModal ? (
+				<div className="fixed inset-0 z-50 flex items-end justify-center bg-[#06172f]/60 px-3 py-4 backdrop-blur-sm sm:items-center sm:px-6">
+					<div className="max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-3xl border border-[#d7e2f0] bg-white shadow-[0_26px_70px_rgba(6,24,58,0.28)]">
+						<div className="flex items-start justify-between gap-4 border-b border-[#dbe5f1] bg-[#f8fbff] px-4 py-4 sm:px-6">
+							<div>
+								<p className="text-[11px] font-black uppercase tracking-[0.28em] text-[#B7770D]">
+									Platform Notices
+								</p>
+								<h2 className="mt-2 text-xl font-black text-[#06183A] sm:text-2xl">
+									Create app notification
+								</h2>
+							</div>
+							<button
+								type="button"
+								onClick={() => setShowNoticeModal(false)}
+								className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+								aria-label="Close create notice modal"
+							>
+								<X className="size-4" />
+							</button>
+						</div>
+
+						<form onSubmit={handleNoticeSubmit}>
+							<div className="max-h-[calc(92vh-8rem)] space-y-4 overflow-y-auto px-4 py-5 sm:px-6">
+								<div className="grid gap-4 xl:grid-cols-2">
+									<FieldLabel label="Title">
+										<input
+											value={noticeForm.title}
+											onChange={(event) =>
+												updateNoticeField("title", event.target.value)
+											}
+											placeholder="Scheduled maintenance"
+											className={inputClassName()}
+										/>
+									</FieldLabel>
+
+									<div className="grid gap-4 md:grid-cols-3">
+										<FieldLabel label="Audience">
+											<select
+												value={noticeForm.audience}
+												onChange={(event) =>
+													updateNoticeField(
+														"audience",
+														event.target.value as PlatformNoticeAudience,
+													)
+												}
+												className={inputClassName()}
+											>
+												<option value="all">All users</option>
+												<option value="students">Students</option>
+												<option value="staff">Staff</option>
+												<option value="college-admins">College admins</option>
+											</select>
+										</FieldLabel>
+										<FieldLabel label="Severity">
+											<select
+												value={noticeForm.severity}
+												onChange={(event) =>
+													updateNoticeField(
+														"severity",
+														event.target.value as PlatformNoticeSeverity,
+													)
+												}
+												className={inputClassName()}
+											>
+												<option value="info">Info</option>
+												<option value="success">Success</option>
+												<option value="warning">Warning</option>
+												<option value="critical">Critical</option>
+											</select>
+										</FieldLabel>
+										<FieldLabel label="Status">
+											<select
+												value={noticeForm.status}
+												onChange={(event) =>
+													updateNoticeField(
+														"status",
+														event.target.value as PlatformNoticeStatus,
+													)
+												}
+												className={inputClassName()}
+											>
+												<option value="draft">Draft</option>
+												<option value="scheduled">Scheduled</option>
+												<option value="active">Active</option>
+											</select>
+										</FieldLabel>
+									</div>
+								</div>
+
+								<FieldLabel label="Message">
+									<textarea
+										value={noticeForm.message}
+										onChange={(event) =>
+											updateNoticeField("message", event.target.value)
+										}
+										placeholder="Portal maintenance will run from 1 Aug to 15 Aug."
+										className={textareaClassName()}
+									/>
+								</FieldLabel>
+
+								<div className="grid gap-4 md:grid-cols-2">
+									<FieldLabel label="Start">
+										<input
+											value={noticeForm.startAt}
+											onChange={(event) =>
+												updateNoticeField("startAt", event.target.value)
+											}
+											type="datetime-local"
+											className={inputClassName()}
+										/>
+									</FieldLabel>
+									<FieldLabel label="End">
+										<input
+											value={noticeForm.endAt}
+											onChange={(event) =>
+												updateNoticeField("endAt", event.target.value)
+											}
+											type="datetime-local"
+											className={inputClassName()}
+										/>
+									</FieldLabel>
+								</div>
+
+								<div className="rounded-3xl border border-[#dbe5f1] bg-[#f8fbff] p-4">
+									<div className="flex flex-wrap items-center gap-2">
+										<Badge className={severityStyles[noticeForm.severity]}>
+											{noticeForm.severity}
+										</Badge>
+										<Badge className={statusStyles[noticeForm.status]}>
+											{noticeForm.status}
+										</Badge>
+										<Badge className="border-[#dbe5f1] bg-white text-[#0D2B55]">
+											{noticeForm.audience.replace("-", " ")}
+										</Badge>
+									</div>
+									<h3 className="mt-4 text-lg font-black text-[#06183A]">
+										{noticeForm.title || "Notice preview"}
+									</h3>
+									<p className="mt-2 text-sm font-semibold leading-7 text-[#60728f]">
+										{noticeForm.message ||
+											"Users will see the notice message here."}
+									</p>
+								</div>
+							</div>
+
+							<div className="flex justify-end border-t border-[#dbe5f1] bg-white px-4 py-4 sm:px-6">
+								<button
+									type="submit"
+									disabled={isSavingNotice}
+									className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-2xl bg-[#0D2B55] px-5 text-sm font-black text-white shadow-[0_14px_26px_rgba(13,43,85,0.24)] transition hover:bg-[#123a73] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+								>
+									<Save className="size-4" />
+									{isSavingNotice ? "Saving notice..." : "Save notice"}
+								</button>
+							</div>
+						</form>
+					</div>
+				</div>
+			) : null}
 		</div>
 	);
 }

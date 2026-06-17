@@ -67,9 +67,11 @@ export function NoticeCenterWorkspace({
 		notifications: [],
 		meta: {
 			page: 1,
-			pageSize: 50,
+			pageSize: 12,
+			pageCount: 1,
 			total: 0,
 			unread: 0,
+			critical: 0,
 			generatedAt: new Date().toISOString(),
 		},
 	});
@@ -79,13 +81,24 @@ export function NoticeCenterWorkspace({
 	const [query, setQuery] = useState("");
 	const [severity, setSeverity] = useState<SeverityFilter>("all");
 	const [readFilter, setReadFilter] = useState<ReadFilter>("all");
+	const [page, setPage] = useState(1);
+	const pageSize = 12;
 
 	const loadNotices = useCallback(async () => {
 		setIsLoading(true);
 		setError("");
 
 		try {
-			const response = await fetch("/api/notifications?pageSize=50", {
+			const params = new URLSearchParams({
+				page: String(page),
+				pageSize: String(pageSize),
+			});
+
+			if (query.trim()) params.set("q", query.trim());
+			if (severity !== "all") params.set("severity", severity);
+			if (readFilter !== "all") params.set("readState", readFilter);
+
+			const response = await fetch(`/api/notifications?${params.toString()}`, {
 				cache: "no-store",
 			});
 			const nextPayload = (await response.json().catch(() => null)) as
@@ -100,7 +113,11 @@ export function NoticeCenterWorkspace({
 				);
 			}
 
-			setPayload(nextPayload as AppNotificationListPayload);
+			const typedPayload = nextPayload as AppNotificationListPayload;
+			setPayload(typedPayload);
+			if (typedPayload.meta.page !== page) {
+				setPage(typedPayload.meta.page);
+			}
 		} catch (loadError) {
 			setError(
 				loadError instanceof Error ? loadError.message : "Unable to load notices.",
@@ -108,7 +125,7 @@ export function NoticeCenterWorkspace({
 		} finally {
 			setIsLoading(false);
 		}
-	}, []);
+	}, [page, query, readFilter, severity]);
 
 	useEffect(() => {
 		const timeoutId = window.setTimeout(() => {
@@ -118,32 +135,14 @@ export function NoticeCenterWorkspace({
 		return () => window.clearTimeout(timeoutId);
 	}, [loadNotices]);
 
-	const filteredNotices = useMemo(() => {
-		const normalizedQuery = query.trim().toLowerCase();
-
-		return payload.notifications.filter((notice) => {
-			const haystack = `${notice.title} ${notice.message} ${notice.audience}`.toLowerCase();
-
-			return (
-				(!normalizedQuery || haystack.includes(normalizedQuery)) &&
-				(severity === "all" || notice.severity === severity) &&
-				(readFilter === "all" ||
-					(readFilter === "read" && notice.isRead) ||
-					(readFilter === "unread" && !notice.isRead))
-			);
-		});
-	}, [payload.notifications, query, readFilter, severity]);
-
 	const analytics = useMemo(
 		() => ({
 			total: payload.meta.total,
 			unread: payload.meta.unread,
-			critical: payload.notifications.filter(
-				(notification) => notification.severity === "critical",
-			).length,
-			filtered: filteredNotices.length,
+			critical: payload.meta.critical,
+			filtered: payload.notifications.length,
 		}),
-		[filteredNotices.length, payload.meta.total, payload.meta.unread, payload.notifications],
+		[payload.meta.critical, payload.meta.total, payload.meta.unread, payload.notifications.length],
 	);
 	const statCards = [
 		{ label: "Total Notices", value: analytics.total, icon: Bell },
@@ -156,6 +155,7 @@ export function NoticeCenterWorkspace({
 		setQuery("");
 		setSeverity("all");
 		setReadFilter("all");
+		setPage(1);
 	}
 
 	async function markRead(notification: AppNotification) {
@@ -261,14 +261,20 @@ export function NoticeCenterWorkspace({
 						<Search className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[#7b8faa]" />
 						<input
 							value={query}
-							onChange={(event) => setQuery(event.target.value)}
+							onChange={(event) => {
+								setQuery(event.target.value);
+								setPage(1);
+							}}
 							placeholder="Search notices"
 							className="h-12 w-full rounded-2xl border border-[#d3dfed] bg-[#f8fbff] pl-11 pr-4 text-sm font-semibold text-[#0D2B55] outline-none transition focus:border-[#2E86C1]"
 						/>
 					</label>
 					<select
 						value={severity}
-						onChange={(event) => setSeverity(event.target.value as SeverityFilter)}
+						onChange={(event) => {
+							setSeverity(event.target.value as SeverityFilter);
+							setPage(1);
+						}}
 						className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
 					>
 						<option value="all">All severity</option>
@@ -279,7 +285,10 @@ export function NoticeCenterWorkspace({
 					</select>
 					<select
 						value={readFilter}
-						onChange={(event) => setReadFilter(event.target.value as ReadFilter)}
+						onChange={(event) => {
+							setReadFilter(event.target.value as ReadFilter);
+							setPage(1);
+						}}
 						className="h-12 rounded-2xl border border-[#d3dfed] bg-[#f8fbff] px-4 text-sm font-bold text-[#0D2B55] outline-none focus:border-[#2E86C1]"
 					>
 						<option value="all">All read states</option>
@@ -320,7 +329,7 @@ export function NoticeCenterWorkspace({
 							</tr>
 						</thead>
 						<tbody className="divide-y divide-[#dbe5f1]">
-							{filteredNotices.map((notice) => (
+							{payload.notifications.map((notice) => (
 								<tr
 									key={notice.id}
 									className="bg-white transition hover:bg-[#f8fbff]"
@@ -361,7 +370,7 @@ export function NoticeCenterWorkspace({
 				</div>
 
 				<div className="space-y-3 p-4 lg:hidden">
-					{filteredNotices.map((notice) => (
+					{payload.notifications.map((notice) => (
 						<article
 							key={notice.id}
 							className="rounded-2xl border border-[#dbe5f1] bg-[#fbfdff] p-4"
@@ -397,7 +406,38 @@ export function NoticeCenterWorkspace({
 					))}
 				</div>
 
-				{isLoading || error || filteredNotices.length === 0 ? (
+				{payload.notifications.length > 0 ? (
+					<div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#dbe5f1] bg-[#f8fbff] px-4 py-4 sm:px-5">
+						<p className="text-xs font-black uppercase tracking-[0.14em] text-[#60728f]">
+							Page {payload.meta.page} of {payload.meta.pageCount} -{" "}
+							{payload.meta.total} notices
+						</p>
+						<div className="flex gap-2">
+							<button
+								type="button"
+								onClick={() => setPage((current) => Math.max(current - 1, 1))}
+								disabled={payload.meta.page <= 1 || isLoading}
+								className="h-10 rounded-2xl border border-[#d3dfed] bg-white px-4 text-xs font-black uppercase tracking-[0.12em] text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D] disabled:cursor-not-allowed disabled:opacity-50"
+							>
+								Previous
+							</button>
+							<button
+								type="button"
+								onClick={() =>
+									setPage((current) =>
+										Math.min(current + 1, payload.meta.pageCount),
+									)
+								}
+								disabled={payload.meta.page >= payload.meta.pageCount || isLoading}
+								className="h-10 rounded-2xl border border-[#d3dfed] bg-white px-4 text-xs font-black uppercase tracking-[0.12em] text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D] disabled:cursor-not-allowed disabled:opacity-50"
+							>
+								Next
+							</button>
+						</div>
+					</div>
+				) : null}
+
+				{isLoading || error || payload.notifications.length === 0 ? (
 					<div className="border-t border-[#dbe5f1] p-8 text-center">
 						<div className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#eef4fb] text-[#2E86C1]">
 							{isLoading ? (
