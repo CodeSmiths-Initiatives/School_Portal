@@ -31,6 +31,17 @@ const updateNotificationSchema = z.object({
 	endAt: z.string().optional(),
 });
 
+function normalizeUpdateInput(input: z.infer<typeof updateNotificationSchema>) {
+	const startAt = input.startAt?.trim();
+	const endAt = input.endAt?.trim();
+
+	return {
+		...input,
+		startAt: startAt || undefined,
+		endAt: endAt || undefined,
+	};
+}
+
 export async function PATCH(request: Request, { params }: RouteContext) {
 	try {
 		const session = await getCurrentAuthSession();
@@ -78,7 +89,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 		const { notificationId } = await params;
 		const result = await updateAppNotification({
 			notificationId,
-			patch: validation.data,
+			patch: normalizeUpdateInput(validation.data),
 			actor: {
 				id: session.user.strapiUserId,
 				name: session.user.name ?? session.user.username,

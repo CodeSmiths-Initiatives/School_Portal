@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { LogoutButton } from "@/features/auth/components";
+import { NoticeMenuUnreadBadge } from "./NoticeMenuUnreadBadge";
 import { NotificationBell } from "./NotificationBell";
 import type { UserDomain } from "@/lib/auth";
 import {
@@ -228,6 +229,8 @@ export default function RoleDashboardShell({
                 const Icon =
                   MENU_ICON_MAP[item.icon as keyof typeof MENU_ICON_MAP] ??
                   LayoutDashboard;
+                const showNoticeMenuBadge =
+                  item.key === "notices" && ["student", "staff"].includes(domain);
 
                 return (
                   <Link
@@ -241,6 +244,7 @@ export default function RoleDashboardShell({
                   >
                     <Icon className="size-4.5" />
                     <span>{item.label}</span>
+                    {showNoticeMenuBadge ? <NoticeMenuUnreadBadge /> : null}
                   </Link>
                 );
               })}

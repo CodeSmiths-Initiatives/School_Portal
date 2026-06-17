@@ -397,6 +397,27 @@ function parseCreatePayload(body: unknown) {
 	};
 }
 
+function withActorMetadata(
+	metadata: Record<string, unknown>,
+	actor: {
+		id?: number;
+		name?: string;
+		email?: string;
+		role?: string;
+	},
+) {
+	return {
+		...metadata,
+		actor: {
+			...(asRecord(metadata.actor)),
+			...(actor.id ? { id: actor.id } : {}),
+			...(actor.name ? { name: actor.name } : {}),
+			...(actor.email ? { email: actor.email } : {}),
+			...(actor.role ? { role: actor.role } : {}),
+		},
+	};
+}
+
 function parseUpdatePayload(body: unknown) {
 	const payload = asRecord(body);
 	const status = asString(payload.status);
@@ -625,7 +646,12 @@ const internalNotificationController = {
 					endAt: payload.endAt,
 					publishedAt: payload.publishedAt,
 					idempotencyKey: payload.idempotencyKey || undefined,
-					metadata: payload.metadata,
+					metadata: withActorMetadata(payload.metadata, {
+						id: payload.createdById,
+						name: payload.actorName,
+						email: payload.actorEmail,
+						role: payload.actorRole,
+					}),
 					...(collegeId ? { college: collegeId } : {}),
 					...(payload.targetUserId ? { targetUser: payload.targetUserId } : {}),
 					...(payload.targetRoleId ? { targetRole: payload.targetRoleId } : {}),
@@ -633,7 +659,6 @@ const internalNotificationController = {
 					...(payload.targetDepartmentId
 						? { targetDepartment: payload.targetDepartmentId }
 						: {}),
-					...(payload.createdById ? { createdBy: payload.createdById } : {}),
 				},
 				populate: {
 					college: true,

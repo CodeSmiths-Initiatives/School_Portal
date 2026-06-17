@@ -104,6 +104,9 @@ function canManageNotificationList(
 function normalizeCreateInput(
 	input: z.infer<typeof createNotificationSchema>,
 ): AppNotificationCreateInput {
+	const startAt = input.startAt?.trim();
+	const endAt = input.endAt?.trim();
+
 	return {
 		title: input.title,
 		message: input.message,
@@ -111,8 +114,8 @@ function normalizeCreateInput(
 		audience: input.audience as AppNotificationAudience,
 		severity: input.severity as AppNotificationSeverity | undefined,
 		status: input.status as AppNotificationStatus | undefined,
-		startAt: input.startAt,
-		endAt: input.endAt,
+		startAt: startAt || undefined,
+		endAt: endAt || undefined,
 		collegeSlug: input.collegeSlug,
 		targetUserId: input.targetUserId,
 		targetRoleId: input.targetRoleId,
