@@ -9,6 +9,7 @@ import {
 	EyeOff,
 	KeyRound,
 	Megaphone,
+	Pencil,
 	RefreshCcw,
 	Save,
 	ShieldCheck,
@@ -16,6 +17,7 @@ import {
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { RowActionMenu } from "@/components/ui/row-action-menu";
 import type {
 	MaintenanceWindow,
 	PlatformNotice,
@@ -50,6 +52,8 @@ type SuperadminSettingsWorkspaceProps = {
 	initialSettings: PlatformSettings;
 	actorName: string;
 };
+
+type SettingsTab = "notifications" | "maintenance";
 
 const DEFAULT_NOTICE_START_AT = "2026-06-16T09:00";
 const DEFAULT_NOTICE_END_AT = "2026-06-17T09:00";
@@ -234,6 +238,19 @@ function Badge({
 	);
 }
 
+function DetailBlock({ label, value }: { label: string; value: string }) {
+	return (
+		<div className="rounded-2xl border border-[#dbe5f1] bg-[#f8fbff] p-4">
+			<p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8395AF]">
+				{label}
+			</p>
+			<p className="mt-2 break-words text-sm font-black text-[#0D2B55]">
+				{value || "Not provided"}
+			</p>
+		</div>
+	);
+}
+
 export function SuperadminSettingsWorkspace({
 	initialSettings,
 	actorName,
@@ -252,6 +269,11 @@ export function SuperadminSettingsWorkspace({
 	});
 	const [showPassword, setShowPassword] = useState(false);
 	const [showNoticeModal, setShowNoticeModal] = useState(false);
+	const [showMaintenanceModal, setShowMaintenanceModal] = useState(false);
+	const [activeTab, setActiveTab] = useState<SettingsTab>("notifications");
+	const [openActionId, setOpenActionId] = useState("");
+	const [viewNotice, setViewNotice] = useState<PlatformNotice | null>(null);
+	const [viewMaintenance, setViewMaintenance] = useState<MaintenanceWindow | null>(null);
 	const [isSavingPassword, setIsSavingPassword] = useState(false);
 	const [isSavingNotice, setIsSavingNotice] = useState(false);
 	const [isLoadingNotices, setIsLoadingNotices] = useState(false);
@@ -408,7 +430,7 @@ export function SuperadminSettingsWorkspace({
 
 			setSettings((current) => ({
 				...current,
-				notices: [notice, ...current.notices].slice(0, 8),
+				notices: [notice, ...current.notices],
 			}));
 			toast.success({
 				title: "Notice saved",
@@ -454,6 +476,7 @@ export function SuperadminSettingsWorkspace({
 			}
 
 			setSettings((current) => ({ ...current, maintenance }));
+			setShowMaintenanceModal(false);
 			toast.info({
 				title: maintenance.enabled ? "Maintenance scheduled" : "Maintenance disabled",
 				description: maintenance.enabled
@@ -473,207 +496,50 @@ export function SuperadminSettingsWorkspace({
 		}
 	}
 
+	const criticalNotices = settings.notices.filter(
+		(notice) => notice.severity === "critical",
+	).length;
+	const statCards = [
+		{ label: "Total notices", value: settings.notices.length, icon: BellRing },
+		{ label: "Published", value: activeNotices, icon: CheckCircle2 },
+		{ label: "Scheduled", value: scheduledNotices, icon: CalendarClock },
+		{ label: "Critical", value: criticalNotices, icon: AlertTriangle },
+	];
+	const maintenanceRows = [settings.maintenance];
+
 	return (
 		<div className="space-y-6">
-			<section className="grid gap-4 md:grid-cols-3">
-				<div className="rounded-3xl border border-[#d7e2f0] bg-white p-5 shadow-sm">
-					<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#8395AF]">
-						Published Notices
-					</p>
-					<p className="mt-3 text-3xl font-black text-[#0D2B55]">
-						{activeNotices}
-					</p>
-					<p className="mt-2 text-sm font-semibold text-[#60728f]">
-						Active across selected portal audiences.
-					</p>
-				</div>
-				<div className="rounded-3xl border border-[#d7e2f0] bg-white p-5 shadow-sm">
-					<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#8395AF]">
-						Scheduled
-					</p>
-					<p className="mt-3 text-3xl font-black text-[#0D2B55]">
-						{scheduledNotices}
-					</p>
-					<p className="mt-2 text-sm font-semibold text-[#60728f]">
-						Ready for future maintenance or admission updates.
-					</p>
-				</div>
-				<div className="rounded-3xl border border-[#d7e2f0] bg-[#0D2B55] p-5 text-white shadow-sm">
-					<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#E4A11B]">
-						Maintenance
-					</p>
-					<p className="mt-3 text-3xl font-black">
-						{settings.maintenance.enabled ? "On" : "Off"}
-					</p>
-					<p className="mt-2 text-sm font-semibold text-[#b8c7dc]">
-						Controlled by Superadmin settings only.
-					</p>
-				</div>
-			</section>
-
-			<div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_28rem]">
-				<div className="space-y-6">
-					<SettingsCard
-						kicker="Platform Notices"
-						title="Create app notification"
-						description="Publish or schedule messages for students, staff, college admins, or the full platform."
-						icon={<Megaphone className="size-5" />}
+			<section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+				{statCards.map(({ label, value, icon: Icon }) => (
+					<div
+						key={label}
+						className="rounded-3xl border border-[#d7e2f0] bg-white p-5 shadow-sm"
 					>
-						<div className="mt-6 space-y-4">
-							<div className="rounded-3xl border border-[#dbe5f1] bg-[#f8fbff] p-4">
-								<div className="flex flex-wrap items-center gap-2">
-									<Badge className={severityStyles[noticeForm.severity]}>
-										{noticeForm.severity}
-									</Badge>
-									<Badge className={statusStyles[noticeForm.status]}>
-										{noticeForm.status}
-									</Badge>
-									<Badge className="border-[#dbe5f1] bg-white text-[#0D2B55]">
-										{noticeForm.audience.replace("-", " ")}
-									</Badge>
-								</div>
-								<h3 className="mt-4 text-lg font-black text-[#06183A]">
-									{noticeForm.title || "Notice preview"}
-								</h3>
-								<p className="mt-2 text-sm font-semibold leading-7 text-[#60728f]">
-									{noticeForm.message ||
-										"Users will see the notice message here."}
+						<div className="flex items-center justify-between gap-3">
+							<div>
+								<p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#8395AF]">
+									{label}
+								</p>
+								<p className="mt-3 text-3xl font-black text-[#0D2B55]">
+									{value}
 								</p>
 							</div>
-
-							<button
-								type="button"
-								onClick={() => setShowNoticeModal(true)}
-								className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-2xl bg-[#0D2B55] px-5 text-sm font-black text-white shadow-[0_14px_26px_rgba(13,43,85,0.24)] transition hover:bg-[#123a73] disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
-							>
-								<Megaphone className="size-4" />
-								Create notice
-							</button>
+							<div className="flex size-11 items-center justify-center rounded-2xl bg-[#eef4fb] text-[#2E86C1]">
+								<Icon className="size-5" />
+							</div>
 						</div>
-					</SettingsCard>
+					</div>
+				))}
+			</section>
 
-					<SettingsCard
-						kicker="Maintenance Control"
-						title="Schedule maintenance window"
-						description="Prepare platform downtime messaging before users are affected. This will connect to public banners and guards in the next persistence slice."
-						icon={<CalendarClock className="size-5" />}
-					>
-						<form className="mt-6 space-y-4" onSubmit={handleMaintenanceSubmit}>
-							<div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-[#dbe5f1] bg-[#f8fbff] p-4">
-								<div className="flex items-center gap-3">
-									<div
-										className={`flex size-11 items-center justify-center rounded-full ${
-											maintenance.enabled
-												? "bg-emerald-50 text-emerald-700"
-												: "bg-slate-100 text-slate-600"
-										}`}
-									>
-										<SlidersHorizontal className="size-5" />
-									</div>
-									<div>
-										<p className="text-sm font-black text-[#0D2B55]">
-											Maintenance mode
-										</p>
-										<p className="text-xs font-semibold text-[#60728f]">
-											{maintenance.enabled
-												? "Window messaging is enabled."
-												: "No platform maintenance banner is active."}
-										</p>
-									</div>
-								</div>
-								<button
-									type="button"
-									onClick={() =>
-										updateMaintenanceField("enabled", !maintenance.enabled)
-									}
-									className={`h-11 rounded-full px-5 text-sm font-black transition ${
-										maintenance.enabled
-											? "bg-[#0D2B55] text-white"
-											: "border border-[#cbd9ec] bg-white text-[#0D2B55]"
-									}`}
-								>
-									{maintenance.enabled ? "Enabled" : "Disabled"}
-								</button>
-							</div>
-
-							<FieldLabel label="Title">
-								<input
-									value={maintenance.title}
-									onChange={(event) =>
-										updateMaintenanceField("title", event.target.value)
-									}
-									className={inputClassName()}
-								/>
-							</FieldLabel>
-							<FieldLabel label="Message">
-								<textarea
-									value={maintenance.message}
-									onChange={(event) =>
-										updateMaintenanceField("message", event.target.value)
-									}
-									className={textareaClassName()}
-								/>
-							</FieldLabel>
-
-							<div className="grid gap-4 md:grid-cols-3">
-								<FieldLabel label="Start">
-									<input
-										value={maintenance.startAt}
-										onChange={(event) =>
-											updateMaintenanceField("startAt", event.target.value)
-										}
-										type="datetime-local"
-										className={inputClassName()}
-									/>
-								</FieldLabel>
-								<FieldLabel label="End">
-									<input
-										value={maintenance.endAt}
-										onChange={(event) =>
-											updateMaintenanceField("endAt", event.target.value)
-										}
-										type="datetime-local"
-										className={inputClassName()}
-									/>
-								</FieldLabel>
-								<FieldLabel label="Impact">
-									<select
-										value={maintenance.impact}
-										onChange={(event) =>
-											updateMaintenanceField(
-												"impact",
-												event.target.value as MaintenanceWindow["impact"],
-											)
-										}
-										className={inputClassName()}
-									>
-										<option value="low">Low</option>
-										<option value="medium">Medium</option>
-										<option value="high">High</option>
-									</select>
-								</FieldLabel>
-							</div>
-
-							<button
-								type="submit"
-								disabled={isSavingMaintenance}
-								className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-2xl bg-[#0D2B55] px-5 text-sm font-black text-white shadow-[0_14px_26px_rgba(13,43,85,0.24)] transition hover:bg-[#123a73] disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
-							>
-								<CalendarClock className="size-4" />
-								{isSavingMaintenance ? "Saving window..." : "Save maintenance"}
-							</button>
-						</form>
-					</SettingsCard>
-				</div>
-
-				<aside className="space-y-6">
-					<SettingsCard
-						kicker="Security"
-						title="Change password"
-						description="Use the same portal password rules used across registration and reset flows."
-						icon={<KeyRound className="size-5" />}
-					>
-						<form className="mt-6 space-y-4" onSubmit={handlePasswordSubmit}>
+			<SettingsCard
+				kicker="Security"
+				title="Change password"
+				description="Use the same portal password rules used across registration and reset flows."
+				icon={<KeyRound className="size-5" />}
+			>
+				<form className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]" onSubmit={handlePasswordSubmit}>
+					<div className="grid gap-4 md:grid-cols-3">
 							<FieldLabel label="Current Password">
 								<div className="relative">
 									<PasswordInput
@@ -733,8 +599,10 @@ export function SuperadminSettingsWorkspace({
 									</button>
 								</div>
 							</FieldLabel>
+					</div>
 
-							<div className="rounded-3xl border border-[#dbe5f1] bg-[#f8fbff] p-4">
+					<div className="space-y-4">
+						<div className="rounded-3xl border border-[#dbe5f1] bg-[#f8fbff] p-4">
 								<p className="text-sm font-black text-[#0D2B55]">
 									Password policy
 								</p>
@@ -753,7 +621,6 @@ export function SuperadminSettingsWorkspace({
 									</p>
 								</div>
 							</div>
-
 							<button
 								type="submit"
 								disabled={isSavingPassword}
@@ -762,87 +629,501 @@ export function SuperadminSettingsWorkspace({
 								<ShieldCheck className="size-4" />
 								{isSavingPassword ? "Updating..." : "Update password"}
 							</button>
-						</form>
-					</SettingsCard>
+					</div>
+				</form>
+			</SettingsCard>
 
-					<SettingsCard
-						kicker="Notice Center"
-						title="Recent notices"
-						description="Persisted platform notifications that can appear in user notification bells."
-						icon={<BellRing className="size-5" />}
-					>
-						<div className="mt-6 space-y-3">
-							{isLoadingNotices ? (
-								<p className="rounded-2xl border border-dashed border-[#dbe5f1] p-4 text-sm font-semibold text-[#60728f]">
-									Loading platform notices...
-								</p>
-							) : settings.notices.length ? (
-								settings.notices.map((notice) => (
-								<article
-									key={notice.id}
-									className="rounded-3xl border border-[#dbe5f1] bg-[#fbfdff] p-4"
-								>
-									<div className="flex flex-wrap items-center gap-2">
-										<Badge className={severityStyles[notice.severity]}>
-											{notice.severity}
-										</Badge>
-										<Badge className={statusStyles[notice.status]}>
-											{notice.status}
+			<section className="overflow-hidden rounded-3xl border border-[#d7e2f0] bg-white shadow-[0_18px_45px_rgba(13,43,85,0.08)]">
+				<div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#dbe5f1] bg-[#f8fbff] px-4 py-4 sm:px-5">
+					<div className="inline-flex rounded-2xl border border-[#d3dfed] bg-white p-1">
+						{[
+							{ key: "notifications", label: "In app notification" },
+							{ key: "maintenance", label: "Schedule maintenance window" },
+						].map((tab) => (
+							<button
+								key={tab.key}
+								type="button"
+								onClick={() => setActiveTab(tab.key as SettingsTab)}
+								className={`h-10 rounded-xl px-4 text-xs font-black uppercase tracking-[0.12em] transition ${
+									activeTab === tab.key
+										? "bg-[#0D2B55] text-white"
+										: "text-[#60728f] hover:text-[#0D2B55]"
+								}`}
+							>
+								{tab.label}
+							</button>
+						))}
+					</div>
+					<div className="flex flex-wrap gap-2">
+						<button
+							type="button"
+							onClick={() => {
+								setSettings(initialSettings);
+								setMaintenance(initialSettings.maintenance);
+								setNoticeForm(createNoticeForm(initialSettings));
+								void loadNotices();
+								toast.info("Settings form reset");
+							}}
+							className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-[#cbd9ec] bg-white px-4 text-xs font-black uppercase tracking-[0.12em] text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+						>
+							<RefreshCcw className="size-4" />
+							Reset
+						</button>
+						{activeTab === "notifications" ? (
+							<button
+								type="button"
+								onClick={() => setShowNoticeModal(true)}
+								className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] px-4 text-xs font-black uppercase tracking-[0.12em] text-white transition hover:bg-[#123a73]"
+							>
+								<Megaphone className="size-4" />
+								Create notice
+							</button>
+						) : (
+							<button
+								type="button"
+								onClick={() => setShowMaintenanceModal(true)}
+								className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] px-4 text-xs font-black uppercase tracking-[0.12em] text-white transition hover:bg-[#123a73]"
+							>
+								<CalendarClock className="size-4" />
+								Edit window
+							</button>
+						)}
+					</div>
+				</div>
+
+				{activeTab === "notifications" ? (
+					<div>
+						<div className="hidden overflow-x-auto lg:block">
+							<table className="w-full min-w-[960px] border-collapse text-left">
+								<thead className="bg-white">
+									<tr className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8395AF]">
+										<th className="px-5 py-4">Notice</th>
+										<th className="px-5 py-4">Audience</th>
+										<th className="px-5 py-4">Severity</th>
+										<th className="px-5 py-4">Status</th>
+										<th className="px-5 py-4">Window</th>
+										<th className="px-5 py-4 text-right">Actions</th>
+									</tr>
+								</thead>
+								<tbody className="divide-y divide-[#dbe5f1]">
+									{settings.notices.map((notice) => (
+										<tr key={notice.id} className="transition hover:bg-[#f8fbff]">
+											<td className="px-5 py-4">
+												<p className="font-black text-[#06183A]">{notice.title}</p>
+												<p className="mt-1 line-clamp-2 max-w-xl text-sm leading-6 text-[#60728f]">
+													{notice.message}
+												</p>
+											</td>
+											<td className="px-5 py-4 text-sm font-bold capitalize text-[#0D2B55]">
+												{notice.audience.replace("-", " ")}
+											</td>
+											<td className="px-5 py-4">
+												<Badge className={severityStyles[notice.severity]}>
+													{notice.severity}
+												</Badge>
+											</td>
+											<td className="px-5 py-4">
+												<Badge className={statusStyles[notice.status]}>
+													{notice.status}
+												</Badge>
+											</td>
+											<td className="px-5 py-4 text-sm font-semibold text-[#60728f]">
+												{formatDateTime(notice.startAt)}
+											</td>
+											<td className="px-5 py-4 text-right">
+												<RowActionMenu
+													label={`Actions for ${notice.title}`}
+													open={openActionId === `notice:${notice.id}`}
+													onOpenChange={(open) =>
+														setOpenActionId(open ? `notice:${notice.id}` : "")
+													}
+													menuClassName="z-[180]"
+													items={[
+														{
+															label: "View data",
+															icon: <Eye className="size-4" />,
+															onSelect: () => setViewNotice(notice),
+														},
+													]}
+												/>
+											</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
+						<div className="space-y-3 p-4 lg:hidden">
+							{settings.notices.map((notice) => (
+								<article key={notice.id} className="rounded-2xl border border-[#dbe5f1] bg-[#fbfdff] p-4">
+									<div className="flex items-start justify-between gap-3">
+										<div>
+											<h3 className="font-black text-[#06183A]">{notice.title}</h3>
+											<p className="mt-2 line-clamp-3 text-sm leading-6 text-[#60728f]">
+												{notice.message}
+											</p>
+										</div>
+										<RowActionMenu
+											label={`Actions for ${notice.title}`}
+											open={openActionId === `notice-mobile:${notice.id}`}
+											onOpenChange={(open) =>
+												setOpenActionId(open ? `notice-mobile:${notice.id}` : "")
+											}
+											menuClassName="z-[180]"
+											items={[
+												{
+													label: "View data",
+													icon: <Eye className="size-4" />,
+													onSelect: () => setViewNotice(notice),
+												},
+											]}
+										/>
+									</div>
+									<div className="mt-3 flex flex-wrap gap-2">
+										<Badge className={severityStyles[notice.severity]}>{notice.severity}</Badge>
+										<Badge className={statusStyles[notice.status]}>{notice.status}</Badge>
+										<Badge className="border-[#dbe5f1] bg-white text-[#0D2B55]">
+											{notice.audience.replace("-", " ")}
 										</Badge>
 									</div>
-									<h3 className="mt-3 text-base font-black text-[#06183A]">
-										{notice.title}
-									</h3>
-									<p className="mt-2 text-sm font-semibold leading-6 text-[#60728f]">
-										{notice.message}
-									</p>
-									<p className="mt-3 text-xs font-bold text-[#8395AF]">
-										{formatDateTime(notice.startAt)} - {formatDateTime(notice.endAt)}
-									</p>
 								</article>
-								))
-							) : (
-								<p className="rounded-2xl border border-dashed border-[#dbe5f1] p-4 text-sm font-semibold text-[#60728f]">
-									No persisted platform notices yet.
-								</p>
-							)}
+							))}
 						</div>
-					</SettingsCard>
+						{isLoadingNotices || settings.notices.length === 0 ? (
+							<div className="border-t border-[#dbe5f1] p-8 text-center text-sm font-semibold text-[#60728f]">
+								{isLoadingNotices ? "Loading platform notices..." : "No persisted platform notices yet."}
+							</div>
+						) : null}
+					</div>
+				) : (
+					<div>
+						<div className="hidden overflow-x-auto lg:block">
+							<table className="w-full min-w-[860px] border-collapse text-left">
+								<thead className="bg-white">
+									<tr className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8395AF]">
+										<th className="px-5 py-4">Window</th>
+										<th className="px-5 py-4">Status</th>
+										<th className="px-5 py-4">Impact</th>
+										<th className="px-5 py-4">Start</th>
+										<th className="px-5 py-4">End</th>
+										<th className="px-5 py-4 text-right">Actions</th>
+									</tr>
+								</thead>
+								<tbody className="divide-y divide-[#dbe5f1]">
+									{maintenanceRows.map((row) => (
+										<tr key={row.title} className="transition hover:bg-[#f8fbff]">
+											<td className="px-5 py-4">
+												<p className="font-black text-[#06183A]">{row.title}</p>
+												<p className="mt-1 line-clamp-2 max-w-xl text-sm leading-6 text-[#60728f]">
+													{row.message}
+												</p>
+											</td>
+											<td className="px-5 py-4">
+												<Badge className={row.enabled ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-50 text-slate-700"}>
+													{row.enabled ? "enabled" : "disabled"}
+												</Badge>
+											</td>
+											<td className="px-5 py-4 text-sm font-bold capitalize text-[#0D2B55]">
+												{row.impact}
+											</td>
+											<td className="px-5 py-4 text-sm font-semibold text-[#60728f]">
+												{formatDateTime(row.startAt)}
+											</td>
+											<td className="px-5 py-4 text-sm font-semibold text-[#60728f]">
+												{formatDateTime(row.endAt)}
+											</td>
+											<td className="px-5 py-4">
+												<RowActionMenu
+													label="Maintenance actions"
+													open={openActionId === "maintenance"}
+													onOpenChange={(open) => setOpenActionId(open ? "maintenance" : "")}
+													menuClassName="z-[180]"
+													items={[
+														{
+															label: "View data",
+															icon: <Eye className="size-4" />,
+															onSelect: () => setViewMaintenance(row),
+														},
+														{
+															label: "Edit window",
+															icon: <Pencil className="size-4" />,
+															onSelect: () => setShowMaintenanceModal(true),
+														},
+													]}
+												/>
+											</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
+						<div className="space-y-3 p-4 lg:hidden">
+							{maintenanceRows.map((row) => (
+								<article key={row.title} className="rounded-2xl border border-[#dbe5f1] bg-[#fbfdff] p-4">
+									<div className="flex items-start justify-between gap-3">
+										<div>
+											<h3 className="font-black text-[#06183A]">{row.title}</h3>
+											<p className="mt-2 line-clamp-3 text-sm leading-6 text-[#60728f]">
+												{row.message}
+											</p>
+										</div>
+										<RowActionMenu
+											label="Maintenance actions"
+											open={openActionId === "maintenance-mobile"}
+											onOpenChange={(open) => setOpenActionId(open ? "maintenance-mobile" : "")}
+											menuClassName="z-[180]"
+											items={[
+												{
+													label: "View data",
+													icon: <Eye className="size-4" />,
+													onSelect: () => setViewMaintenance(row),
+												},
+												{
+													label: "Edit window",
+													icon: <Pencil className="size-4" />,
+													onSelect: () => setShowMaintenanceModal(true),
+												},
+											]}
+										/>
+									</div>
+									<div className="mt-3 flex flex-wrap gap-2">
+										<Badge className={row.enabled ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-50 text-slate-700"}>
+											{row.enabled ? "enabled" : "disabled"}
+										</Badge>
+										<Badge className="border-[#dbe5f1] bg-white text-[#0D2B55]">{row.impact}</Badge>
+									</div>
+								</article>
+							))}
+						</div>
+					</div>
+				)}
+			</section>
 
-					<div className="rounded-3xl border border-[#f0d49d] bg-[#fff8eb] p-5 text-[#7a4d04]">
-						<div className="flex gap-3">
-							<AlertTriangle className="mt-0.5 size-5 shrink-0" />
+			{showMaintenanceModal ? (
+				<div className="fixed inset-0 z-[230] flex items-end justify-center bg-[#06172f]/60 px-3 py-4 backdrop-blur-sm sm:items-center sm:px-6">
+					<div className="max-h-[92vh] w-full max-w-4xl overflow-hidden rounded-3xl border border-[#d7e2f0] bg-white shadow-[0_26px_70px_rgba(6,24,58,0.28)]">
+						<div className="flex items-start justify-between gap-4 border-b border-[#dbe5f1] bg-[#f8fbff] px-4 py-4 sm:px-6">
 							<div>
-								<p className="text-sm font-black text-[#7a4d04]">
-									Production persistence note
+								<p className="text-[11px] font-black uppercase tracking-[0.28em] text-[#B7770D]">
+									Maintenance Control
 								</p>
-								<p className="mt-2 text-sm font-semibold leading-6">
-									Platform notices now persist through the shared notification
-									API. Maintenance windows remain on the settings endpoint.
+								<h2 className="mt-2 text-xl font-black text-[#06183A] sm:text-2xl">
+									Schedule maintenance window
+								</h2>
+							</div>
+							<button
+								type="button"
+								onClick={() => setShowMaintenanceModal(false)}
+								className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+								aria-label="Close maintenance modal"
+							>
+								<X className="size-4" />
+							</button>
+						</div>
+
+						<form onSubmit={handleMaintenanceSubmit}>
+							<div className="max-h-[calc(92vh-8rem)] space-y-4 overflow-y-auto px-4 py-5 sm:px-6">
+								<div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-[#dbe5f1] bg-[#f8fbff] p-4">
+									<div className="flex items-center gap-3">
+										<div
+											className={`flex size-11 items-center justify-center rounded-full ${
+												maintenance.enabled
+													? "bg-emerald-50 text-emerald-700"
+													: "bg-slate-100 text-slate-600"
+											}`}
+										>
+											<SlidersHorizontal className="size-5" />
+										</div>
+										<div>
+											<p className="text-sm font-black text-[#0D2B55]">
+												Maintenance mode
+											</p>
+											<p className="text-xs font-semibold text-[#60728f]">
+												{maintenance.enabled
+													? "Window messaging is enabled."
+													: "No platform maintenance banner is active."}
+											</p>
+										</div>
+									</div>
+									<button
+										type="button"
+										onClick={() =>
+											updateMaintenanceField("enabled", !maintenance.enabled)
+										}
+										className={`h-11 rounded-full px-5 text-sm font-black transition ${
+											maintenance.enabled
+												? "bg-[#0D2B55] text-white"
+												: "border border-[#cbd9ec] bg-white text-[#0D2B55]"
+										}`}
+									>
+										{maintenance.enabled ? "Enabled" : "Disabled"}
+									</button>
+								</div>
+
+								<FieldLabel label="Title">
+									<input
+										value={maintenance.title}
+										onChange={(event) =>
+											updateMaintenanceField("title", event.target.value)
+										}
+										className={inputClassName()}
+									/>
+								</FieldLabel>
+								<FieldLabel label="Message">
+									<textarea
+										value={maintenance.message}
+										onChange={(event) =>
+											updateMaintenanceField("message", event.target.value)
+										}
+										className={textareaClassName()}
+									/>
+								</FieldLabel>
+
+								<div className="grid gap-4 md:grid-cols-3">
+									<FieldLabel label="Start">
+										<input
+											value={maintenance.startAt}
+											onChange={(event) =>
+												updateMaintenanceField("startAt", event.target.value)
+											}
+											type="datetime-local"
+											className={inputClassName()}
+										/>
+									</FieldLabel>
+									<FieldLabel label="End">
+										<input
+											value={maintenance.endAt}
+											onChange={(event) =>
+												updateMaintenanceField("endAt", event.target.value)
+											}
+											type="datetime-local"
+											className={inputClassName()}
+										/>
+									</FieldLabel>
+									<FieldLabel label="Impact">
+										<select
+											value={maintenance.impact}
+											onChange={(event) =>
+												updateMaintenanceField(
+													"impact",
+													event.target.value as MaintenanceWindow["impact"],
+												)
+											}
+											className={inputClassName()}
+										>
+											<option value="low">Low</option>
+											<option value="medium">Medium</option>
+											<option value="high">High</option>
+										</select>
+									</FieldLabel>
+								</div>
+							</div>
+
+							<div className="flex justify-end border-t border-[#dbe5f1] bg-white px-4 py-4 sm:px-6">
+								<button
+									type="submit"
+									disabled={isSavingMaintenance}
+									className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-2xl bg-[#0D2B55] px-5 text-sm font-black text-white shadow-[0_14px_26px_rgba(13,43,85,0.24)] transition hover:bg-[#123a73] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+								>
+									<CalendarClock className="size-4" />
+									{isSavingMaintenance ? "Saving window..." : "Save maintenance"}
+								</button>
+							</div>
+						</form>
+					</div>
+				</div>
+			) : null}
+
+			{viewNotice ? (
+				<div className="fixed inset-0 z-[230] flex items-end justify-center bg-[#06172f]/60 px-3 py-4 backdrop-blur-sm sm:items-center sm:px-6">
+					<div className="max-h-[88vh] w-full max-w-3xl overflow-hidden rounded-3xl border border-[#d7e2f0] bg-white shadow-[0_26px_70px_rgba(6,24,58,0.28)]">
+						<div className="flex items-start justify-between gap-4 border-b border-[#dbe5f1] bg-[#f8fbff] px-4 py-4 sm:px-6">
+							<div>
+								<p className="text-[11px] font-black uppercase tracking-[0.28em] text-[#B7770D]">
+									Notice Data
 								</p>
+								<h2 className="mt-2 text-xl font-black text-[#06183A] sm:text-2xl">
+									{viewNotice.title}
+								</h2>
+							</div>
+							<button
+								type="button"
+								onClick={() => setViewNotice(null)}
+								className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+								aria-label="Close notice details"
+							>
+								<X className="size-4" />
+							</button>
+						</div>
+						<div className="max-h-[calc(88vh-6rem)] space-y-5 overflow-y-auto px-4 py-5 sm:px-6">
+							<div className="flex flex-wrap gap-2">
+								<Badge className={severityStyles[viewNotice.severity]}>
+									{viewNotice.severity}
+								</Badge>
+								<Badge className={statusStyles[viewNotice.status]}>
+									{viewNotice.status}
+								</Badge>
+								<Badge className="border-[#dbe5f1] bg-white text-[#0D2B55]">
+									{viewNotice.audience.replace("-", " ")}
+								</Badge>
+							</div>
+							<p className="whitespace-pre-wrap rounded-3xl border border-[#dbe5f1] bg-[#fbfdff] p-4 text-sm font-semibold leading-7 text-[#60728f]">
+								{viewNotice.message}
+							</p>
+							<div className="grid gap-3 sm:grid-cols-2">
+								<DetailBlock label="Start" value={formatDateTime(viewNotice.startAt)} />
+								<DetailBlock label="End" value={formatDateTime(viewNotice.endAt)} />
+								<DetailBlock label="Created by" value={viewNotice.createdBy} />
+								<DetailBlock label="Updated" value={formatDateTime(viewNotice.updatedAt)} />
 							</div>
 						</div>
 					</div>
+				</div>
+			) : null}
 
-					<button
-						type="button"
-						onClick={() => {
-							setSettings(initialSettings);
-							setMaintenance(initialSettings.maintenance);
-							setNoticeForm(createNoticeForm(initialSettings));
-							void loadNotices();
-							toast.info("Settings form reset");
-						}}
-						className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-2xl border border-[#cbd9ec] bg-white px-5 text-sm font-black text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
-					>
-						<RefreshCcw className="size-4" />
-						Reset settings form
-					</button>
-				</aside>
-			</div>
+			{viewMaintenance ? (
+				<div className="fixed inset-0 z-[230] flex items-end justify-center bg-[#06172f]/60 px-3 py-4 backdrop-blur-sm sm:items-center sm:px-6">
+					<div className="max-h-[88vh] w-full max-w-3xl overflow-hidden rounded-3xl border border-[#d7e2f0] bg-white shadow-[0_26px_70px_rgba(6,24,58,0.28)]">
+						<div className="flex items-start justify-between gap-4 border-b border-[#dbe5f1] bg-[#f8fbff] px-4 py-4 sm:px-6">
+							<div>
+								<p className="text-[11px] font-black uppercase tracking-[0.28em] text-[#B7770D]">
+									Maintenance Data
+								</p>
+								<h2 className="mt-2 text-xl font-black text-[#06183A] sm:text-2xl">
+									{viewMaintenance.title}
+								</h2>
+							</div>
+							<button
+								type="button"
+								onClick={() => setViewMaintenance(null)}
+								className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
+								aria-label="Close maintenance details"
+							>
+								<X className="size-4" />
+							</button>
+						</div>
+						<div className="max-h-[calc(88vh-6rem)] space-y-5 overflow-y-auto px-4 py-5 sm:px-6">
+							<div className="flex flex-wrap gap-2">
+								<Badge className={viewMaintenance.enabled ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-50 text-slate-700"}>
+									{viewMaintenance.enabled ? "enabled" : "disabled"}
+								</Badge>
+								<Badge className="border-[#dbe5f1] bg-white text-[#0D2B55]">
+									{viewMaintenance.impact}
+								</Badge>
+							</div>
+							<p className="whitespace-pre-wrap rounded-3xl border border-[#dbe5f1] bg-[#fbfdff] p-4 text-sm font-semibold leading-7 text-[#60728f]">
+								{viewMaintenance.message}
+							</p>
+							<div className="grid gap-3 sm:grid-cols-2">
+								<DetailBlock label="Start" value={formatDateTime(viewMaintenance.startAt)} />
+								<DetailBlock label="End" value={formatDateTime(viewMaintenance.endAt)} />
+							</div>
+						</div>
+					</div>
+				</div>
+			) : null}
 
 			{showNoticeModal ? (
-				<div className="fixed inset-0 z-50 flex items-end justify-center bg-[#06172f]/60 px-3 py-4 backdrop-blur-sm sm:items-center sm:px-6">
+				<div className="fixed inset-0 z-[230] flex items-end justify-center bg-[#06172f]/60 px-3 py-4 backdrop-blur-sm sm:items-center sm:px-6">
 					<div className="max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-3xl border border-[#d7e2f0] bg-white shadow-[0_26px_70px_rgba(6,24,58,0.28)]">
 						<div className="flex items-start justify-between gap-4 border-b border-[#dbe5f1] bg-[#f8fbff] px-4 py-4 sm:px-6">
 							<div>

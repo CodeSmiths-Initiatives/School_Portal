@@ -191,7 +191,7 @@ export function NotificationBell() {
 			</button>
 
 			{isOpen ? (
-				<div className="fixed inset-x-3 top-24 z-50 max-h-[calc(100dvh-7rem)] overflow-hidden rounded-2xl border border-[#dbe5f1] bg-white text-[#0D2B55] shadow-[0_24px_60px_rgba(6,23,47,0.24)] sm:absolute sm:inset-x-auto sm:right-0 sm:top-14 sm:w-[22rem] sm:max-h-none">
+				<div className="fixed inset-x-3 top-24 z-[220] max-h-[calc(100dvh-7rem)] overflow-hidden rounded-2xl border border-[#dbe5f1] bg-white text-[#0D2B55] shadow-[0_24px_60px_rgba(6,23,47,0.24)] sm:absolute sm:inset-x-auto sm:right-0 sm:top-14 sm:w-[22rem] sm:max-h-none">
 					<div className="flex items-center justify-between gap-3 border-b border-[#dbe5f1] bg-[#f8fbff] px-4 py-3">
 						<div>
 							<p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#B7770D]">
