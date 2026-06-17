@@ -157,6 +157,7 @@ const ADMIN_ROUTED_MENU_KEYS = new Set([
   "hostel",
   "reports",
   "roles",
+  "settings",
 ]);
 
 function hasImplementedRoute(item: MenuItemDefinition, domain: DashboardDomain) {
@@ -229,6 +230,13 @@ export function getVisibleDashboardMenus({
       return {
         ...item,
         href: "/superadmin/settings",
+      };
+    }
+
+    if (item.key === "settings" && domain === "admin" && collegeSlug) {
+      return {
+        ...item,
+        href: `/college/${collegeSlug}/admin/settings`,
       };
     }
 
