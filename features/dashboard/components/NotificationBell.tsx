@@ -1,7 +1,16 @@
 "use client";
 
 import { Bell, CheckCheck, Loader2, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
+import { createPortal } from "react-dom";
+import type { CSSProperties, ReactNode } from "react";
 import type {
 	AppNotification,
 	AppNotificationListPayload,
@@ -33,7 +42,7 @@ function NoticeBadge({
 	children,
 	severity,
 }: {
-	children: React.ReactNode;
+	children: ReactNode;
 	severity: AppNotificationSeverity;
 }) {
 	return (
@@ -50,6 +59,7 @@ export function NotificationBell() {
 	const [isLoading, setIsLoading] = useState(false);
 	const [isMarkingAll, setIsMarkingAll] = useState(false);
 	const [error, setError] = useState("");
+	const [panelStyle, setPanelStyle] = useState<CSSProperties | null>(null);
 	const [payload, setPayload] = useState<AppNotificationListPayload>({
 		notifications: [],
 		meta: {
@@ -63,11 +73,53 @@ export function NotificationBell() {
 		},
 	});
 	const containerRef = useRef<HTMLDivElement | null>(null);
+	const buttonRef = useRef<HTMLButtonElement | null>(null);
+	const panelRef = useRef<HTMLDivElement | null>(null);
 	const unreadCount = payload.meta.unread;
 	const countLabel = useMemo(
 		() => (unreadCount > 9 ? "9+" : String(unreadCount)),
 		[unreadCount],
 	);
+
+	const updatePanelPosition = useCallback(() => {
+		const button = buttonRef.current;
+
+		if (!button) return;
+
+		const gap = 10;
+		const edgeOffset = 12;
+		const rect = button.getBoundingClientRect();
+		const viewportWidth = window.innerWidth;
+		const viewportHeight = window.innerHeight;
+		const isCompact = viewportWidth < 640;
+		const top = Math.min(
+			rect.bottom + gap,
+			Math.max(edgeOffset, viewportHeight - 160),
+		);
+
+		if (isCompact) {
+			setPanelStyle({
+				left: edgeOffset,
+				right: edgeOffset,
+				top,
+				maxHeight: `calc(100dvh - ${top + edgeOffset}px)`,
+			});
+			return;
+		}
+
+		const panelWidth = 352;
+		const left = Math.min(
+			Math.max(edgeOffset, rect.right - panelWidth),
+			viewportWidth - panelWidth - edgeOffset,
+		);
+
+		setPanelStyle({
+			left,
+			top,
+			width: panelWidth,
+			maxHeight: "24rem",
+		});
+	}, []);
 
 	const loadNotifications = useCallback(async () => {
 		setIsLoading(true);
@@ -163,7 +215,12 @@ export function NotificationBell() {
 		if (!isOpen) return;
 
 		function handlePointerDown(event: PointerEvent) {
-			if (!containerRef.current?.contains(event.target as Node)) {
+			const target = event.target as Node;
+
+			if (
+				!containerRef.current?.contains(target) &&
+				!panelRef.current?.contains(target)
+			) {
 				setIsOpen(false);
 			}
 		}
@@ -173,11 +230,124 @@ export function NotificationBell() {
 		return () => document.removeEventListener("pointerdown", handlePointerDown);
 	}, [isOpen]);
 
+	useLayoutEffect(() => {
+		if (!isOpen) return;
+
+		updatePanelPosition();
+
+		window.addEventListener("resize", updatePanelPosition);
+		window.addEventListener("scroll", updatePanelPosition, true);
+
+		return () => {
+			window.removeEventListener("resize", updatePanelPosition);
+			window.removeEventListener("scroll", updatePanelPosition, true);
+		};
+	}, [isOpen, updatePanelPosition]);
+
+	const notificationPanel =
+		isOpen && panelStyle
+			? createPortal(
+					<div
+						ref={panelRef}
+						style={panelStyle}
+						className="fixed z-[1000] overflow-hidden rounded-2xl border border-[#dbe5f1] bg-white text-[#0D2B55] shadow-[0_24px_60px_rgba(6,23,47,0.24)]"
+					>
+						<div className="flex items-center justify-between gap-3 border-b border-[#dbe5f1] bg-[#f8fbff] px-4 py-3">
+							<div>
+								<p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#B7770D]">
+									Notifications
+								</p>
+								<p className="mt-1 text-xs font-semibold text-[#60728f]">
+									{unreadCount} unread of {payload.meta.total}
+								</p>
+							</div>
+							<div className="flex items-center gap-1.5">
+								<button
+									type="button"
+									onClick={markAllRead}
+									disabled={!unreadCount || isMarkingAll}
+									className="flex size-9 items-center justify-center rounded-full border border-[#dbe5f1] bg-white text-[#2E86C1] transition hover:border-[#B7770D] disabled:cursor-not-allowed disabled:opacity-40"
+									aria-label="Mark all notifications as read"
+								>
+									{isMarkingAll ? (
+										<Loader2 className="size-4 animate-spin" />
+									) : (
+										<CheckCheck className="size-4" />
+									)}
+								</button>
+								<button
+									type="button"
+									onClick={() => setIsOpen(false)}
+									className="flex size-9 items-center justify-center rounded-full border border-[#dbe5f1] bg-white text-[#60728f] transition hover:border-[#B7770D] hover:text-[#0D2B55]"
+									aria-label="Close notifications"
+								>
+									<X className="size-4" />
+								</button>
+							</div>
+						</div>
+
+						<div className="max-h-[calc(100dvh-12rem)] overflow-y-auto p-3 sm:max-h-[24rem]">
+							{isLoading ? (
+								<div className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-[#dbe5f1] p-5 text-sm font-semibold text-[#60728f]">
+									<Loader2 className="size-4 animate-spin" />
+									Loading notifications
+								</div>
+							) : error ? (
+								<div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-700">
+									{error}
+								</div>
+							) : payload.notifications.length ? (
+								<div className="space-y-2">
+									{payload.notifications.map((notification) => (
+										<button
+											key={notification.id}
+											type="button"
+											onClick={() => markRead(notification)}
+											className={`block w-full rounded-2xl border p-3 text-left transition hover:border-[#B7770D] ${
+												notification.isRead
+													? "border-[#e2eaf4] bg-white"
+													: "border-[#c9dff4] bg-[#f2f8ff]"
+											}`}
+										>
+											<div className="flex items-start justify-between gap-3">
+												<p className="line-clamp-2 text-sm font-black text-[#06183A]">
+													{notification.title}
+												</p>
+												<NoticeBadge severity={notification.severity}>
+													{notification.severity}
+												</NoticeBadge>
+											</div>
+											<p className="mt-2 line-clamp-2 text-sm leading-6 text-[#60728f]">
+												{notification.message}
+											</p>
+											<p className="mt-2 text-xs font-bold text-[#8395AF]">
+												{formatNoticeDate(
+													notification.publishedAt ?? notification.startAt,
+												)}
+											</p>
+										</button>
+									))}
+								</div>
+							) : (
+								<div className="rounded-2xl border border-dashed border-[#dbe5f1] p-5 text-center text-sm font-semibold text-[#60728f]">
+									No active notifications.
+								</div>
+							)}
+						</div>
+					</div>,
+					document.body,
+				)
+			: null;
+
 	return (
 		<div ref={containerRef} className="relative">
 			<button
+				ref={buttonRef}
 				type="button"
-				onClick={() => setIsOpen((current) => !current)}
+				onClick={() => {
+					updatePanelPosition();
+					setIsOpen((current) => !current);
+				}}
 				className="relative flex size-11 items-center justify-center rounded-[1.1rem] border border-white/12 bg-white/8 text-white transition hover:bg-white hover:text-[#0D2B55]"
 				aria-label="Open notifications"
 				aria-expanded={isOpen}
@@ -190,92 +360,7 @@ export function NotificationBell() {
 				) : null}
 			</button>
 
-			{isOpen ? (
-				<div className="fixed inset-x-3 top-24 z-[220] max-h-[calc(100dvh-7rem)] overflow-hidden rounded-2xl border border-[#dbe5f1] bg-white text-[#0D2B55] shadow-[0_24px_60px_rgba(6,23,47,0.24)] sm:absolute sm:inset-x-auto sm:right-0 sm:top-14 sm:w-[22rem] sm:max-h-none">
-					<div className="flex items-center justify-between gap-3 border-b border-[#dbe5f1] bg-[#f8fbff] px-4 py-3">
-						<div>
-							<p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#B7770D]">
-								Notifications
-							</p>
-							<p className="mt-1 text-xs font-semibold text-[#60728f]">
-								{unreadCount} unread of {payload.meta.total}
-							</p>
-						</div>
-						<div className="flex items-center gap-1.5">
-							<button
-								type="button"
-								onClick={markAllRead}
-								disabled={!unreadCount || isMarkingAll}
-								className="flex size-9 items-center justify-center rounded-full border border-[#dbe5f1] bg-white text-[#2E86C1] transition hover:border-[#B7770D] disabled:cursor-not-allowed disabled:opacity-40"
-								aria-label="Mark all notifications as read"
-							>
-								{isMarkingAll ? (
-									<Loader2 className="size-4 animate-spin" />
-								) : (
-									<CheckCheck className="size-4" />
-								)}
-							</button>
-							<button
-								type="button"
-								onClick={() => setIsOpen(false)}
-								className="flex size-9 items-center justify-center rounded-full border border-[#dbe5f1] bg-white text-[#60728f] transition hover:border-[#B7770D] hover:text-[#0D2B55]"
-								aria-label="Close notifications"
-							>
-								<X className="size-4" />
-							</button>
-						</div>
-					</div>
-
-					<div className="max-h-[calc(100dvh-12rem)] overflow-y-auto p-3 sm:max-h-[24rem]">
-						{isLoading ? (
-							<div className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-[#dbe5f1] p-5 text-sm font-semibold text-[#60728f]">
-								<Loader2 className="size-4 animate-spin" />
-								Loading notifications
-							</div>
-						) : error ? (
-							<div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-700">
-								{error}
-							</div>
-						) : payload.notifications.length ? (
-							<div className="space-y-2">
-								{payload.notifications.map((notification) => (
-									<button
-										key={notification.id}
-										type="button"
-										onClick={() => markRead(notification)}
-										className={`block w-full rounded-2xl border p-3 text-left transition hover:border-[#B7770D] ${
-											notification.isRead
-												? "border-[#e2eaf4] bg-white"
-												: "border-[#c9dff4] bg-[#f2f8ff]"
-										}`}
-									>
-										<div className="flex items-start justify-between gap-3">
-											<p className="line-clamp-2 text-sm font-black text-[#06183A]">
-												{notification.title}
-											</p>
-											<NoticeBadge severity={notification.severity}>
-												{notification.severity}
-											</NoticeBadge>
-										</div>
-										<p className="mt-2 line-clamp-2 text-sm leading-6 text-[#60728f]">
-											{notification.message}
-										</p>
-										<p className="mt-2 text-xs font-bold text-[#8395AF]">
-											{formatNoticeDate(
-												notification.publishedAt ?? notification.startAt,
-											)}
-										</p>
-									</button>
-								))}
-							</div>
-						) : (
-							<div className="rounded-2xl border border-dashed border-[#dbe5f1] p-5 text-center text-sm font-semibold text-[#60728f]">
-								No active notifications.
-							</div>
-						)}
-					</div>
-				</div>
-			) : null}
+			{notificationPanel}
 		</div>
 	);
 }
