@@ -55,9 +55,6 @@ type SuperadminSettingsWorkspaceProps = {
 
 type SettingsTab = "notifications" | "maintenance";
 
-const DEFAULT_NOTICE_START_AT = "2026-06-16T09:00";
-const DEFAULT_NOTICE_END_AT = "2026-06-17T09:00";
-
 const severityStyles = {
   info: "border-blue-200 bg-blue-50 text-blue-700",
   success: "border-emerald-200 bg-emerald-50 text-emerald-700",
@@ -82,6 +79,13 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
+function dateTimeLocal(daysOffset = 0) {
+  const date = new Date();
+  date.setDate(date.getDate() + daysOffset);
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 16);
+}
+
 function createNoticeForm(settings: PlatformSettings): NoticeForm {
   const firstDraft = settings.notices.find(
     (notice) => notice.status === "draft",
@@ -94,8 +98,8 @@ function createNoticeForm(settings: PlatformSettings): NoticeForm {
     audience: source?.audience ?? "all",
     severity: source?.severity ?? "info",
     status: "draft",
-    startAt: source?.startAt ?? DEFAULT_NOTICE_START_AT,
-    endAt: source?.endAt ?? DEFAULT_NOTICE_END_AT,
+    startAt: dateTimeLocal(),
+    endAt: dateTimeLocal(7),
   };
 }
 
@@ -689,7 +693,10 @@ export function SuperadminSettingsWorkspace({
             {activeTab === "notifications" ? (
               <button
                 type="button"
-                onClick={() => setShowNoticeModal(true)}
+                onClick={() => {
+                  setNoticeForm(createNoticeForm(settings));
+                  setShowNoticeModal(true);
+                }}
                 className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] px-4 text-xs font-black uppercase tracking-[0.12em] text-white transition hover:bg-[#123a73]"
               >
                 <Megaphone className="size-4" />

@@ -575,7 +575,12 @@ export default function CollegeAdminSettingsWorkspace({
             </button>
             <button
               type="button"
-              onClick={() => setShowCreatePanel((current) => !current)}
+              onClick={() => {
+                if (!showCreatePanel) {
+                  setForm(emptyNoticeForm());
+                }
+                setShowCreatePanel((current) => !current);
+              }}
               disabled={!canCreateNotice}
               className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] px-4 text-xs font-black uppercase tracking-[0.12em] text-white shadow-[0_12px_24px_rgba(13,43,85,0.16)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
             >
