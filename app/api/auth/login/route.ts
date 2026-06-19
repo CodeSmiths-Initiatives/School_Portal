@@ -6,6 +6,7 @@ import {
 	createAuthSessionSnapshot,
 	encodeSignedAuthSession,
 } from "@/lib/auth/session";
+import { getActiveMaintenanceWindow } from "@/lib/services/platform-settings-store";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -30,6 +31,19 @@ export async function POST(request: Request) {
 
 	if (!result.ok) {
 		return NextResponse.json(result, { status: 401 });
+	}
+
+	const activeMaintenance = await getActiveMaintenanceWindow();
+
+	if (activeMaintenance && result.session.user.domain !== "superadmin") {
+		return NextResponse.json(
+			{
+				ok: false,
+				message: activeMaintenance.message,
+				maintenance: activeMaintenance,
+			},
+			{ status: 503 },
+		);
 	}
 
 	const sessionSnapshot = createAuthSessionSnapshot(result.session);

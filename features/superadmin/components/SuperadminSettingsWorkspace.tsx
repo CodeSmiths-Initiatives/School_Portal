@@ -151,6 +151,21 @@ function isInvalidMaintenanceRange(maintenance: MaintenanceWindow) {
   return new Date(maintenance.endAt) <= new Date(maintenance.startAt);
 }
 
+function createMaintenanceEditDraft(
+  current: MaintenanceWindow,
+): MaintenanceWindow {
+  const startAt = dateTimeLocal();
+  const currentEnd = current.endAt ? new Date(current.endAt) : null;
+  const nextEnd =
+    currentEnd && currentEnd > new Date(startAt) ? current.endAt : dateTimeLocal(1);
+
+  return {
+    ...current,
+    startAt,
+    endAt: nextEnd,
+  };
+}
+
 function SettingsCard({
   children,
   className = "",
@@ -361,6 +376,11 @@ export function SuperadminSettingsWorkspace({
     setMaintenance((current) => ({ ...current, [key]: value }));
   }
 
+  function openMaintenanceEditor() {
+    setMaintenance((current) => createMaintenanceEditDraft(current));
+    setShowMaintenanceModal(true);
+  }
+
   async function handlePasswordSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSavingPassword(true);
@@ -494,13 +514,14 @@ export function SuperadminSettingsWorkspace({
       });
       const payload = (await response.json().catch(() => null)) as {
         error?: string;
+        settings?: PlatformSettings;
       } | null;
 
       if (!response.ok) {
         throw new Error(payload?.error ?? "Unable to update maintenance.");
       }
 
-      setSettings((current) => ({ ...current, maintenance }));
+      setSettings((current) => payload?.settings ?? { ...current, maintenance });
       setShowMaintenanceModal(false);
       toast.info({
         title: maintenance.enabled
@@ -719,7 +740,7 @@ export function SuperadminSettingsWorkspace({
             ) : (
               <button
                 type="button"
-                onClick={() => setShowMaintenanceModal(true)}
+                onClick={openMaintenanceEditor}
                 className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] px-4 text-xs font-black uppercase tracking-[0.12em] text-white transition hover:bg-[#123a73]"
               >
                 <CalendarClock className="size-4" />
@@ -865,7 +886,7 @@ export function SuperadminSettingsWorkspace({
                   },
                   {
                     title: "What it does now",
-                    body: "Stores the current window in this session and records an audit event; persistent enforcement can be connected later.",
+                    body: "Stores the current window for local preview, records an audit event, and blocks non-superadmin logins while enabled.",
                   },
                 ].map((item) => (
                   <div
@@ -950,7 +971,7 @@ export function SuperadminSettingsWorkspace({
                             {
                               label: "Edit window",
                               icon: <Pencil className="size-4" />,
-                              onSelect: () => setShowMaintenanceModal(true),
+                              onSelect: openMaintenanceEditor,
                             },
                           ]}
                         />
@@ -989,7 +1010,7 @@ export function SuperadminSettingsWorkspace({
                         {
                           label: "Edit window",
                           icon: <Pencil className="size-4" />,
-                          onSelect: () => setShowMaintenanceModal(true),
+                          onSelect: openMaintenanceEditor,
                         },
                       ]}
                     />
@@ -1016,8 +1037,8 @@ export function SuperadminSettingsWorkspace({
       </section>
 
       {showMaintenanceModal ? (
-        <div className="fixed inset-0 z-[230] flex items-end justify-center bg-[#06172f]/60 px-3 py-4 backdrop-blur-sm sm:items-center sm:px-6">
-          <div className="max-h-[92vh] w-full max-w-4xl overflow-hidden rounded-3xl border border-[#d7e2f0] bg-white shadow-[0_26px_70px_rgba(6,24,58,0.28)]">
+        <div className="fixed inset-0 z-[230] flex items-end justify-center bg-[#06172f]/60 px-3 py-2 backdrop-blur-sm sm:items-center sm:px-6 sm:py-4">
+          <div className="flex max-h-[calc(100dvh-1rem)] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-[#d7e2f0] bg-white shadow-[0_26px_70px_rgba(6,24,58,0.28)] sm:max-h-[92vh]">
             <div className="flex items-start justify-between gap-4 border-b border-[#dbe5f1] bg-[#f8fbff] px-4 py-4 sm:px-6">
               <div>
                 <p className="text-[11px] font-black uppercase tracking-[0.28em] text-[#B7770D]">
@@ -1037,9 +1058,12 @@ export function SuperadminSettingsWorkspace({
               </button>
             </div>
 
-            <form onSubmit={handleMaintenanceSubmit}>
-              <div className="max-h-[calc(92vh-8rem)] space-y-4 overflow-y-auto px-4 py-5 sm:px-6">
-                <div className="rounded-3xl border border-[#dbe5f1] bg-[#fbfdff] p-4">
+            <form
+              onSubmit={handleMaintenanceSubmit}
+              className="flex min-h-0 flex-1 flex-col"
+            >
+              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-6">
+                {/* <div className="rounded-3xl border border-[#dbe5f1] bg-[#fbfdff] p-4">
                   <div className="flex items-start gap-3">
                     <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-[#eef4fb] text-[#2E86C1]">
                       <CalendarClock className="size-5" />
@@ -1055,7 +1079,7 @@ export function SuperadminSettingsWorkspace({
                       </p>
                     </div>
                   </div>
-                </div>
+                </div> */}
 
                 <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-[#dbe5f1] bg-[#f8fbff] p-4">
                   <div className="flex items-center gap-3">
@@ -1158,7 +1182,7 @@ export function SuperadminSettingsWorkspace({
                 </div>
               </div>
 
-              <div className="flex justify-end border-t border-[#dbe5f1] bg-white px-4 py-4 sm:px-6">
+              <div className="flex shrink-0 justify-end border-t border-[#dbe5f1] bg-white px-4 py-4 sm:px-6">
                 <button
                   type="submit"
                   disabled={isSavingMaintenance || maintenanceRangeInvalid}

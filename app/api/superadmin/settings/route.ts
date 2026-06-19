@@ -1,10 +1,13 @@
 import {
 	changeCurrentUserPassword,
-	createDefaultPlatformSettings,
 	maintenanceWindowSchema,
 	passwordChangeSchema,
 	platformNoticeSchema,
 } from "@/lib/services/superadmin-settings.service";
+import {
+	getPlatformSettings,
+	saveMaintenanceWindow,
+} from "@/lib/services/platform-settings-store";
 import { recordSuperadminAuditEvent } from "@/lib/services/superadmin-audit.service";
 import {
 	getCurrentAuthSession,
@@ -87,8 +90,8 @@ export async function GET() {
 	}
 
 	return NextResponse.json({
-		settings: createDefaultPlatformSettings(),
-		mode: "mvp",
+		settings: await getPlatformSettings(),
+		mode: "local-preview",
 	});
 }
 
@@ -147,6 +150,11 @@ export async function PATCH(request: Request) {
 		}
 	}
 
+	const settings =
+		validation.data.action === "maintenance"
+			? await saveMaintenanceWindow(validation.data.payload)
+			: await getPlatformSettings();
+
 	await writeSettingsAudit(session!, {
 		action:
 			validation.data.action === "notice"
@@ -161,7 +169,7 @@ export async function PATCH(request: Request) {
 				? `Superadmin updated a ${validation.data.payload.audience} platform notice.`
 				: "Superadmin updated the platform maintenance window.",
 		metadata: {
-			mode: "mvp",
+			mode: "local-preview",
 			settingsAction: validation.data.action,
 		},
 	});
@@ -169,7 +177,8 @@ export async function PATCH(request: Request) {
 	return NextResponse.json({
 		ok: true,
 		action: validation.data.action,
-		mode: "mvp",
+		mode: "local-preview",
+		settings,
 		updatedAt: new Date().toISOString(),
 	});
 }

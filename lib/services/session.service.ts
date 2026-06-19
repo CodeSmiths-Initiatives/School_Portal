@@ -1,5 +1,6 @@
 import type { AuthAudience, AuthSession } from "@/lib/auth";
 import type { LoginInput } from "@/lib/validation";
+import type { MaintenanceWindow } from "@/lib/services/superadmin-settings.service";
 
 type ClientLoginSuccess = {
 	ok: true;
@@ -9,6 +10,7 @@ type ClientLoginSuccess = {
 type ClientLoginFailure = {
 	ok: false;
 	message: string;
+	maintenance?: MaintenanceWindow;
 };
 
 export type ClientLoginResult = ClientLoginSuccess | ClientLoginFailure;
@@ -28,9 +30,13 @@ export async function loginThroughSessionRoute(
 	const payload = (await response.json()) as ClientLoginResult;
 
 	if (!response.ok) {
+		if (payload.ok === false) {
+			return payload;
+		}
+
 		return {
 			ok: false,
-			message: payload.ok === false ? payload.message : "Unable to sign in.",
+			message: "Unable to sign in.",
 		};
 	}
 

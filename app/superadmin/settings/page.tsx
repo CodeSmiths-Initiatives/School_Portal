@@ -5,7 +5,7 @@ import {
 	getCurrentAuthSession,
 	getCurrentRoleLabel,
 } from "@/lib/auth/server-session";
-import { createDefaultPlatformSettings } from "@/lib/services/superadmin-settings.service";
+import { getPlatformSettings } from "@/lib/services/platform-settings-store";
 import { redirect } from "next/navigation";
 
 export const metadata = {
@@ -23,7 +23,7 @@ export default async function SuperadminSettingsPage() {
 
 	const dashboard = createSuperadminDashboardContent();
 	const roleLabel = await getCurrentRoleLabel(dashboard.roleLabel);
-	const settings = createDefaultPlatformSettings();
+	const settings = await getPlatformSettings();
 
 	return (
 		<RoleDashboardShell
