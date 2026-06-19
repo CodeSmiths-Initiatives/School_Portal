@@ -86,18 +86,13 @@ function dateTimeLocal(daysOffset = 0) {
   return date.toISOString().slice(0, 16);
 }
 
-function createNoticeForm(settings: PlatformSettings): NoticeForm {
-  const firstDraft = settings.notices.find(
-    (notice) => notice.status === "draft",
-  );
-  const source = firstDraft ?? settings.notices[0];
-
+function createNoticeForm(): NoticeForm {
   return {
-    title: source?.title ?? "",
-    message: source?.message ?? "",
-    audience: source?.audience ?? "all",
-    severity: source?.severity ?? "info",
-    status: "draft",
+    title: "",
+    message: "",
+    audience: "all",
+    severity: "info",
+    status: "active",
     startAt: dateTimeLocal(),
     endAt: dateTimeLocal(7),
   };
@@ -267,7 +262,7 @@ export function SuperadminSettingsWorkspace({
 }: SuperadminSettingsWorkspaceProps) {
   const [settings, setSettings] = useState(initialSettings);
   const [noticeForm, setNoticeForm] = useState<NoticeForm>(() =>
-    createNoticeForm(initialSettings),
+    createNoticeForm(),
   );
   const [maintenance, setMaintenance] = useState<MaintenanceWindow>(
     initialSettings.maintenance,
@@ -449,7 +444,7 @@ export function SuperadminSettingsWorkspace({
             ? "Notice draft is ready for review."
             : "Notice is ready for platform delivery.",
       });
-      setNoticeForm(createNoticeForm({ ...settings, notices: [notice] }));
+      setNoticeForm(createNoticeForm());
       setShowNoticeModal(false);
     } catch (error) {
       toast.error({
@@ -681,7 +676,7 @@ export function SuperadminSettingsWorkspace({
               onClick={() => {
                 setSettings(initialSettings);
                 setMaintenance(initialSettings.maintenance);
-                setNoticeForm(createNoticeForm(initialSettings));
+                setNoticeForm(createNoticeForm());
                 void loadNotices();
                 toast.info("Settings form reset");
               }}
@@ -694,7 +689,7 @@ export function SuperadminSettingsWorkspace({
               <button
                 type="button"
                 onClick={() => {
-                  setNoticeForm(createNoticeForm(settings));
+                  setNoticeForm(createNoticeForm());
                   setShowNoticeModal(true);
                 }}
                 className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] px-4 text-xs font-black uppercase tracking-[0.12em] text-white transition hover:bg-[#123a73]"
