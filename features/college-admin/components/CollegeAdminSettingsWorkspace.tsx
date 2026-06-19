@@ -9,6 +9,7 @@ import {
   Filter,
   Megaphone,
   Plus,
+  Save,
   Search,
   Send,
   ShieldCheck,
@@ -97,7 +98,20 @@ function dateTimeLocal(daysOffset = 0) {
   return date.toISOString().slice(0, 16);
 }
 
+function toIsoDateTime(value: string) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toISOString();
+}
+
 function formatDateTime(value: string) {
+  if (!value) {
+    return "Not scheduled";
+  }
+
   return new Intl.DateTimeFormat("en-NG", {
     dateStyle: "medium",
     timeStyle: "short",
@@ -108,9 +122,9 @@ function emptyNoticeForm(): NoticeForm {
   return {
     title: "",
     message: "",
-    audience: "students",
+    audience: "all",
     severity: "info",
-    status: "draft",
+    status: "active",
     startAt: dateTimeLocal(),
     endAt: dateTimeLocal(7),
   };
@@ -285,19 +299,6 @@ export default function CollegeAdminSettingsWorkspace({
     });
   }, [audience, notices, search, severity, status]);
 
-  const recentNotices = useMemo(
-    () =>
-      [...notices]
-        .filter((notice) => notice.createdBy === actorName)
-        .sort(
-          (left, right) =>
-            new Date(right.updatedAt).getTime() -
-            new Date(left.updatedAt).getTime(),
-        )
-        .slice(0, 3),
-    [actorName, notices],
-  );
-
   const analytics = useMemo(
     () => ({
       total: notices.length,
@@ -331,7 +332,19 @@ export default function CollegeAdminSettingsWorkspace({
     setSeverity("all");
   }
 
-  async function createNotice() {
+  function openCreateNotice() {
+    setForm(emptyNoticeForm());
+    setShowCreatePanel(true);
+  }
+
+  function closeCreateNotice() {
+    setForm(emptyNoticeForm());
+    setShowCreatePanel(false);
+  }
+
+  async function createNotice(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
     if (!canCreateNotice) {
       toast.error("You do not have permission to create notices.");
       return;
@@ -359,8 +372,8 @@ export default function CollegeAdminSettingsWorkspace({
           audience: form.audience,
           severity: form.severity,
           status: form.status,
-          startAt: form.startAt,
-          endAt: form.endAt,
+          startAt: toIsoDateTime(form.startAt),
+          endAt: toIsoDateTime(form.endAt),
           idempotencyKey: createIdempotencyKey(collegeSlug, form),
         }),
       });
@@ -575,12 +588,7 @@ export default function CollegeAdminSettingsWorkspace({
             </button>
             <button
               type="button"
-              onClick={() => {
-                if (!showCreatePanel) {
-                  setForm(emptyNoticeForm());
-                }
-                setShowCreatePanel((current) => !current);
-              }}
+              onClick={openCreateNotice}
               disabled={!canCreateNotice}
               className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] px-4 text-xs font-black uppercase tracking-[0.12em] text-white shadow-[0_12px_24px_rgba(13,43,85,0.16)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -659,89 +667,87 @@ export default function CollegeAdminSettingsWorkspace({
               </div>
               <button
                 type="button"
-                onClick={() => setShowCreatePanel(false)}
+                onClick={closeCreateNotice}
                 className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-[#d3dfed] bg-white text-[#0D2B55] transition hover:border-[#B7770D] hover:text-[#B7770D]"
                 aria-label="Close create notice modal"
               >
                 <X className="size-4" />
               </button>
             </div>
-            <div className="max-h-[calc(92vh-8rem)] overflow-y-auto px-4 py-5 sm:px-6">
-              <div className="grid gap-4 xl:grid-cols-2">
-                <FieldLabel label="Title">
-                  <input
-                    value={form.title}
-                    onChange={(event) =>
-                      updateForm("title", event.target.value)
-                    }
-                    placeholder="Portal notice title"
-                    className={inputClassName()}
-                  />
-                </FieldLabel>
-                <div className="grid gap-4 sm:grid-cols-3">
-                  <FieldLabel label="Audience">
-                    <select
-                      value={form.audience}
+            <form onSubmit={createNotice}>
+              <div className="max-h-[calc(92vh-8rem)] space-y-4 overflow-y-auto px-4 py-5 sm:px-6">
+                <div className="grid gap-4 xl:grid-cols-2">
+                  <FieldLabel label="Title">
+                    <input
+                      value={form.title}
                       onChange={(event) =>
-                        updateForm(
-                          "audience",
-                          event.target.value as NoticeAudience,
-                        )
+                        updateForm("title", event.target.value)
                       }
+                      placeholder="Scheduled maintenance"
                       className={inputClassName()}
-                    >
-                      {Object.entries(AUDIENCE_LABELS).map(([value, label]) => (
-                        <option key={value} value={value}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </FieldLabel>
-                  <FieldLabel label="Severity">
-                    <select
-                      value={form.severity}
-                      onChange={(event) =>
-                        updateForm(
-                          "severity",
-                          event.target.value as NoticeSeverity,
-                        )
-                      }
-                      className={inputClassName()}
-                    >
-                      {Object.entries(SEVERITY_LABELS).map(([value, label]) => (
-                        <option key={value} value={value}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </FieldLabel>
-                  <FieldLabel label="Status">
-                    <select
-                      value={form.status}
-                      onChange={(event) =>
-                        updateForm("status", event.target.value as NoticeStatus)
-                      }
-                      className={inputClassName()}
-                    >
-                      {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                        <option key={value} value={value}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </FieldLabel>
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <FieldLabel label="Audience">
+                      <select
+                        value={form.audience}
+                        onChange={(event) =>
+                          updateForm(
+                            "audience",
+                            event.target.value as NoticeAudience,
+                          )
+                        }
+                        className={inputClassName()}
+                      >
+                        <option value="all">All users</option>
+                        <option value="students">Students</option>
+                        <option value="staff">Staff</option>
+                      </select>
+                    </FieldLabel>
+                    <FieldLabel label="Severity">
+                      <select
+                        value={form.severity}
+                        onChange={(event) =>
+                          updateForm(
+                            "severity",
+                            event.target.value as NoticeSeverity,
+                          )
+                        }
+                        className={inputClassName()}
+                      >
+                        <option value="info">Info</option>
+                        <option value="success">Success</option>
+                        <option value="warning">Warning</option>
+                        <option value="critical">Critical</option>
+                      </select>
+                    </FieldLabel>
+                    <FieldLabel label="Status">
+                      <select
+                        value={form.status}
+                        onChange={(event) =>
+                          updateForm("status", event.target.value as NoticeStatus)
+                        }
+                        className={inputClassName()}
+                      >
+                        <option value="draft">Draft</option>
+                        <option value="active">Active</option>
+                      </select>
+                    </FieldLabel>
+                  </div>
                 </div>
+
                 <FieldLabel label="Message">
                   <textarea
                     value={form.message}
                     onChange={(event) =>
                       updateForm("message", event.target.value)
                     }
-                    placeholder="Write the notice students or staff will see in-app."
+                    placeholder="Portal maintenance will run from 1 Aug to 15 Aug."
                     className={textareaClassName()}
                   />
                 </FieldLabel>
-                <div className="grid gap-4 sm:grid-cols-2">
+
+                <div className="grid gap-4 md:grid-cols-2">
                   <FieldLabel label="Start">
                     <input
                       type="datetime-local"
@@ -763,19 +769,39 @@ export default function CollegeAdminSettingsWorkspace({
                     />
                   </FieldLabel>
                 </div>
+
+                <div className="rounded-3xl border border-[#dbe5f1] bg-[#f8fbff] p-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge className={severityStyles[form.severity]}>
+                      {form.severity}
+                    </Badge>
+                    <Badge className={statusStyles[form.status]}>
+                      {form.status}
+                    </Badge>
+                    <Badge className="border-[#dbe5f1] bg-white text-[#0D2B55]">
+                      {form.audience.replace("-", " ")}
+                    </Badge>
+                  </div>
+                  <h3 className="mt-4 text-lg font-black text-[#06183A]">
+                    {form.title || "Notice preview"}
+                  </h3>
+                  <p className="mt-2 text-sm font-semibold leading-7 text-[#60728f]">
+                    {form.message || "Users will see the notice message here."}
+                  </p>
+                </div>
               </div>
-            </div>
-            <div className="flex justify-end border-t border-[#dbe5f1] bg-white px-4 py-4 sm:px-6">
-              <button
-                type="button"
-                onClick={createNotice}
-                disabled={isSavingNotice}
-                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#0D2B55] px-5 text-sm font-black text-white shadow-[0_12px_24px_rgba(13,43,85,0.18)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-              >
-                <Send className="size-4" />
-                {isSavingNotice ? "Saving notice..." : "Save notice"}
-              </button>
-            </div>
+
+              <div className="flex justify-end border-t border-[#dbe5f1] bg-white px-4 py-4 sm:px-6">
+                <button
+                  type="submit"
+                  disabled={isSavingNotice}
+                  className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-2xl bg-[#0D2B55] px-5 text-sm font-black text-white shadow-[0_14px_26px_rgba(13,43,85,0.24)] transition hover:bg-[#123a73] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                >
+                  <Save className="size-4" />
+                  {isSavingNotice ? "Saving notice..." : "Save notice"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       ) : null}
