@@ -34,14 +34,23 @@ export const platformNoticeSchema = z.object({
 	updatedAt: z.string().min(1),
 });
 
-export const maintenanceWindowSchema = z.object({
-	enabled: z.boolean(),
-	title: z.string().trim().min(3, "Maintenance title is required").max(90),
-	message: z.string().trim().min(10, "Maintenance message is required").max(280),
-	startAt: z.string().min(1, "Start date is required"),
-	endAt: z.string().min(1, "End date is required"),
-	impact: z.enum(["low", "medium", "high"]),
-});
+export const maintenanceWindowSchema = z
+	.object({
+		enabled: z.boolean(),
+		title: z.string().trim().min(3, "Maintenance title is required").max(90),
+		message: z
+			.string()
+			.trim()
+			.min(10, "Maintenance message is required")
+			.max(280),
+		startAt: z.string().min(1, "Start date is required"),
+		endAt: z.string().min(1, "End date is required"),
+		impact: z.enum(["low", "medium", "high"]),
+	})
+	.refine((data) => new Date(data.endAt) > new Date(data.startAt), {
+		message: "Maintenance end date must be after the start date",
+		path: ["endAt"],
+	});
 
 export const passwordChangeSchema = z
 	.object({

@@ -14,6 +14,7 @@ import {
   Save,
   ShieldCheck,
   SlidersHorizontal,
+  Wrench,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -140,6 +141,14 @@ function createIdempotencyKey(form: NoticeForm) {
     .join(":")
     .replace(/[^a-z0-9:.-]+/g, "-")
     .slice(0, 150);
+}
+
+function isInvalidMaintenanceRange(maintenance: MaintenanceWindow) {
+  if (!maintenance.startAt || !maintenance.endAt) {
+    return false;
+  }
+
+  return new Date(maintenance.endAt) <= new Date(maintenance.startAt);
 }
 
 function SettingsCard({
@@ -463,6 +472,15 @@ export function SuperadminSettingsWorkspace({
     event: React.FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
+
+    if (isInvalidMaintenanceRange(maintenance)) {
+      toast.error({
+        title: "Check maintenance window",
+        description: "The maintenance end time must be after the start time.",
+      });
+      return;
+    }
+
     setIsSavingMaintenance(true);
 
     try {
@@ -508,6 +526,7 @@ export function SuperadminSettingsWorkspace({
   const criticalNotices = settings.notices.filter(
     (notice) => notice.severity === "critical",
   ).length;
+  const maintenanceRangeInvalid = isInvalidMaintenanceRange(maintenance);
   const statCards = [
     { label: "Total notices", value: settings.notices.length, icon: BellRing },
     { label: "Published", value: activeNotices, icon: CheckCircle2 },
@@ -833,6 +852,43 @@ export function SuperadminSettingsWorkspace({
           </div>
         ) : (
           <div>
+            <div className="border-b border-[#dbe5f1] bg-[#fbfdff] px-4 py-5 sm:px-5">
+              <div className="grid gap-3 lg:grid-cols-3">
+                {[
+                  {
+                    title: "What it is used for",
+                    body: "Announce planned platform downtime before it affects applicants, students, staff, and college admins.",
+                  },
+                  {
+                    title: "How to use it",
+                    body: "Open Edit window, add the title, message, start time, end time, impact level, then enable and save.",
+                  },
+                  {
+                    title: "What it does now",
+                    body: "Stores the current window in this session and records an audit event; persistent enforcement can be connected later.",
+                  },
+                ].map((item) => (
+                  <div
+                    key={item.title}
+                    className="rounded-2xl border border-[#dbe5f1] bg-white p-4"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#eef4fb] text-[#2E86C1]">
+                        <Wrench className="size-4" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-black text-[#06183A]">
+                          {item.title}
+                        </h3>
+                        <p className="mt-2 text-sm font-semibold leading-6 text-[#60728f]">
+                          {item.body}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
             <div className="hidden overflow-x-auto lg:block">
               <table className="w-full min-w-[860px] border-collapse text-left">
                 <thead className="bg-white">
@@ -983,6 +1039,24 @@ export function SuperadminSettingsWorkspace({
 
             <form onSubmit={handleMaintenanceSubmit}>
               <div className="max-h-[calc(92vh-8rem)] space-y-4 overflow-y-auto px-4 py-5 sm:px-6">
+                <div className="rounded-3xl border border-[#dbe5f1] bg-[#fbfdff] p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-[#eef4fb] text-[#2E86C1]">
+                      <CalendarClock className="size-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-[#0D2B55]">
+                        Use this before planned downtime
+                      </p>
+                      <p className="mt-2 text-sm font-semibold leading-6 text-[#60728f]">
+                        The window tells users when the portal may be
+                        unavailable and how serious the impact is. Keep it
+                        disabled until the message is ready to show.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-[#dbe5f1] bg-[#f8fbff] p-4">
                   <div className="flex items-center gap-3">
                     <div
@@ -1059,6 +1133,11 @@ export function SuperadminSettingsWorkspace({
                       type="datetime-local"
                       className={inputClassName()}
                     />
+                    {maintenanceRangeInvalid ? (
+                      <span className="mt-2 block text-xs font-bold text-red-600">
+                        End time must be after the start time.
+                      </span>
+                    ) : null}
                   </FieldLabel>
                   <FieldLabel label="Impact">
                     <select
@@ -1082,7 +1161,7 @@ export function SuperadminSettingsWorkspace({
               <div className="flex justify-end border-t border-[#dbe5f1] bg-white px-4 py-4 sm:px-6">
                 <button
                   type="submit"
-                  disabled={isSavingMaintenance}
+                  disabled={isSavingMaintenance || maintenanceRangeInvalid}
                   className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-2xl bg-[#0D2B55] px-5 text-sm font-black text-white shadow-[0_14px_26px_rgba(13,43,85,0.24)] transition hover:bg-[#123a73] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                 >
                   <CalendarClock className="size-4" />
