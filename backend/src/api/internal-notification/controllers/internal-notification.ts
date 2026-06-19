@@ -93,6 +93,16 @@ function normalizeEnum<T extends string>(
 	return options.includes(text as T) ? (text as T) : fallback;
 }
 
+function normalizeAudience(value: unknown) {
+	const text = asString(value).toLowerCase();
+
+	if (["admin", "admins", "college-admin", "college-admins"].includes(text)) {
+		return "college-admins";
+	}
+
+	return normalizeEnum(text, AUDIENCES, "all");
+}
+
 function normalizeDomain(value: unknown) {
 	const text = asString(value).toLowerCase();
 
@@ -150,7 +160,7 @@ function isVisibleToViewer(
 	},
 ) {
 	const scope = asString(notification.scope);
-	const audience = asString(notification.audience);
+	const audience = normalizeAudience(notification.audience);
 	const targetUser = asRecord(notification.targetUser);
 	const targetRole = asRecord(notification.targetRole);
 	const college = asRecord(notification.college);
@@ -221,7 +231,7 @@ function mapNotification(
 		title: asString(notification.title),
 		message: asString(notification.message),
 		scope: asString(notification.scope),
-		audience: asString(notification.audience),
+		audience: normalizeAudience(notification.audience),
 		severity: asString(notification.severity),
 		status: asString(notification.status),
 		startAt: asString(notification.startAt) || null,
@@ -374,7 +384,7 @@ function parseCreatePayload(body: unknown) {
 		title: asString(payload.title),
 		message: asString(payload.message),
 		scope,
-		audience: normalizeEnum(payload.audience, AUDIENCES, "all"),
+		audience: normalizeAudience(payload.audience),
 		severity: normalizeEnum(payload.severity, SEVERITIES, "info"),
 		status,
 		startAt,

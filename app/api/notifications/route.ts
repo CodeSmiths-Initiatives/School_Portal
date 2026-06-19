@@ -20,14 +20,27 @@ const createNotificationSchema = z.object({
 	title: z.string().trim().min(3).max(120),
 	message: z.string().trim().min(10).max(1000),
 	scope: z.enum(["platform", "college"]),
-	audience: z.enum([
-		"all",
-		"students",
-		"staff",
-		"college-admins",
-		"specific-admin",
-		"specific-user",
-	]),
+	audience: z.preprocess(
+		(value) => {
+			if (typeof value !== "string") return value;
+
+			const normalized = value.trim().toLowerCase();
+
+			if (["admin", "admins", "college-admin", "college-admins"].includes(normalized)) {
+				return "college-admins";
+			}
+
+			return normalized;
+		},
+		z.enum([
+			"all",
+			"students",
+			"staff",
+			"college-admins",
+			"specific-admin",
+			"specific-user",
+		]),
+	),
 	severity: z.enum(["info", "success", "warning", "critical"]).optional(),
 	status: z.enum(["draft", "scheduled", "active", "expired", "archived"]).optional(),
 	startAt: z.string().optional(),
