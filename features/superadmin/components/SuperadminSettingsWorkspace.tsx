@@ -67,7 +67,6 @@ const severityStyles = {
 
 const statusStyles = {
   draft: "border-slate-200 bg-slate-50 text-slate-700",
-  scheduled: "border-blue-200 bg-blue-50 text-blue-700",
   active: "border-emerald-200 bg-emerald-50 text-emerald-700",
   expired: "border-slate-200 bg-slate-50 text-slate-500",
 } satisfies Record<PlatformNoticeStatus, string>;
@@ -115,7 +114,11 @@ function mapNotificationToPlatformNotice(
         : notification.audience,
     severity: notification.severity,
     status:
-      notification.status === "archived" ? "expired" : notification.status,
+      notification.status === "archived" || notification.status === "expired"
+        ? "expired"
+        : notification.status === "active"
+          ? "active"
+          : "draft",
     startAt: notification.startAt ?? "",
     endAt: notification.endAt ?? "",
     createdBy:
@@ -335,11 +338,6 @@ export function SuperadminSettingsWorkspace({
       settings.notices.filter((notice) => notice.status === "active").length,
     [settings.notices],
   );
-  const scheduledNotices = useMemo(
-    () =>
-      settings.notices.filter((notice) => notice.status === "scheduled").length,
-    [settings.notices],
-  );
 
   function updateNoticeField<K extends keyof NoticeForm>(
     key: K,
@@ -514,7 +512,6 @@ export function SuperadminSettingsWorkspace({
   const statCards = [
     { label: "Total notices", value: settings.notices.length, icon: BellRing },
     { label: "Published", value: activeNotices, icon: CheckCircle2 },
-    { label: "Scheduled", value: scheduledNotices, icon: CalendarClock },
     { label: "Critical", value: criticalNotices, icon: AlertTriangle },
   ];
   const maintenanceRows = [settings.maintenance];
@@ -1290,7 +1287,6 @@ export function SuperadminSettingsWorkspace({
                         className={inputClassName()}
                       >
                         <option value="draft">Draft</option>
-                        <option value="scheduled">Scheduled</option>
                         <option value="active">Active</option>
                       </select>
                     </FieldLabel>

@@ -3,7 +3,6 @@
 import {
   Archive,
   BellRing,
-  CalendarClock,
   CheckCircle2,
   Copy,
   Eye,
@@ -26,7 +25,7 @@ import { toast } from "@/lib/toast";
 
 type NoticeAudience = "all" | "students" | "staff";
 type NoticeSeverity = "info" | "success" | "warning" | "critical";
-type NoticeStatus = "draft" | "scheduled" | "active" | "expired";
+type NoticeStatus = "draft" | "active" | "expired";
 
 type AdminNotice = {
   id: string;
@@ -61,7 +60,6 @@ type CollegeAdminSettingsWorkspaceProps = {
 
 const STATUS_LABELS: Record<NoticeStatus, string> = {
   draft: "Draft",
-  scheduled: "Scheduled",
   active: "Active",
   expired: "Expired",
 };
@@ -81,7 +79,6 @@ const SEVERITY_LABELS: Record<NoticeSeverity, string> = {
 
 const statusStyles = {
   draft: "border-slate-200 bg-slate-50 text-slate-700",
-  scheduled: "border-blue-200 bg-blue-50 text-blue-700",
   active: "border-emerald-200 bg-emerald-50 text-emerald-700",
   expired: "border-slate-200 bg-slate-50 text-slate-500",
 } satisfies Record<NoticeStatus, string>;
@@ -135,7 +132,11 @@ function mapNotificationToAdminNotice(
         : notification.audience,
     severity: notification.severity,
     status:
-      notification.status === "archived" ? "expired" : notification.status,
+      notification.status === "archived" || notification.status === "expired"
+        ? "expired"
+        : notification.status === "active"
+          ? "active"
+          : "draft",
     startAt: notification.startAt ?? "",
     endAt: notification.endAt ?? "",
     createdBy:
@@ -301,8 +302,6 @@ export default function CollegeAdminSettingsWorkspace({
     () => ({
       total: notices.length,
       active: notices.filter((notice) => notice.status === "active").length,
-      scheduled: notices.filter((notice) => notice.status === "scheduled")
-        .length,
       createdByYou: notices.filter((notice) => notice.createdBy === actorName)
         .length,
     }),
@@ -311,7 +310,6 @@ export default function CollegeAdminSettingsWorkspace({
   const statCards = [
     { label: "Total Notices", value: analytics.total, icon: Megaphone },
     { label: "Active", value: analytics.active, icon: CheckCircle2 },
-    { label: "Scheduled", value: analytics.scheduled, icon: CalendarClock },
     {
       label: "Created By You",
       value: analytics.createdByYou,

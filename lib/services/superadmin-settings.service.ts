@@ -17,7 +17,6 @@ export const platformNoticeSeveritySchema = z.enum([
 
 export const platformNoticeStatusSchema = z.enum([
 	"draft",
-	"scheduled",
 	"active",
 	"expired",
 ]);
@@ -90,7 +89,7 @@ export function createDefaultPlatformSettings(): PlatformSettings {
 					"The school portal will undergo planned maintenance from 1 Aug to 15 Aug. Critical admission and payment data will remain protected.",
 				audience: "all",
 				severity: "warning",
-				status: "scheduled",
+				status: "draft",
 				startAt: daysFromNow(7),
 				endAt: daysFromNow(21),
 				createdBy: "Superadmin",
