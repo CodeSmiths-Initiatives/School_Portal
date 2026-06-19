@@ -60,6 +60,22 @@ function getNoticeState(notice: AppNotification) {
 	return notice.isRead ? "Read" : "Unread";
 }
 
+function getCreatorSourceLabel(notice: AppNotification) {
+	if (notice.createdBySource === "platform-superadmin") {
+		return "Platform Superadmin";
+	}
+
+	if (notice.createdBySource === "college-admin") {
+		return "College Admin";
+	}
+
+	return notice.scope === "platform" ? "Platform Superadmin" : "College Admin";
+}
+
+function getCreatorName(notice: AppNotification) {
+	return notice.createdBy?.username || notice.createdBy?.email || "Portal user";
+}
+
 function csvValue(value: string | number | null | undefined) {
 	const text = String(value ?? "");
 	return `"${text.replace(/"/g, '""')}"`;
@@ -246,12 +262,13 @@ export function NoticeCenterWorkspace({
 
 	function downloadNoticeCsv(notices: AppNotification[]) {
 		const rows = [
-			["Title", "Message", "Severity", "Audience", "Published", "State"],
+			["Title", "Message", "Severity", "Audience", "Created By", "Published", "State"],
 			...notices.map((notice) => [
 				notice.title,
 				notice.message,
 				notice.severity,
 				formatAudience(notice.audience),
+				getCreatorSourceLabel(notice),
 				getNoticeDate(notice),
 				getNoticeState(notice),
 			]),
@@ -287,6 +304,7 @@ export function NoticeCenterWorkspace({
 						</td>
 						<td>${htmlValue(notice.severity)}</td>
 						<td>${htmlValue(formatAudience(notice.audience))}</td>
+						<td>${htmlValue(getCreatorSourceLabel(notice))}</td>
 						<td>${htmlValue(getNoticeDate(notice))}</td>
 						<td>${htmlValue(getNoticeState(notice))}</td>
 					</tr>
@@ -319,6 +337,7 @@ export function NoticeCenterWorkspace({
 								<th>Notice</th>
 								<th>Severity</th>
 								<th>Audience</th>
+								<th>Created By</th>
 								<th>Published</th>
 								<th>State</th>
 							</tr>
@@ -577,6 +596,7 @@ export function NoticeCenterWorkspace({
 								<th className="px-5 py-4">Notice</th>
 								<th className="px-5 py-4">Severity</th>
 								<th className="px-5 py-4">Audience</th>
+								<th className="px-5 py-4">Created By</th>
 								<th className="px-5 py-4">Published</th>
 								<th className="px-5 py-4">State</th>
 							</tr>
@@ -602,6 +622,14 @@ export function NoticeCenterWorkspace({
 									</td>
 									<td className="px-5 py-4 text-sm font-bold capitalize text-[#0D2B55]">
 										{notice.audience.replace("-", " ")}
+									</td>
+									<td className="px-5 py-4">
+										<p className="text-sm font-black text-[#0D2B55]">
+											{getCreatorSourceLabel(notice)}
+										</p>
+										<p className="mt-1 text-xs font-semibold text-[#8395AF]">
+											{getCreatorName(notice)}
+										</p>
 									</td>
 									<td className="px-5 py-4 text-sm font-semibold text-[#60728f]">
 										{formatDate(notice.publishedAt ?? notice.startAt)}
@@ -644,6 +672,9 @@ export function NoticeCenterWorkspace({
 								</Badge>
 								<Badge className="border-[#dbe5f1] bg-white text-[#0D2B55]">
 									{notice.isRead ? "Read" : "Unread"}
+								</Badge>
+								<Badge className="border-[#dbe5f1] bg-white text-[#0D2B55]">
+									{getCreatorSourceLabel(notice)}
 								</Badge>
 							</div>
 							<h3 className="mt-3 text-base font-black text-[#06183A]">
@@ -762,6 +793,9 @@ export function NoticeCenterWorkspace({
 								<Badge className="border-[#dbe5f1] bg-white text-[#0D2B55]">
 									{getNoticeState(selectedNotice)}
 								</Badge>
+								<Badge className="border-[#dbe5f1] bg-white text-[#0D2B55]">
+									{getCreatorSourceLabel(selectedNotice)}
+								</Badge>
 							</div>
 
 							<p className="mt-5 whitespace-pre-wrap text-sm leading-7 text-[#334a6b]">
@@ -783,6 +817,22 @@ export function NoticeCenterWorkspace({
 									</p>
 									<p className="mt-1 font-bold text-[#0D2B55]">
 										{formatDate(selectedNotice.endAt)}
+									</p>
+								</div>
+								<div>
+									<p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8395AF]">
+										Created By
+									</p>
+									<p className="mt-1 font-bold text-[#0D2B55]">
+										{getCreatorSourceLabel(selectedNotice)}
+									</p>
+								</div>
+								<div>
+									<p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8395AF]">
+										Creator Account
+									</p>
+									<p className="mt-1 font-bold text-[#0D2B55]">
+										{getCreatorName(selectedNotice)}
 									</p>
 								</div>
 							</div>

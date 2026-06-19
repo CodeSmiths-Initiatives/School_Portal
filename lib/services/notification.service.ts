@@ -48,6 +48,8 @@ export type AppNotification = {
 		username: string;
 		email: string;
 	} | null;
+	createdByRole: string | null;
+	createdBySource: "platform-superadmin" | "college-admin" | "unknown";
 	receipt: {
 		id: number | string;
 		readAt: string | null;

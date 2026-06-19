@@ -220,10 +220,39 @@ function mapReceipt(receipt: Record<string, unknown>) {
 	};
 }
 
+function getNotificationCreatorSource(notification: Record<string, unknown>) {
+	const metadata = asRecord(notification.metadata);
+	const actor = asRecord(metadata.actor);
+	const actorRole = asString(actor.role);
+	const normalizedRole = actorRole.toLowerCase();
+	const scope = asString(notification.scope);
+
+	if (normalizedRole.includes("superadmin")) {
+		return "platform-superadmin";
+	}
+
+	if (normalizedRole.includes("college admin") || normalizedRole.includes("admin")) {
+		return "college-admin";
+	}
+
+	if (scope === "platform") {
+		return "platform-superadmin";
+	}
+
+	if (scope === "college") {
+		return "college-admin";
+	}
+
+	return "unknown";
+}
+
 function mapNotification(
 	notification: Record<string, unknown>,
 	receipt?: Record<string, unknown> | null,
 ) {
+	const metadata = asRecord(notification.metadata);
+	const actor = asRecord(metadata.actor);
+
 	return {
 		id: getEntityId(notification),
 		documentId: asString(notification.documentId) || undefined,
@@ -242,6 +271,8 @@ function mapNotification(
 		college: mapCollege(asRecord(notification.college)),
 		targetUser: mapUser(asRecord(notification.targetUser)),
 		createdBy: mapUser(asRecord(notification.createdBy)),
+		createdByRole: asString(actor.role) || null,
+		createdBySource: getNotificationCreatorSource(notification),
 		receipt: receipt ? mapReceipt(receipt) : null,
 		isRead: Boolean(receipt?.readAt),
 	};
@@ -662,6 +693,7 @@ const internalNotificationController = {
 						email: payload.actorEmail,
 						role: payload.actorRole,
 					}),
+					...(payload.createdById ? { createdBy: payload.createdById } : {}),
 					...(collegeId ? { college: collegeId } : {}),
 					...(payload.targetUserId ? { targetUser: payload.targetUserId } : {}),
 					...(payload.targetRoleId ? { targetRole: payload.targetRoleId } : {}),
