@@ -71,6 +71,25 @@ export default function ImportResultsModal({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const validExtensions = [".xlsx", ".xls"];
+    const validTypes = [
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "application/vnd.ms-excel",
+    ];
+    const hasValidExtension = validExtensions.some((ext) =>
+      file.name.toLowerCase().endsWith(ext)
+    );
+    const hasValidType = validTypes.includes(file.type);
+
+    if (!hasValidExtension || (file.type && !hasValidType)) {
+      setFileName(file.name);
+      setParsedRows([]);
+      setParseError("Only .xlsx or .xls files are supported. Please upload a valid Excel file.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
     setFileName(file.name);
     setParseError(null);
     setParsedRows([]);
@@ -91,6 +110,12 @@ export default function ImportResultsModal({
 
         const dataRows = rows.slice(2).filter((r) => r[0]); // skip empty rows
 
+        const seenIds = new Map<string, number>(); // studentId -> count
+        dataRows.forEach((r) => {
+          const id = String(r[0] ?? "").trim();
+          if (id) seenIds.set(id, (seenIds.get(id) || 0) + 1);
+        });
+
         const result: ParsedRow[] = dataRows.map((r) => {
           const studentId = String(r[0] ?? "").trim();
           const studentName = String(r[1] ?? "").trim();
@@ -107,6 +132,9 @@ export default function ImportResultsModal({
 
           if (!studentId) errors.push("Missing Student ID");
           if (!studentName) errors.push("Missing Name");
+          if (studentId && (seenIds.get(studentId) || 0) > 1) {
+            errors.push("Duplicate Student ID in this file");
+          }
 
           return { studentId, studentName, courses, errors };
         });
