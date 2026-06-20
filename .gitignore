@@ -62,3 +62,4 @@ backend/public/uploads/*
 next-env.d.ts
 .env.local
 .env
+.env.example
