@@ -249,60 +249,67 @@ export default function ResultsView({ collegeSlug }: ResultsViewProps) {
         ))}
       </div>
 
-      {/* ── 2. Filters (with Reset) ── */}
+      {/* ── 2. Filters + Actions — stacked layout for mobile (per wireframe) ── */}
       <div className="rounded-2xl border border-[#dbe5f1] bg-white shadow-sm p-4 sm:p-5">
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
 
-          {/* Filters row */}
-          <div className="flex flex-col sm:flex-row sm:items-end gap-3 sm:gap-4">
-            <div className="flex flex-col gap-1 min-w-[160px] flex-1 max-w-xs">
-              <label className="text-[10px] font-bold tracking-widest text-[#4a5a7a] uppercase">Department</label>
-              <select
-                value={filters.department}
-                onChange={(e) => setFilters((f) => ({ ...f, department: e.target.value }))}
-                className="h-10 text-sm border border-[#dce6f2] rounded-xl px-3 text-[#0D2B55] bg-white outline-none focus:border-[#2E86C1] focus:ring-2 focus:ring-[#2E86C1]/15"
+          {/* Filters column — full width rows on mobile, inline on desktop */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-1 min-w-0">
+            {/* Reset — own small row, right-aligned, above the selects on mobile */}
+            <div className="flex sm:hidden justify-end">
+              <button
+                onClick={() => setFilters(DEFAULT_FILTERS)}
+                disabled={!filtersActive}
+                className="flex items-center gap-1 text-xs font-semibold text-[#2E86C1] disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                {departments.map((d) => <option key={d}>{d}</option>)}
-              </select>
+                <RotateCcw size={12} /> Reset
+              </button>
             </div>
-            <div className="flex flex-col gap-1 min-w-[160px] flex-1 max-w-xs">
-              <label className="text-[10px] font-bold tracking-widest text-[#4a5a7a] uppercase">Semester</label>
-              <select
-                value={filters.semester}
-                onChange={(e) => setFilters((f) => ({ ...f, semester: e.target.value }))}
-                className="h-10 text-sm border border-[#dce6f2] rounded-xl px-3 text-[#0D2B55] bg-white outline-none focus:border-[#2E86C1] focus:ring-2 focus:ring-[#2E86C1]/15"
-              >
-                {semesters.map((s) => <option key={s}>{s}</option>)}
-              </select>
-            </div>
+
+            <select
+              value={filters.department}
+              onChange={(e) => setFilters((f) => ({ ...f, department: e.target.value }))}
+              className="h-9 w-full sm:w-auto text-sm border border-[#dce6f2] rounded-xl px-3 text-[#0D2B55] bg-white outline-none focus:border-[#2E86C1] focus:ring-2 focus:ring-[#2E86C1]/15"
+            >
+              {departments.map((d) => <option key={d}>{d}</option>)}
+            </select>
+
+            <select
+              value={filters.semester}
+              onChange={(e) => setFilters((f) => ({ ...f, semester: e.target.value }))}
+              className="h-9 w-full sm:w-auto text-sm border border-[#dce6f2] rounded-xl px-3 text-[#0D2B55] bg-white outline-none focus:border-[#2E86C1] focus:ring-2 focus:ring-[#2E86C1]/15"
+            >
+              {semesters.map((s) => <option key={s}>{s}</option>)}
+            </select>
+
             <button
               onClick={() => setFilters(DEFAULT_FILTERS)}
               disabled={!filtersActive}
-              className="h-10 flex items-center justify-center gap-1.5 px-4 rounded-xl text-sm font-semibold border border-[#dce6f2] text-[#4a5a7a] hover:border-[#8a9ab5] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="hidden sm:flex shrink-0 items-center gap-1 text-sm font-semibold text-[#2E86C1] hover:text-[#1a6fa8] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
-              <RotateCcw size={14} /> Reset
+              <RotateCcw size={13} /> Reset
             </button>
           </div>
 
-          {/* Actions row — 3 buttons, evenly aligned */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 border-t border-[#eef3fb]">
+          {/* Actions — three equal-width buttons */}
+          <div className="grid grid-cols-3 sm:flex sm:items-center gap-2">
             <button
-              onClick={handlePublishAll}
-              className="h-10 flex items-center justify-center gap-2 px-4 rounded-xl text-sm font-semibold bg-[#2E86C1] hover:bg-[#1a6fa8] text-white transition-colors"
+              onClick={() => setShowImportModal(true)}
+              className="h-9 flex items-center justify-center gap-1.5 px-2.5 sm:px-3.5 rounded-lg text-xs font-semibold border border-[#dce6f2] text-[#0D2B55] hover:bg-[#f8fbff] transition-colors"
             >
-              <Megaphone size={15} /> Publish All
+              <Upload size={14} /> Import
             </button>
             <button
               onClick={handleExportCSV}
-              className="h-10 flex items-center justify-center gap-2 px-4 rounded-xl text-sm font-semibold border border-[#2E86C1] text-[#2E86C1] hover:bg-blue-50 transition-colors"
+              className="h-9 flex items-center justify-center gap-1.5 px-2.5 sm:px-3.5 rounded-lg text-xs font-semibold border border-[#dce6f2] text-[#0D2B55] hover:bg-[#f8fbff] transition-colors"
             >
-              <Download size={15} /> Export CSV
+              <Download size={14} /> Export
             </button>
             <button
-              onClick={() => setShowImportModal(true)}
-              className="h-10 flex items-center justify-center gap-2 px-4 rounded-xl text-sm font-semibold bg-[#0D2B55] hover:bg-[#0a2244] text-white transition-colors"
+              onClick={handlePublishAll}
+              className="h-9 flex items-center justify-center gap-1.5 px-2.5 sm:px-4 rounded-lg text-xs font-semibold bg-[#2E86C1] hover:bg-[#1a6fa8] text-white transition-colors"
             >
-              <Upload size={15} /> Import Excel
+              <Megaphone size={14} /> Publish All
             </button>
           </div>
         </div>
